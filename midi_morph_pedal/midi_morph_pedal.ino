@@ -1,5 +1,5 @@
 /*
- * MIDI Expression Morph Pedal
+ * MIDI Expression Morph Pedal - CORRECTED VERSION
  * Smooth MIDI CC ramping with configurable modes
  * Supports both USB MIDI and 5-pin DIN MIDI
  */
@@ -14,7 +14,7 @@ const int RAMP_DOWN_POT_PIN = A1;
 
 // MIDI settings
 const int MIDI_CHANNEL = 1;    // Change this if needed (1-16)
-const int MIDI_CC_NUMBER = 11; // Change to your desired CC number
+const int MIDI_CC_NUMBER = 4; // Change to your desired CC number
 
 // State variables
 bool footswitchState = false;
@@ -22,15 +22,21 @@ bool lastFootswitchState = false;
 bool latchState = false;
 int currentValue = 0;
 int targetValue = 0;
+int rampStartValue = 0;  // NEW: Store where the ramp started from
 bool isRamping = false;
 bool rampDirectionUp = true; // true = up, false = down
 unsigned long lastRampTime = 0;
-float rampProgress = 0.0;
 int rampDuration = 1000; // milliseconds
+int minRampDuration = 0;
+int maxRampDuration = 1500;
 
-// Debounce
+// Debounce - reduced for better responsiveness
 unsigned long lastDebounceTime = 0;
-const unsigned long debounceDelay = 50;
+const unsigned long debounceDelay = 10; // Reduced from 50ms to 10ms
+
+// Update rate limiting for smoother MIDI output
+unsigned long lastMidiSendTime = 0;
+const unsigned long midiSendInterval = 5; // Send MIDI every 5ms max (200 messages/sec)
 
 void setup()
 {
@@ -54,10 +60,18 @@ void setup()
     currentValue = 127;
     rampDirectionUp = false;
   }
+
+  // Send initial MIDI value so the receiving device knows the starting state
+  sendMIDI(currentValue);
 }
 
 void loop()
 {
+  // Read the direction switch to update the preferred starting direction
+  // This only affects which direction we ramp when the footswitch is pressed
+  // It does NOT reset the current value
+  rampDirectionUp = (digitalRead(DIRECTION_SWITCH_PIN) == HIGH);
+
   // Read footswitch with debounce
   bool reading = digitalRead(FOOTSWITCH_PIN) == LOW; // Active low (pressed = LOW)
 
@@ -103,7 +117,7 @@ void handleFootswitch(bool pressed)
   }
   else
   {
-    // Latching mode: each press/release toggles
+    // Latching mode: each press toggles
     if (pressed)
     {
       latchState = !latchState;
@@ -114,22 +128,23 @@ void handleFootswitch(bool pressed)
 
 void startRamp(bool goingUp)
 {
-  int startValue = currentValue;
+  // FIX: Store the actual starting value for this ramp
+  rampStartValue = currentValue;
 
-  // Determine target and duration
+  // Determine target and base duration
   if (goingUp)
   {
     targetValue = 127;
-    rampDuration = map(analogRead(RAMP_UP_POT_PIN), 0, 1023, 100, 10000);
+    rampDuration = map(analogRead(RAMP_UP_POT_PIN), 0, 1023, minRampDuration, maxRampDuration);
   }
   else
   {
     targetValue = 0;
-    rampDuration = map(analogRead(RAMP_DOWN_POT_PIN), 0, 1023, 100, 10000);
+    rampDuration = map(analogRead(RAMP_DOWN_POT_PIN), 0, 1023, minRampDuration, maxRampDuration);
   }
 
-  // Calculate proportional duration if interrupted mid-ramp
-  int distance = abs(targetValue - startValue);
+  // FIX: Calculate proportional duration based on actual distance to travel
+  int distance = abs(targetValue - rampStartValue);
   if (distance < 127)
   {
     rampDuration = (rampDuration * distance) / 127;
@@ -140,9 +155,12 @@ void startRamp(bool goingUp)
     rampDuration = 100;
 
   isRamping = true;
-  rampProgress = 0.0;
   lastRampTime = millis();
   rampDirectionUp = goingUp;
+  
+  // Send immediate MIDI message at the start of the ramp for instant feedback
+  sendMIDI(currentValue);
+  lastMidiSendTime = millis();
 }
 
 void updateRamp()
@@ -159,8 +177,14 @@ void updateRamp()
     return;
   }
 
+  // Only update at the specified interval to avoid MIDI flooding
+  if (currentTime - lastMidiSendTime < midiSendInterval)
+  {
+    return; // Skip this update, too soon
+  }
+
   // Calculate progress (0.0 to 1.0)
-  rampProgress = (float)elapsed / (float)rampDuration;
+  float rampProgress = (float)elapsed / (float)rampDuration;
 
   // Apply curve
   float curvedProgress = rampProgress;
@@ -168,31 +192,20 @@ void updateRamp()
 
   if (!isLinear)
   {
-    // Exponential curve
+    // Exponential curve (ease-in)
     curvedProgress = curvedProgress * curvedProgress;
   }
 
-  // Calculate current value
-  int startValue = rampDirectionUp ? 0 : 127;
-  int range = rampDirectionUp ? 127 : -127;
-
-  // Account for interrupted ramps
-  if (rampDirectionUp && currentValue > 0)
-  {
-    startValue = currentValue - (int)((currentValue) * (1.0 - rampProgress));
-  }
-  else if (!rampDirectionUp && currentValue < 127)
-  {
-    startValue = currentValue + (int)((127 - currentValue) * (1.0 - rampProgress));
-  }
-
-  int newValue = startValue + (int)(range * curvedProgress);
+  // FIX: Calculate current value using the STORED start value and target
+  // Simple formula: current = start + (distance * progress)
+  int newValue = rampStartValue + (int)((targetValue - rampStartValue) * curvedProgress);
   newValue = constrain(newValue, 0, 127);
 
   if (newValue != currentValue)
   {
     currentValue = newValue;
     sendMIDI(currentValue);
+    lastMidiSendTime = currentTime; // Record when we sent MIDI
   }
 }
 
