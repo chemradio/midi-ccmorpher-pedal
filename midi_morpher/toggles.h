@@ -1,10 +1,7 @@
 #ifndef TOGGLES_H
 #define TOGGLES_H
 #include "config.h"
-#include "settingsState.h"
-#include "controlsState.h"
-
-using ToggleDisplayCallback = void (*)(String, bool, bool);
+#include "pedalState.h"
 
 struct Toggle
 {
@@ -27,7 +24,7 @@ inline void initToggles()
     }
 }
 
-inline bool handleToggle(Toggle &toggle, MIDIMorpherSettingsState &settings, ControlsState &controlsState, ToggleDisplayCallback displayCallback)
+inline bool handleToggleChange(Toggle &toggle, PedalState &pedal)
 {
     bool state = digitalRead(toggle.pin);
     bool isRampDir = (toggle.pin == DIR_PIN);
@@ -36,21 +33,20 @@ inline bool handleToggle(Toggle &toggle, MIDIMorpherSettingsState &settings, Con
         toggle.lastState = state;
         if (toggle.pin == MS2_PIN)
         {
-            settings.hotSwitchLatching = !state;
+            pedal.hotSwitchLatching = !state;
         }
         else if (toggle.pin == DIR_PIN)
         {
-            settings.rampDirectionUp = !state;
+            pedal.rampDirectionUp = !state;
         }
         else if (toggle.pin == LESW_PIN)
         {
-            settings.rampLinearCurve = !state;
+            pedal.rampLinearCurve = !state;
         }
         else if (toggle.pin == LST_PIN)
         {
-            settings.settingsLocked = !state;
+            pedal.settingsLocked = !state;
         }
-        displayCallback(String(toggle.name), !state, isRampDir);
         return true;
     }
     return false;

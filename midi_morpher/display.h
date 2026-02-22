@@ -7,7 +7,8 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "config.h"
-#include "settingsState.h"
+#include "pedalState.h"
+#include "footswitchObject.h"
 
 // Display object
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -47,9 +48,10 @@ void showStartupScreen()
   display.setCursor(10, 30);
   display.println(F("Morpher"));
   display.display();
+  displayMode = DISPLAY_PARAM;
 }
 
-void displayHomeScreen(MIDIMorpherSettingsState &settings)
+void displayHomeScreen(PedalState &pedal)
 {
   displayMode = DISPLAY_DEFAULT;
   lastInteraction = millis();
@@ -61,68 +63,49 @@ void displayHomeScreen(MIDIMorpherSettingsState &settings)
   display.println();
   display.setTextSize(1);
   display.print("MIDI CH:");
-  display.println(String(settings.midiChannel));
-  display.println(settings.rampLinearCurve ? "Linear Ramp" : "Exponential Ramp");
-  display.println(settings.rampDirectionUp ? "Ramp Direction UP" : "Ramp Direction DOWN");
-  display.println(settings.hotSwitchLatching ? "HotSwitch Latching" : "HotSwitch Momentary");
-  display.println(settings.settingsLocked ? "LOCKED" : "");
+  display.println(String(pedal.midiChannel + 1));
+  display.println(pedal.rampLinearCurve ? "Linear Ramp" : "Exponential Ramp");
+  display.println(pedal.rampDirectionUp ? "Ramp Direction UP" : "Ramp Direction DOWN");
+  display.println(pedal.hotSwitchLatching ? "HotSwitch Latching" : "HotSwitch Momentary");
+  display.println(pedal.settingsLocked ? "LOCKED" : "");
   display.display();
 }
 
-void resetDisplayTimeout(MIDIMorpherSettingsState &settings)
+void resetDisplayTimeout(PedalState &pedal)
 {
   unsigned long now = millis();
 
   if (displayMode == DISPLAY_PARAM &&
       now - lastInteraction > displayTimeout)
   {
-
+    lastInteraction = now;
     displayMode = DISPLAY_DEFAULT;
-    displayHomeScreen(settings);
+    displayHomeScreen(pedal);
   }
 }
 
-//
-void displayToggleChange(String toggleName, bool state, bool rampDirection = false)
+void displayFootswitchPress(FSButton &button)
 {
-  return;
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
 
   display.clearDisplay();
-
   display.setTextSize(2);
   display.setCursor(0, 0);
-  display.println(toggleName);
-  display.println();
-  if (rampDirection)
-  {
-    display.println(state ? "UP" : "DOWN");
-  }
-  else
-  {
-    display.println(state ? "ON" : "OFF");
-  }
-  display.display();
-}
 
-void displayFootswitchPress(String fsName, String pcOrCc = "PC", uint8_t channel = 1, uint8_t midiValue = 0)
-{
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0, 0);
-  display.println(fsName);
-  display.print(pcOrCc);
-  display.println(String(midiValue + 1));
-  display.println("Channel:" + String(channel));
+  display.println(button.name);
+  display.print(button.isPC ? "PC: " : "CC: ");
+  display.println(String(button.midiNumber + 1));
+  if (!button.isPC)
+  {
+    display.print("Value: ");
+    display.println(String(button.isActivated ? 127 : 0));
+  }
   display.display();
 }
 
 void displayEncoderTurn(String fsName, bool isPC, uint8_t value)
 {
-
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -134,14 +117,38 @@ void displayEncoderTurn(String fsName, bool isPC, uint8_t value)
   display.display();
 }
 
-void showSignal(String deviceName, long numSignal = 0, String strSignal = "")
-{
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0, 0);
-  display.println(deviceName);
-  display.println(numSignal);
-  display.println(strSignal);
-  display.display();
-}
+// //
+// void displayToggleChange(String toggleName, bool state, bool rampDirection = false)
+// {
+//   return;
+//   displayMode = DISPLAY_PARAM;
+//   lastInteraction = millis();
+
+//   display.clearDisplay();
+
+//   display.setTextSize(2);
+//   display.setCursor(0, 0);
+//   display.println(toggleName);
+//   display.println();
+//   if (rampDirection)
+//   {
+//     display.println(state ? "UP" : "DOWN");
+//   }
+//   else
+//   {
+//     display.println(state ? "ON" : "OFF");
+//   }
+//   display.display();
+// }
+
+// void showSignal(String deviceName, long numSignal = 0, String strSignal = "")
+// {
+//   display.clearDisplay();
+//   display.setTextSize(2);
+//   display.setCursor(0, 0);
+//   display.println(deviceName);
+//   display.println(numSignal);
+//   display.println(strSignal);
+//   display.display();
+// }
 #endif

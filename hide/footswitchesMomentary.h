@@ -34,7 +34,7 @@ inline void handleMomentaryFootswitch(FSButton &btn, ControlsState &controlsStat
     if (reading != btn.lastState)
     {
         btn.lastState = reading;
-        btn.setLED(!reading);
+        btn._setLED(!reading);
 
         bool isPC = false;
         uint8_t midiValue = 0;
