@@ -117,6 +117,22 @@ void displayEncoderTurn(String fsName, bool isPC, uint8_t value)
   display.display();
 }
 
+void encoderButtonFSModeChange(String fsName, String newMode, bool isPC, uint8_t midiNumber)
+{
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println(fsName);
+  display.print("New Mode: ");
+  display.println(newMode);
+  //
+  display.print("MIDI Num: ");
+  display.println(String(midiNumber + 1));
+  display.display();
+}
+
 // //
 // void displayToggleChange(String toggleName, bool state, bool rampDirection = false)
 // {

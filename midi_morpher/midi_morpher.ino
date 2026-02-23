@@ -1,20 +1,20 @@
 // #include "footswitchesMomentary.h"
 // #include "pots.h"
-// #include "encoderButton.h"
 #include "config.h"
 #include "pedalState.h"
 #include "midiOut.h"
 #include "display.h"
 #include "toggles.h"
 #include "encoder.h"
+#include "encoderButton.h"
 
 // initialize global state
 PedalState pedal;
 
 void setup()
 {
-    // Serial.begin(115200);                               // Initialize serial for debugging
-    Serial1.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX); // Initialize DIN MIDI serial
+    Serial.begin(115200); // Initialize serial for debugging
+    // Serial1.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX); // Initialize DIN MIDI serial
     // usbMIDI.begin();
     if (!initDisplay())
     {
@@ -28,7 +28,7 @@ void setup()
     initToggles();
 
     initEncoder();
-    // initEncoderButton();
+    initEncoderButton();
 
     // initAnalogPots();
     // analogReadResolution(12);
@@ -50,8 +50,8 @@ void loop()
             displayHomeScreen(pedal);
         }
     }
-    // handleEncoderButton(controlsState, currentSettings, displayFootswitchPress);
     handleEncoder(pedal, displayEncoderTurn);
+    handleEncoderButton(pedal, encoderButtonFSModeChange);
 
     // // for (auto &pot : analogPots)
     // // {

@@ -2,7 +2,7 @@
 #define ENCODER_H
 #include "config.h"
 #include "pedalState.h"
-
+#include "footswitchObject.h"
 // Declare global variables as extern
 extern volatile int encoderPos;
 extern int lastEncoderPos;
@@ -23,7 +23,7 @@ inline void initEncoder()
     attachInterrupt(digitalPinToInterrupt(ENC_B), encoderISR, CHANGE);
 }
 
-inline void handleEncoder(PedalState pedal, void (*displayCallback)(String, bool, uint8_t))
+inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, bool, uint8_t))
 {
     // Check encoder position
     if (encoderPos == lastEncoderPos)
@@ -40,19 +40,21 @@ inline void handleEncoder(PedalState pedal, void (*displayCallback)(String, bool
 
     if (activeButtonIndex >= 0)
     {
-        pedal.adjustActiveMidiNumber(delta);
-        fsName = pedal.buttons[activeButtonIndex].name;
-        isPC = pedal.buttons[activeButtonIndex].isPC;
-        outValue = pedal.buttons[activeButtonIndex].midiNumber;
+        FSButton &activeButton = pedal.buttons[activeButtonIndex];
+        activeButton.midiNumber = constrain(activeButton.midiNumber + delta, 0, 127);
+        fsName = activeButton.name;
+        isPC = activeButton.isPC;
+        outValue = activeButton.midiNumber;
     }
     else
     {
         uint8_t midiChannel = pedal.midiChannel;
         outValue = constrain(midiChannel + delta, 0, 15);
         pedal.midiChannel = outValue;
-        fsName = "MIDI Channel";
+        fsName = "MIDI Ch";
         isPC = false;
     }
+
     displayCallback(fsName, isPC, outValue);
 }
 

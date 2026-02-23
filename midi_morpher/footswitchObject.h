@@ -127,12 +127,18 @@ struct FSButton
         {
         case FootswitchMode::MomentaryPC:
             mode = FootswitchMode::LatchingCC;
+            isLatching = true;
+            isPC = false;
             return "latchCC";
         case FootswitchMode::LatchingCC:
             mode = FootswitchMode::MomentaryCC;
+            isLatching = false;
+            isPC = false;
             return "momCC";
         case FootswitchMode::MomentaryCC:
             mode = FootswitchMode::MomentaryPC;
+            isLatching = false;
+            isPC = true;
             return "momPC";
         }
         return "unknown";
