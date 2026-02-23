@@ -44,7 +44,6 @@ inline void handleEncoder(PedalState pedal, void (*displayCallback)(String, bool
         fsName = pedal.buttons[activeButtonIndex].name;
         isPC = pedal.buttons[activeButtonIndex].isPC;
         outValue = pedal.buttons[activeButtonIndex].midiNumber;
-        return;
     }
     else
     {
