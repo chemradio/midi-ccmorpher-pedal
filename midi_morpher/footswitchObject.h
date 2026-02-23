@@ -3,6 +3,14 @@
 #include "midiOut.h"
 #include "config.h"
 
+// enum for footswitch mode
+enum class FootswitchMode
+{
+    MomentaryPC,
+    LatchingCC,
+    MomentaryCC
+};
+
 struct FSButton
 {
     // unique fields
@@ -20,6 +28,7 @@ struct FSButton
     bool isActivated = false;
     bool isPC = true;
     uint8_t midiNumber = 0;
+    FootswitchMode mode = FootswitchMode::MomentaryPC;
 
     // constructor
     FSButton(uint8_t p, uint8_t lp, const char *n, uint8_t mN) : pin(p), ledPin(lp), name(n), midiNumber(mN) {}
@@ -109,6 +118,24 @@ struct FSButton
             else
                 _handleMomentary(midiChannel, reading, displayCallback);
         }
+    }
+
+    const char *toggleFootswitchMode()
+    {
+        // three modes total: momentary PC, latching CC, momentary CC, need to cycle through
+        switch (mode)
+        {
+        case FootswitchMode::MomentaryPC:
+            mode = FootswitchMode::LatchingCC;
+            return "latchCC";
+        case FootswitchMode::LatchingCC:
+            mode = FootswitchMode::MomentaryCC;
+            return "momCC";
+        case FootswitchMode::MomentaryCC:
+            mode = FootswitchMode::MomentaryPC;
+            return "momPC";
+        }
+        return "unknown";
     }
 };
 
