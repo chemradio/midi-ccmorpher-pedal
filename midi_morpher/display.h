@@ -130,6 +130,21 @@ void encoderButtonFSModeChange(String fsName, String newMode, bool isPC, uint8_t
   display.display();
 }
 
+void displayPotValue(String potName, uint16_t potValue, uint8_t scaledValue)
+{
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.println(potName);
+  display.print("Raw: ");
+  display.println(potValue);
+  display.print("Scaled: ");
+  display.println(scaledValue);
+  display.display();
+}
+
 // //
 // void displayToggleChange(String toggleName, bool state, bool rampDirection = false)
 // {

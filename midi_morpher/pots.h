@@ -1,9 +1,8 @@
 #ifndef POTS_H
 #define POTS_H
 #include "config.h"
-#include "controlsState.h"
+#include "pedalState.h"
 
-using SignalCallback = void (*)(String, long, String);
 inline const uint16_t potDeadband = 10;
 
 struct AnalogPot
@@ -16,8 +15,8 @@ struct AnalogPot
 };
 
 inline AnalogPot analogPots[] = {
-    {POT1_PIN, "Pot1", 0, 0},
-    {POT2_PIN, "Pot2", 0, 0}};
+    {POT1_PIN, "UP Speed", 0, 0},
+    {POT2_PIN, "Down Speed", 0, 0}};
 
 inline void initAnalogPots()
 {
@@ -27,7 +26,7 @@ inline void initAnalogPots()
     }
 }
 
-inline void handleAnalogPot(AnalogPot &pot, ControlsState &controlsState, SignalCallback cb)
+inline void handleAnalogPot(AnalogPot &pot, void (*displayCallback)(String, uint16_t, uint8_t))
 {
     const float alpha = 0.18f;
 
@@ -49,10 +48,10 @@ inline void handleAnalogPot(AnalogPot &pot, ControlsState &controlsState, Signal
         // precise 0–127 scaling
         uint8_t scaled = (smooth * 128UL) / 4096;
 
-        cb(
+        displayCallback(
             String(pot.name),
             smooth,
-            String(scaled));
+            scaled);
     }
 }
 // inline void handleAnalogPot(AnalogPot &pot, SignalCallback cb)

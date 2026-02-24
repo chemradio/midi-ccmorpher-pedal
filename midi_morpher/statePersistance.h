@@ -5,20 +5,12 @@ inline Preferences prefs;
 inline bool stateDirty = false;
 inline unsigned long lastDirtyTime = 0;
 inline constexpr unsigned long SAVE_DELAY = 5000;
+inline constexpr unsigned long ENCBTN_SAVE_TIMEOUT = 2000;
 
 inline void markStateDirty()
 {
     stateDirty = true;
     lastDirtyTime = millis();
-}
-
-inline void checkAndSaveState(const PedalState &state)
-{
-    if (stateDirty && (millis() - lastDirtyTime) >= SAVE_DELAY)
-    {
-        saveState(state);
-        stateDirty = false;
-    }
 }
 
 struct FSButtonPersisted
@@ -73,4 +65,13 @@ inline void loadState(PedalState &state)
     }
 
     prefs.end();
+}
+
+inline void checkAndSaveState(const PedalState &state)
+{
+    if (stateDirty && (millis() - lastDirtyTime) >= SAVE_DELAY)
+    {
+        saveState(state);
+        stateDirty = false;
+    }
 }

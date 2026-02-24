@@ -2,6 +2,8 @@
 #include "midiOut.h"
 #include "config.h"
 
+inline constexpr unsigned long LONG_PRESS_TIMEOUT = 2000;
+
 // enum for footswitch mode
 enum class FootswitchMode
 {
@@ -21,10 +23,12 @@ struct FSButton
     bool ledState = false;
     bool lastState = HIGH;
     unsigned long lastDebounce = 0;
+    unsigned long holdTime = 0;
     uint8_t lastCCValue = 0;
     bool isPressed = false;
     bool isLatching = false;
     bool isActivated = false;
+    bool isLongPressActivated = false;
     bool isPC = true;
     uint8_t midiNumber = 0;
     FootswitchMode mode = FootswitchMode::MomentaryPC;
@@ -101,11 +105,7 @@ struct FSButton
         }
 
         bool reading = digitalRead(pin);
-
-        if (reading)
-            isPressed = false;
-        else
-            isPressed = true;
+        isPressed = (reading == LOW);
 
         if (reading != lastState)
         {
@@ -119,7 +119,7 @@ struct FSButton
         }
     }
 
-    const char *toggleFootswitchMode()
+        const char *toggleFootswitchMode()
     {
         // three modes total: momentary PC, latching CC, momentary CC, need to cycle through
         switch (mode)

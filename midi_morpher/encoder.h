@@ -2,6 +2,8 @@
 #include "config.h"
 #include "pedalState.h"
 #include "footswitchObject.h"
+#include "statePersistance.h"
+
 // Declare global variables as extern
 extern volatile int encoderPos;
 extern int lastEncoderPos;

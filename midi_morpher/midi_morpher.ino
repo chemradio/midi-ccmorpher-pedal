@@ -1,5 +1,4 @@
 // #include "footswitchesMomentary.h"
-// #include "pots.h"
 #include "config.h"
 #include "pedalState.h"
 #include "midiOut.h"
@@ -8,6 +7,7 @@
 #include "encoder.h"
 #include "encoderButton.h"
 #include "statePersistance.h"
+#include "pots.h"
 
 // initialize global state
 PedalState pedal;
@@ -15,11 +15,10 @@ PedalState pedal;
 void setup()
 {
     Serial.begin(115200); // Initialize serial for debugging
-    // Serial1.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX); // Initialize DIN MIDI serial
-    // usbMIDI.begin();
+    // // Serial1.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX); // Initialize DIN MIDI serial
+    // // usbMIDI.begin();
     if (!initDisplay())
     {
-        // Serial.println("FAIL: Display init failed!");
         while (1)
             delay(1000);
     }
@@ -31,8 +30,8 @@ void setup()
     initEncoder();
     initEncoderButton();
 
-    // initAnalogPots();
-    // analogReadResolution(12);
+    analogReadResolution(12);
+    initAnalogPots();
     loadState(pedal);
     delay(2000);
 }
@@ -52,14 +51,14 @@ void loop()
             displayHomeScreen(pedal);
         }
     }
+    for (auto &pot : analogPots)
+    {
+        handleAnalogPot(pot, displayPotValue);
+    }
     handleEncoder(pedal, displayEncoderTurn);
     handleEncoderButton(pedal, encoderButtonFSModeChange);
-
-    // // for (auto &pot : analogPots)
-    // // {
-    // //     handleAnalogPot(pot, controlsState, showSignal);
-    // // }
     resetDisplayTimeout(pedal);
     checkAndSaveState(pedal);
+    // tempDisplayPotValue(potValue);
     delay(10);
 }
