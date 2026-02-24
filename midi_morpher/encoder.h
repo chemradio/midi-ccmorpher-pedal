@@ -1,5 +1,4 @@
-#ifndef ENCODER_H
-#define ENCODER_H
+#pragma once
 #include "config.h"
 #include "pedalState.h"
 #include "footswitchObject.h"
@@ -56,6 +55,5 @@ inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, boo
     }
 
     displayCallback(fsName, isPC, outValue);
+    markStateDirty();
 }
-
-#endif

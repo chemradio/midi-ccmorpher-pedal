@@ -1,8 +1,6 @@
 // config.h - Pin definitions and constants
 
-#ifndef CONFIG_H
-#define CONFIG_H
-
+#pragma once
 #include <Arduino.h>
 
 // Footswitch pins
@@ -61,5 +59,3 @@
 // MIDI constants
 #define NUM_FOOTSWITCHES 4
 #define NUM_PROGRESS_LEDS 8
-
-#endif

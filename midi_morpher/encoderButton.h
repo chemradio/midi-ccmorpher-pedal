@@ -1,8 +1,8 @@
-#ifndef ENCODER_BUTTON_H
-#define ENCODER_BUTTON_H
+#pragma once
 #include "config.h"
 #include "footswitchObject.h"
 #include "pedalState.h"
+#include "statePersistance.h"
 
 inline FSButton encBtn = {ENC_BTN, NO_LED_PIN, "Enc BTN", 0};
 
@@ -53,6 +53,7 @@ inline void handleEncoderButton(PedalState &pedal, void (*displayCallback)(Strin
             // Serial.println(outValue);
             encBtn.lastDebounce = millis();
             displayCallback(fsName, newMode, isPC, activeButton.midiNumber);
+            markStateDirty();
             return;
         }
         // else
@@ -66,5 +67,3 @@ inline void handleEncoderButton(PedalState &pedal, void (*displayCallback)(Strin
         // }
     }
 }
-
-#endif

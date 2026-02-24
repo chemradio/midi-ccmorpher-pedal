@@ -1,5 +1,4 @@
-#ifndef TOGGLES_H
-#define TOGGLES_H
+#pragma once
 #include "config.h"
 #include "pedalState.h"
 
@@ -51,5 +50,3 @@ inline bool handleToggleChange(Toggle &toggle, PedalState &pedal)
     }
     return false;
 }
-
-#endif

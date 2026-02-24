@@ -1,5 +1,4 @@
-#ifndef PEDAL_STATE_H
-#define PEDAL_STATE_H
+#pragma once
 #include "config.h"
 #include "footswitchObject.h"
 
@@ -66,5 +65,3 @@ struct PedalState
         }
     }
 };
-
-#endif

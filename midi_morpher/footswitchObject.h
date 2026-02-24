@@ -1,5 +1,4 @@
-#ifndef FOOTSWITCH_OBJECT_H
-#define FOOTSWITCH_OBJECT_H
+#pragma once
 #include "midiOut.h"
 #include "config.h"
 
@@ -144,5 +143,3 @@ struct FSButton
         return "unknown";
     }
 };
-
-#endif

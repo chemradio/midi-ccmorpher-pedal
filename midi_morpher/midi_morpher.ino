@@ -7,6 +7,7 @@
 #include "toggles.h"
 #include "encoder.h"
 #include "encoderButton.h"
+#include "statePersistance.h"
 
 // initialize global state
 PedalState pedal;
@@ -32,6 +33,7 @@ void setup()
 
     // initAnalogPots();
     // analogReadResolution(12);
+    loadState(pedal);
     delay(2000);
 }
 
@@ -58,5 +60,6 @@ void loop()
     // //     handleAnalogPot(pot, controlsState, showSignal);
     // // }
     resetDisplayTimeout(pedal);
+    checkAndSaveState(pedal);
     delay(10);
 }

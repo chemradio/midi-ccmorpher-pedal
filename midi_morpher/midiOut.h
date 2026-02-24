@@ -1,5 +1,4 @@
-#ifndef MIDIOUT_H
-#define MIDIOUT_H
+#pragma once
 #include <Arduino.h>
 // #include <Adafruit_TinyUSB.h>
 // Adafruit_USBD_MIDI usbMIDI;
@@ -49,5 +48,3 @@ inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value =
     }
 #endif
 }
-
-#endif
