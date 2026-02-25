@@ -24,8 +24,14 @@ inline void initEncoder()
     attachInterrupt(digitalPinToInterrupt(ENC_B), encoderISR, CHANGE);
 }
 
-inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, bool, uint8_t))
+inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, bool, uint8_t), void (*displayLockedMessage)())
 {
+    if (pedal.settingsLocked)
+    {
+        displayLockedMessage();
+        return;
+    }
+
     // Check encoder position
     if (encoderPos == lastEncoderPos)
         return;

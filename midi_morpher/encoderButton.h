@@ -11,8 +11,13 @@ inline void initEncoderButton()
     pinMode(encBtn.pin, INPUT_PULLUP);
 }
 
-inline void handleEncoderButton(PedalState &pedal, void (*displayCallback)(String, String, bool, uint8_t))
+inline void handleEncoderButton(PedalState &pedal, void (*displayCallback)(String, String, bool, uint8_t), void (*displayLockedMessage)())
 {
+    if (pedal.settingsLocked)
+    {
+        displayLockedMessage();
+        return;
+    }
     // debounce
     if ((millis() - encBtn.lastDebounce) < DEBOUNCE_DELAY)
         return;

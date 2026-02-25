@@ -47,6 +47,17 @@ void showStartupScreen()
   display.display();
   displayMode = DISPLAY_PARAM;
 }
+void displayLockedMessage()
+{
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.println(F("Settings"));
+  display.println(F("LOCKED"));
+  display.display();
+  displayMode = DISPLAY_PARAM;
+}
 
 void displayHomeScreen(PedalState &pedal)
 {

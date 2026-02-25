@@ -23,30 +23,48 @@ inline void initToggles()
     }
 }
 
-inline bool handleToggleChange(Toggle &toggle, PedalState &pedal)
+inline bool handleToggleChange(Toggle &toggle, PedalState &pedal, void (*displayLockedMessage)())
 {
     bool state = digitalRead(toggle.pin);
     bool isRampDir = (toggle.pin == DIR_PIN);
+
     if (state != toggle.lastState)
     {
         toggle.lastState = state;
-        if (toggle.pin == MS2_PIN)
+
+        if (pedal.settingsLocked)
         {
-            pedal.hotSwitchLatching = !state;
+            if (toggle.pin == LST_PIN)
+            {
+                pedal.settingsLocked = !state;
+                return true;
+            }
+            else
+            {
+                displayLockedMessage();
+                return false;
+            }
         }
-        else if (toggle.pin == DIR_PIN)
+        else
         {
-            pedal.rampDirectionUp = !state;
+            if (toggle.pin == MS2_PIN)
+            {
+                pedal.hotSwitchLatching = !state;
+            }
+            else if (toggle.pin == DIR_PIN)
+            {
+                pedal.rampDirectionUp = !state;
+            }
+            else if (toggle.pin == LESW_PIN)
+            {
+                pedal.rampLinearCurve = !state;
+            }
+            else if (toggle.pin == LST_PIN)
+            {
+                pedal.settingsLocked = !state;
+            }
+            return true;
         }
-        else if (toggle.pin == LESW_PIN)
-        {
-            pedal.rampLinearCurve = !state;
-        }
-        else if (toggle.pin == LST_PIN)
-        {
-            pedal.settingsLocked = !state;
-        }
-        return true;
     }
     return false;
 }

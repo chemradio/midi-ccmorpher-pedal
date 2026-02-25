@@ -26,8 +26,14 @@ inline void initAnalogPots()
     }
 }
 
-inline void handleAnalogPot(AnalogPot &pot, void (*displayCallback)(String, uint16_t, uint8_t))
+inline void handleAnalogPot(AnalogPot &pot, void (*displayCallback)(String, uint16_t, uint8_t), void (*displayLockedMessage)())
 {
+    if (pedal.settingsLocked)
+    {
+        displayLockedMessage();
+        return;
+    }
+
     const float alpha = 0.18f;
 
     uint16_t raw = analogRead(pot.pin);

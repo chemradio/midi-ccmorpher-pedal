@@ -11,6 +11,10 @@
 
 // initialize global state
 PedalState pedal;
+// Toggle &hsLatchToggle = toggles[0];
+// Toggle &rampDirToggle = toggles[1];
+// Toggle &rampCurveToggle = toggles[2];
+// Toggle &lockSettingsToggle = toggles[3];
 
 void setup()
 {
@@ -45,7 +49,7 @@ void loop()
 
     for (auto &tgl : toggles)
     {
-        bool toggleChanged = handleToggleChange(tgl, pedal);
+        bool toggleChanged = handleToggleChange(tgl, pedal, displayLockedMessage);
         if (toggleChanged)
         {
             displayHomeScreen(pedal);
@@ -53,10 +57,10 @@ void loop()
     }
     for (auto &pot : analogPots)
     {
-        handleAnalogPot(pot, displayPotValue);
+        handleAnalogPot(pot, displayPotValue, displayLockedMessage);
     }
-    handleEncoder(pedal, displayEncoderTurn);
-    handleEncoderButton(pedal, encoderButtonFSModeChange);
+    handleEncoder(pedal, displayEncoderTurn, displayLockedMessage);
+    handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage);
     resetDisplayTimeout(pedal);
     checkAndSaveState(pedal);
     // tempDisplayPotValue(potValue);
