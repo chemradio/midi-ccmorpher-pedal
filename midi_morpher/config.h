@@ -28,10 +28,10 @@
 #define EXP_IN 12
 
 // Toggle switches
-#define MS2_PIN 13  // Momentary/Latching
-#define DIR_PIN 14  // Direction
-#define LESW_PIN 21 // Linear/Exponential
-#define LST_PIN 47  // Lock settings
+#define MS2_PIN 13         // Momentary/Latching
+#define POT_MODE_TOGGLE 14 // Switches between pots func - ramp speed vs direct send CC
+#define LESW_PIN 21        // Linear/Exponential
+#define LST_PIN 47         // Lock settings
 
 // I2C Display
 #define SDA_PIN 41
@@ -59,3 +59,5 @@
 // MIDI constants
 #define NUM_FOOTSWITCHES 4
 #define NUM_PROGRESS_LEDS 8
+#define POT1_CC 20
+#define POT2_CC 21

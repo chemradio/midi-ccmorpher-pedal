@@ -18,8 +18,8 @@ PedalState pedal;
 
 void setup()
 {
-    Serial.begin(115200); // Initialize serial for debugging
-    // // Serial1.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX); // Initialize DIN MIDI serial
+    Serial.begin(115200);                               // Initialize serial for debugging
+    Serial1.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX); // Initialize DIN MIDI serial
     // // usbMIDI.begin();
     if (!initDisplay())
     {
@@ -27,13 +27,10 @@ void setup()
             delay(1000);
     }
     showStartupScreen();
-
+    initToggles(pedal);
     pedal.initButtons();
-    initToggles();
-
     initEncoder();
     initEncoderButton();
-
     analogReadResolution(12);
     initAnalogPots();
     loadState(pedal);
@@ -57,7 +54,7 @@ void loop()
     }
     for (auto &pot : analogPots)
     {
-        handleAnalogPot(pot, displayPotValue, displayLockedMessage);
+        handleAnalogPot(pot, pedal, displayPotValue, displayLockedMessage);
     }
     handleEncoder(pedal, displayEncoderTurn, displayLockedMessage);
     handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage);

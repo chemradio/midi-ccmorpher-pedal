@@ -11,22 +11,25 @@ struct Toggle
 
 inline Toggle toggles[] = {
     {MS2_PIN, "HotSwitch Latching", HIGH},
-    {DIR_PIN, "Ramp Direction", HIGH},
+    {POT_MODE_TOGGLE, "Pot Mode", HIGH},
     {LESW_PIN, "Linear/Exp", HIGH},
     {LST_PIN, "Lock Settings", HIGH}};
 
-inline void initToggles()
+inline void initToggles(PedalState &pedal)
 {
     for (int i = 0; i < 4; i++)
     {
         pinMode(toggles[i].pin, INPUT_PULLUP);
     }
+    pedal.hotSwitchLatching = !digitalRead(MS2_PIN);
+    pedal.potMode = digitalRead(POT_MODE_TOGGLE) ? PotMode::RampSpeed : PotMode::SendCC;
+    pedal.rampLinearCurve = !digitalRead(LESW_PIN);
+    pedal.settingsLocked = !digitalRead(LST_PIN);
 }
 
-inline bool handleToggleChange(Toggle &toggle, PedalState &pedal, void (*displayLockedMessage)())
+inline bool handleToggleChange(Toggle &toggle, PedalState &pedal, void (*displayLockedMessage)(String))
 {
     bool state = digitalRead(toggle.pin);
-    bool isRampDir = (toggle.pin == DIR_PIN);
 
     if (state != toggle.lastState)
     {
@@ -41,7 +44,7 @@ inline bool handleToggleChange(Toggle &toggle, PedalState &pedal, void (*display
             }
             else
             {
-                displayLockedMessage();
+                displayLockedMessage("toggles");
                 return false;
             }
         }
@@ -51,9 +54,9 @@ inline bool handleToggleChange(Toggle &toggle, PedalState &pedal, void (*display
             {
                 pedal.hotSwitchLatching = !state;
             }
-            else if (toggle.pin == DIR_PIN)
+            else if (toggle.pin == POT_MODE_TOGGLE)
             {
-                pedal.rampDirectionUp = !state;
+                pedal.potMode = state ? PotMode::RampSpeed : PotMode::SendCC;
             }
             else if (toggle.pin == LESW_PIN)
             {

@@ -119,7 +119,7 @@ struct FSButton
         }
     }
 
-        const char *toggleFootswitchMode()
+    const char *toggleFootswitchMode()
     {
         // three modes total: momentary PC, latching CC, momentary CC, need to cycle through
         switch (mode)

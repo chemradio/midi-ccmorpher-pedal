@@ -24,14 +24,8 @@ inline void initEncoder()
     attachInterrupt(digitalPinToInterrupt(ENC_B), encoderISR, CHANGE);
 }
 
-inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, bool, uint8_t), void (*displayLockedMessage)())
+inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, bool, uint8_t), void (*displayLockedMessage)(String))
 {
-    if (pedal.settingsLocked)
-    {
-        displayLockedMessage();
-        return;
-    }
-
     // Check encoder position
     if (encoderPos == lastEncoderPos)
         return;
@@ -47,6 +41,11 @@ inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, boo
 
     if (activeButtonIndex >= 0)
     {
+        if (pedal.settingsLocked)
+        {
+            displayLockedMessage("enc");
+            return;
+        }
         FSButton &activeButton = pedal.buttons[activeButtonIndex];
         activeButton.midiNumber = constrain(activeButton.midiNumber + delta, 0, 127);
         fsName = activeButton.name;
@@ -55,6 +54,11 @@ inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, boo
     }
     else
     {
+        if (pedal.settingsLocked)
+        {
+            displayLockedMessage("enc");
+            return;
+        }
         uint8_t midiChannel = pedal.midiChannel;
         outValue = constrain(midiChannel + delta, 0, 15);
         pedal.midiChannel = outValue;

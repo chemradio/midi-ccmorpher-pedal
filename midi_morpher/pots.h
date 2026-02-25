@@ -2,62 +2,121 @@
 #define POTS_H
 #include "config.h"
 #include "pedalState.h"
+#include "midiOut.h"
 
-inline const uint16_t potDeadband = 10;
+inline const uint8_t potDeadband = 20;
+unsigned long lastSettingsBlockedDisplayed = 0;
+unsigned long settingsBlockedDisplayTimeout = 1000;
 
 struct AnalogPot
 {
     uint8_t pin;
     const char *name;
-    uint16_t lastValue;
-    uint16_t lastValueMidi;
-    float filtered = 0;
+    uint8_t midiCCNumber;
+    uint16_t lastValue = 0;
+    uint8_t lastMidiValue = 0;
+
+    void sendMidiCC(uint8_t midiChannel)
+    {
+        sendMIDI(midiChannel, false, midiCCNumber, lastMidiValue);
+    }
 };
 
 inline AnalogPot analogPots[] = {
-    {POT1_PIN, "UP Speed", 0, 0},
-    {POT2_PIN, "Down Speed", 0, 0}};
+    {POT1_PIN, "UP Speed", POT1_CC},
+    {POT2_PIN, "Down Speed", POT2_CC}};
+
+uint16_t readPotMedian(uint8_t pin)
+{
+    uint16_t a = analogRead(pin);
+    uint16_t b = analogRead(pin);
+    uint16_t c = analogRead(pin);
+    uint16_t minv = min(a, min(b, c));
+    uint16_t maxv = max(a, max(b, c));
+    return a + b + c - minv - maxv; // middle value
+}
+
+uint16_t readPotAvg(uint8_t pin)
+{
+    uint32_t sum = 0;
+    for (int i = 0; i < 4; i++)
+    {
+        sum += analogRead(pin);
+    }
+    return sum >> 2; // divide by 4
+}
 
 inline void initAnalogPots()
 {
     for (int i = 0; i < 2; i++)
     {
         pinMode(analogPots[i].pin, INPUT);
+        uint16_t medianRead = readPotMedian(analogPots[i].pin);
+        analogPots[i].lastValue = medianRead;
+        analogPots[i].lastMidiValue = (medianRead * 128UL) / 4096;
     }
 }
 
-inline void handleAnalogPot(AnalogPot &pot, void (*displayCallback)(String, uint16_t, uint8_t), void (*displayLockedMessage)())
+inline void handleAnalogPot(AnalogPot &pot, PedalState &pedal, void (*displayCallback)(String, bool, uint8_t, long), void (*displayLockedMessage)(String))
 {
-    if (pedal.settingsLocked)
+
+    // uint16_t raw = analogRead(pot.pin);
+    uint16_t selectedValue = readPotMedian(pot.pin);
+
+    if (abs((int)selectedValue - (int)pot.lastValue) > potDeadband)
     {
-        displayLockedMessage();
-        return;
-    }
 
-    const float alpha = 0.18f;
+        pot.lastValue = selectedValue;
+        uint8_t midiScaled = (selectedValue * 128UL) / 4096;
 
-    uint16_t raw = analogRead(pot.pin);
-
-    // exponential smoothing
-    pot.filtered += alpha * (raw - pot.filtered);
-    uint16_t smooth = (uint16_t)pot.filtered;
-
-    // deadband check
-    if (abs((int)smooth - (int)pot.lastValue) > potDeadband)
-    {
-        pot.lastValue = smooth;
+        if (pedal.settingsLocked)
+        {
+            unsigned long now = millis();
+            if ((now - lastSettingsBlockedDisplayed) > settingsBlockedDisplayTimeout)
+            {
+                displayLockedMessage("pots");
+                lastSettingsBlockedDisplayed = now;
+            }
+            return;
+        }
 
         // clamp to ADC range
-        if (smooth > 4095)
-            smooth = 4095;
+        if (selectedValue > 4095)
+            selectedValue = 4095;
 
-        // precise 0–127 scaling
-        uint8_t scaled = (smooth * 128UL) / 4096;
+        long rampMs = map(selectedValue, 0, 4095, pedal.rampMinSpeedSeconds, pedal.rampMaxSpeedSeconds);
+
+        bool isMidiCC = false;
+        String potDisplayName = "";
+
+        if (pedal.potMode == PotMode::SendCC)
+        {
+            if (midiScaled != pot.lastMidiValue)
+            {
+                pot.lastMidiValue = midiScaled;
+                isMidiCC = true;
+                potDisplayName = "MidiCC: " + String(pot.midiCCNumber);
+                pot.sendMidiCC(pedal.midiChannel);
+            }
+        }
+        else
+        {
+            if (pot.pin == POT1_PIN)
+            {
+                pedal.rampUpSpeed = rampMs;
+            }
+            else if (pot.pin == POT2_PIN)
+            {
+                pedal.rampDownSpeed = rampMs;
+            }
+            potDisplayName = pot.name;
+        }
 
         displayCallback(
-            String(pot.name),
-            smooth,
-            scaled);
+            potDisplayName,
+            isMidiCC,
+            midiScaled,
+            rampMs);
     }
 }
 // inline void handleAnalogPot(AnalogPot &pot, SignalCallback cb)

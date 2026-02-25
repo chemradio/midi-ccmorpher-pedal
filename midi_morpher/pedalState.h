@@ -2,6 +2,12 @@
 #include "config.h"
 #include "footswitchObject.h"
 
+enum class PotMode
+{
+    RampSpeed,
+    SendCC
+};
+
 struct PedalState
 {
     // pedal globals
@@ -9,15 +15,18 @@ struct PedalState
     bool rampLinearCurve = true;
     bool rampDirectionUp = true;
     bool hotSwitchLatching = false;
+    PotMode potMode = PotMode::RampSpeed;
     bool settingsLocked = false;
-    float rampSpeed = 1.0;
-    float rampMinSpeedSeconds = 0.1;
-    float rampMaxSpeedSeconds = 5.0;
+
+    unsigned long rampUpSpeed = 1.0;
+    unsigned long rampDownSpeed = 1.0;
+    unsigned long rampMinSpeedSeconds = 0;
+    unsigned long rampMaxSpeedSeconds = 5000;
 
     int8_t activeButtonIndex = -1;
 
     // temporary states for ramp
-    float rampProgress = 0; // 0-1
+    uint8_t rampProgress = 0; // 0-255
     uint8_t rampProgressMIDI = 0;
     bool ramping = false;
     bool rampingUp = false;
@@ -63,5 +72,30 @@ struct PedalState
 
             btn.midiNumber = newValue;
         }
+    }
+
+    const char *getPotMode()
+    {
+        switch (potMode)
+        {
+        case PotMode::RampSpeed:
+            return "Ramp Speed";
+        case PotMode::SendCC:
+            return "Send CC";
+        }
+    }
+
+    const char *togglePotMode()
+    {
+        switch (potMode)
+        {
+        case PotMode::RampSpeed:
+            potMode = PotMode::SendCC;
+            return "Send CC";
+        case PotMode::SendCC:
+            potMode = PotMode::RampSpeed;
+            return "Ramp Speed";
+        }
+        return "unknown";
     }
 };

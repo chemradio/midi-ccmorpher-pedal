@@ -47,7 +47,7 @@ void showStartupScreen()
   display.display();
   displayMode = DISPLAY_PARAM;
 }
-void displayLockedMessage()
+void displayLockedMessage(String whoSays = "")
 {
   display.clearDisplay();
   display.invertDisplay(false);
@@ -55,6 +55,8 @@ void displayLockedMessage()
   display.setCursor(0, 0);
   display.println(F("Settings"));
   display.println(F("LOCKED"));
+  display.print("From");
+  display.println(whoSays);
   display.display();
   displayMode = DISPLAY_PARAM;
 }
@@ -68,12 +70,13 @@ void displayHomeScreen(PedalState &pedal)
   display.setTextSize(1);
   display.setCursor(0, 0);
   display.println("MIDI Morpher");
-  display.println();
   display.setTextSize(1);
-  display.print("MIDI CH:");
+  display.print("Channel:");
   display.println(String(pedal.midiChannel + 1));
+  display.println();
   display.println(pedal.rampLinearCurve ? "Linear Ramp" : "Exponential Ramp");
-  display.println(pedal.rampDirectionUp ? "Ramp Direction UP" : "Ramp Direction DOWN");
+  display.print("Pots: ");
+  display.println(pedal.getPotMode());
   display.println(pedal.hotSwitchLatching ? "HotSwitch Latching" : "HotSwitch Momentary");
   display.println(pedal.settingsLocked ? "LOCKED" : "");
   display.display();
@@ -141,7 +144,7 @@ void encoderButtonFSModeChange(String fsName, String newMode, bool isPC, uint8_t
   display.display();
 }
 
-void displayPotValue(String potName, uint16_t potValue, uint8_t scaledValue)
+void displayPotRampSpeed(String potName, long rampMs)
 {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
@@ -149,11 +152,33 @@ void displayPotValue(String potName, uint16_t potValue, uint8_t scaledValue)
   display.setTextSize(2);
   display.setCursor(0, 0);
   display.println(potName);
-  display.print("Raw: ");
-  display.println(potValue);
-  display.print("Scaled: ");
-  display.println(scaledValue);
+  display.println("");
+  float seconds = rampMs / 1000.0f;
+  display.print(seconds, 2);
+  display.println("s");
   display.display();
+}
+
+void displayPotCC(String potName, uint8_t midiScaled)
+{
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(0, 0);
+  display.println(potName);
+  display.println("");
+  display.print("Value: ");
+  display.println(midiScaled);
+  display.display();
+}
+
+void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, long rampMs)
+{
+  if (isMidiCC)
+    displayPotCC(potName, midiScaled);
+  else
+    displayPotRampSpeed(potName, rampMs);
 }
 
 // //
