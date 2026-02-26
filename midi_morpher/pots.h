@@ -84,7 +84,7 @@ inline void handleAnalogPot(AnalogPot &pot, PedalState &pedal, void (*displayCal
         if (selectedValue > 4095)
             selectedValue = 4095;
 
-        long rampMs = map(selectedValue, 0, 4095, pedal.rampMinSpeedSeconds, pedal.rampMaxSpeedSeconds);
+        long rampMs = map(selectedValue, 0, 4095, pedal.rampMinSpeedMs, pedal.rampMaxSpeedMs);
 
         bool isMidiCC = false;
         String potDisplayName = "";
@@ -103,11 +103,11 @@ inline void handleAnalogPot(AnalogPot &pot, PedalState &pedal, void (*displayCal
         {
             if (pot.pin == POT1_PIN)
             {
-                pedal.rampUpSpeed = rampMs;
+                pedal.ramp.rampUpMs = rampMs;
             }
             else if (pot.pin == POT2_PIN)
             {
-                pedal.rampDownSpeed = rampMs;
+                pedal.ramp.rampDownMs = rampMs;
             }
             potDisplayName = pot.name;
         }

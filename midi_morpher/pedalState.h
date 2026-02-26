@@ -1,6 +1,7 @@
 #pragma once
 #include "config.h"
 #include "footswitchObject.h"
+#include "ramps.h"
 
 enum class PotMode
 {
@@ -12,24 +13,16 @@ struct PedalState
 {
     // pedal globals
     uint8_t midiChannel = 0;
-    bool rampLinearCurve = true;
-    bool rampDirectionUp = true;
     bool hotSwitchLatching = false;
-    PotMode potMode = PotMode::RampSpeed;
     bool settingsLocked = false;
-
-    unsigned long rampUpSpeed = 1.0;
-    unsigned long rampDownSpeed = 1.0;
-    unsigned long rampMinSpeedSeconds = 0;
-    unsigned long rampMaxSpeedSeconds = 5000;
-
+    bool rampLinearCurve = true;
     int8_t activeButtonIndex = -1;
+    //
+    unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
+    unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
 
-    // temporary states for ramp
-    uint8_t rampProgress = 0; // 0-255
-    uint8_t rampProgressMIDI = 0;
-    bool ramping = false;
-    bool rampingUp = false;
+    PotMode potMode = PotMode::RampSpeed;
+    MidiCCRamp ramp;
 
     std::array<FSButton, 4> buttons = {
         FSButton(FS1_PIN, FS1_LED, "FS 1", 0),

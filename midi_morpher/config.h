@@ -61,3 +61,6 @@
 #define NUM_PROGRESS_LEDS 8
 #define POT1_CC 20
 #define POT2_CC 21
+#define HOTSWITCH_CC 22
+#define RAMP_DURATIONS_MIN_MS = 0
+#define RAMP_DURATIONS_MAX_MS = 5000
