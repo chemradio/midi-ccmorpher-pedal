@@ -8,6 +8,7 @@
 #include "encoderButton.h"
 #include "statePersistance.h"
 #include "pots.h"
+#include "hotswitch.h"
 
 // initialize global state
 PedalState pedal;
@@ -33,6 +34,7 @@ void setup()
     initEncoderButton();
     analogReadResolution(12);
     initAnalogPots();
+    hotswitch.init();
     loadState(pedal);
     delay(2000);
 }
@@ -58,8 +60,10 @@ void loop()
     }
     handleEncoder(pedal, displayEncoderTurn, displayLockedMessage);
     handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage);
+    pedal.ramp.update();
+    handleHotswitch(pedal.ramp);
     resetDisplayTimeout(pedal);
+
     checkAndSaveState(pedal);
-    // tempDisplayPotValue(potValue);
     delay(10);
 }

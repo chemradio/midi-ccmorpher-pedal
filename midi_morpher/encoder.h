@@ -61,7 +61,7 @@ inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, boo
         }
         uint8_t midiChannel = pedal.midiChannel;
         outValue = constrain(midiChannel + delta, 0, 15);
-        pedal.midiChannel = outValue;
+        pedal.setMidiChannel(outValue);
         fsName = "MIDI Ch";
         isPC = false;
     }

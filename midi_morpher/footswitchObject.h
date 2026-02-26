@@ -96,14 +96,29 @@ struct FSButton
         }
     }
 
-    void handleFootswitch(uint8_t midiChannel, void (*displayCallback)(FSButton &) = nullptr)
+    bool _handleDebounce()
     {
         // debounce
         if ((millis() - lastDebounce) < DEBOUNCE_DELAY)
         {
-            return;
+            return false;
         }
+        return true;
+    }
 
+    bool readState()
+    {
+        if (!_handleDebounce())
+            return lastState;
+
+        bool reading = digitalRead(pin);
+        return (reading == LOW);
+    }
+
+    void handleFootswitch(uint8_t midiChannel, void (*displayCallback)(FSButton &) = nullptr)
+    {
+        if (!_handleDebounce())
+            return;
         bool reading = digitalRead(pin);
         isPressed = (reading == LOW);
 

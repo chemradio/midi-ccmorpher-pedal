@@ -77,7 +77,7 @@ void displayHomeScreen(PedalState &pedal)
   display.println(pedal.rampLinearCurve ? "Linear Ramp" : "Exponential Ramp");
   display.print("Pots: ");
   display.println(pedal.getPotMode());
-  display.println(pedal.hotSwitchLatching ? "HotSwitch Latching" : "HotSwitch Momentary");
+  display.println(pedal.ramp.latchEnabled ? "HotSwitch Latching" : "HotSwitch Momentary");
   display.println(pedal.settingsLocked ? "LOCKED" : "");
   display.display();
 }

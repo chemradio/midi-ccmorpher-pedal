@@ -103,11 +103,11 @@ inline void handleAnalogPot(AnalogPot &pot, PedalState &pedal, void (*displayCal
         {
             if (pot.pin == POT1_PIN)
             {
-                pedal.ramp.rampUpMs = rampMs;
+                pedal.ramp.setRampTimeUp(rampMs);
             }
             else if (pot.pin == POT2_PIN)
             {
-                pedal.ramp.rampDownMs = rampMs;
+                pedal.ramp.setRampTimeDown(rampMs);
             }
             potDisplayName = pot.name;
         }

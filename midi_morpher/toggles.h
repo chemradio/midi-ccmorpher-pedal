@@ -21,7 +21,7 @@ inline void initToggles(PedalState &pedal)
     {
         pinMode(toggles[i].pin, INPUT_PULLUP);
     }
-    pedal.hotSwitchLatching = !digitalRead(MS2_PIN);
+    pedal.ramp.latchEnabled = !digitalRead(MS2_PIN);
     pedal.potMode = digitalRead(POT_MODE_TOGGLE) ? PotMode::RampSpeed : PotMode::SendCC;
     pedal.rampLinearCurve = !digitalRead(LESW_PIN);
     pedal.settingsLocked = !digitalRead(LST_PIN);
@@ -52,7 +52,7 @@ inline bool handleToggleChange(Toggle &toggle, PedalState &pedal, void (*display
         {
             if (toggle.pin == MS2_PIN)
             {
-                pedal.hotSwitchLatching = !state;
+                pedal.ramp.setLatch(!state);
             }
             else if (toggle.pin == POT_MODE_TOGGLE)
             {

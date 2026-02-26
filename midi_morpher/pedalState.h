@@ -13,22 +13,28 @@ struct PedalState
 {
     // pedal globals
     uint8_t midiChannel = 0;
-    bool hotSwitchLatching = false;
     bool settingsLocked = false;
     bool rampLinearCurve = true;
     int8_t activeButtonIndex = -1;
-    //
-    unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
-    unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
 
     PotMode potMode = PotMode::RampSpeed;
-    MidiCCRamp ramp;
+
+    unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
+    unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
+    MidiCCRamp ramp = {
+        HOTSWITCH_CC, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED};
 
     std::array<FSButton, 4> buttons = {
         FSButton(FS1_PIN, FS1_LED, "FS 1", 0),
         FSButton(FS2_PIN, FS2_LED, "FS 2", 1),
         FSButton(EXTFS1_PIN, EXTFS1_LED, "extFS 1", 2),
         FSButton(EXTFS2_PIN, EXTFS2_LED, "extFS 2", 3)};
+
+    void setMidiChannel(uint8_t mc)
+    {
+        midiChannel = mc;
+        ramp.midiChannel = mc;
+    }
 
     void initButtons()
     {
