@@ -13,7 +13,7 @@ const int RAMP_UP_POT_PIN = A0;
 const int RAMP_DOWN_POT_PIN = A1;
 
 // MIDI settings
-const int MIDI_CHANNEL = 1;    // Change this if needed (1-16)
+const int MIDI_CHANNEL = 1;   // Change this if needed (1-16)
 const int MIDI_CC_NUMBER = 4; // Change to your desired CC number
 
 // State variables
@@ -22,7 +22,7 @@ bool lastFootswitchState = false;
 bool latchState = false;
 int currentValue = 0;
 int targetValue = 0;
-int rampStartValue = 0;  // NEW: Store where the ramp started from
+int rampStartValue = 0; // NEW: Store where the ramp started from
 bool isRamping = false;
 bool rampDirectionUp = true; // true = up, false = down
 unsigned long lastRampTime = 0;
@@ -157,7 +157,7 @@ void startRamp(bool goingUp)
   isRamping = true;
   lastRampTime = millis();
   rampDirectionUp = goingUp;
-  
+
   // Send immediate MIDI message at the start of the ramp for instant feedback
   sendMIDI(currentValue);
   lastMidiSendTime = millis();
@@ -207,14 +207,4 @@ void updateRamp()
     sendMIDI(currentValue);
     lastMidiSendTime = currentTime; // Record when we sent MIDI
   }
-}
-
-void sendMIDI(int value)
-{
-  // Send MIDI CC message over 5-pin DIN (and USB if connected)
-  // Format: Status byte, CC number, Value
-  byte status = 0xB0 | ((MIDI_CHANNEL - 1) & 0x0F); // Control Change
-  Serial.write(status);
-  Serial.write(MIDI_CC_NUMBER & 0x7F);
-  Serial.write(value & 0x7F);
 }
