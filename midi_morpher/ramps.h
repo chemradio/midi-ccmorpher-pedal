@@ -10,7 +10,6 @@ enum class Direction
 struct MidiCCRamp
 {
     //
-    bool hotSwitchLatching = false;
     //
     bool isRamping = false;
     unsigned long rampUpMs = 1;
@@ -37,8 +36,10 @@ struct MidiCCRamp
         else
             previousDirection == Direction::UP;
     }
+
     void startRamp()
     {
+
         uint8_t targetValue = 127;
         if (rampProgress == 127)
         {
