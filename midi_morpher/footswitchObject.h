@@ -1,7 +1,7 @@
 #pragma once
 #include "midiOut.h"
 #include "config.h"
-
+#include "ramps.h"
 inline constexpr unsigned long LONG_PRESS_TIMEOUT = 2000;
 
 // enum for footswitch mode
@@ -52,11 +52,6 @@ struct FSButton
 
     void _handleLatching(uint8_t midiChannel, bool reading, void (*displayCallback)(FSButton &) = nullptr)
     {
-        if (reading)
-        {
-            return;
-        }
-
         if (isPC || reading)
         {
             return;
@@ -131,6 +126,28 @@ struct FSButton
                 _handleLatching(midiChannel, reading, displayCallback);
             else
                 _handleMomentary(midiChannel, reading, displayCallback);
+        }
+    }
+
+    void handleHotswitch(MidiCCRamp &ramp, void (*displayCallback)(FSButton &) = nullptr)
+    {
+        if (!_handleDebounce())
+            return;
+        bool reading = digitalRead(pin);
+        isPressed = (reading == LOW);
+        if (reading != lastState)
+        {
+            lastDebounce = millis();
+            lastState = reading;
+
+            if (isPressed)
+            {
+                ramp.press();
+            }
+            else
+            {
+                ramp.release();
+            }
         }
     }
 

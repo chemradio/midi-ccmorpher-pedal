@@ -30,12 +30,14 @@ bool initDisplay()
     return false;
   }
   display.clearDisplay();
+  display.dim(true);
   display.display();
   return true;
 }
 
 void showStartupScreen()
 {
+  display.dim(false);
   display.clearDisplay();
   display.invertDisplay(false);
   display.setTextSize(2);
@@ -77,7 +79,7 @@ void displayHomeScreen(PedalState &pedal)
   display.println(pedal.rampLinearCurve ? "Linear Ramp" : "Exponential Ramp");
   display.print("Pots: ");
   display.println(pedal.getPotMode());
-  display.println(pedal.ramp.latchEnabled ? "HotSwitch Latching" : "HotSwitch Momentary");
+  display.println(pedal.ramp.latching ? "HotSwitch Latching" : "HotSwitch Momentary");
   display.println(pedal.settingsLocked ? "LOCKED" : "");
   display.display();
 }

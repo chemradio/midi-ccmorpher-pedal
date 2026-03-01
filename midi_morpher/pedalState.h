@@ -21,8 +21,7 @@ struct PedalState
 
     unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
-    MidiCCRamp ramp = {
-        HOTSWITCH_CC, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED};
+    MidiCCRamp ramp;
 
     std::array<FSButton, 4> buttons = {
         FSButton(FS1_PIN, FS1_LED, "FS 1", 0),
@@ -34,6 +33,10 @@ struct PedalState
     {
         midiChannel = mc;
         ramp.midiChannel = mc;
+    }
+    void init()
+    {
+        initButtons();
     }
 
     void initButtons()
@@ -81,6 +84,8 @@ struct PedalState
             return "Ramp Speed";
         case PotMode::SendCC:
             return "Send CC";
+        default:
+            return "Unknown";
         }
     }
 

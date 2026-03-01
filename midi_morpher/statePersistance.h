@@ -54,7 +54,7 @@ inline void loadState(PedalState &state)
     {
         prefs.getBytes("cfg", &p, sizeof(p));
 
-        state.midiChannel = p.midiChannel;
+        state.setMidiChannel(p.midiChannel);
 
         for (int i = 0; i < 4; i++)
         {

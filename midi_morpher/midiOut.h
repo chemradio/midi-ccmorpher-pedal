@@ -10,16 +10,13 @@
 // ----- Core send function -----
 inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value = 0)
 {
-    // Serial.print("Sending MIDI - Ch: ");
-    // Serial.print(channel + 1);
-    // Serial.print(isPC ? " PC: " : " CC: ");
-    // Serial.print(number + 1);
-    if (!isPC)
-    {
-        Serial.print(" Value: ");
-        Serial.print(value);
-    }
-    Serial.println();
+
+    Serial.println(millis());
+    // if (!isPC)
+    // {
+    //     Serial.print(" Value: ");
+    //     Serial.println(value);
+    // }
 
     channel = constrain(channel, 0, 15);
 
@@ -37,14 +34,14 @@ inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value =
     }
 #endif
 
-#ifdef USE_USB_MIDI
-    if (isPC)
-    {
-        usbMIDI.sendProgramChange(number, channel + 1);
-    }
-    else
-    {
-        usbMIDI.sendControlChange(number, value, channel + 1);
-    }
-#endif
+    // #ifdef USE_USB_MIDI
+    //     if (isPC)
+    //     {
+    //         usbMIDI.sendProgramChange(number, channel + 1);
+    //     }
+    //     else
+    //     {
+    //         usbMIDI.sendControlChange(number, value, channel + 1);
+    //     }
+    // #endif
 }

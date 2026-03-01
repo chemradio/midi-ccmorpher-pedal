@@ -52,8 +52,8 @@ inline void initAnalogPots()
     {
         pinMode(analogPots[i].pin, INPUT);
         uint16_t medianRead = readPotMedian(analogPots[i].pin);
-        analogPots[i].lastValue = medianRead;
-        analogPots[i].lastMidiValue = (medianRead * 128UL) / 4096;
+        // analogPots[i].lastValue = medianRead;
+        // analogPots[i].lastMidiValue = (medianRead * 128UL) / 4096;
     }
 }
 

@@ -1,167 +1,166 @@
 #pragma once
 #include "config.h"
 #include "midiOut.h"
+#include <Adafruit_NeoPixel.h>
+
+enum RampingState
+{
+    IDLE,
+    RAMPING
+};
 
 struct MidiCCRamp
 {
-
-    enum State
-    {
-        IDLE,
-        RAMPING
-    };
-
-    // Config
-    uint8_t ccNumber;
-    uint8_t midiChannel;
-    unsigned long rampTimeMs;
-
-    // Mode control (dynamic)
-    bool latchEnabled = false;
-
-    // Runtime
-    bool physicalPressed = false;
-    bool latchedState = false; // only meaningful if latchEnabled
-    uint8_t currentValue = 0;
+    bool isLinear = true;
+    bool switchPressed = false;
+    bool inverted = false;
+    bool latching = false;
+    bool isLatched = false;
+    bool isActivated = false;
     uint8_t targetValue = 0;
-
-    State state = IDLE;
-
-    unsigned long rampUpTimeMs;
-    unsigned long rampDownTimeMs;
-
-    unsigned long lastStepTime = 0;
-    unsigned long stepIntervalUp = 1;
-    unsigned long stepIntervalDown = 1;
-
+    uint8_t currentValue = 0;
+    unsigned long rampUpTimeMs = DEFAULT_RAMP_SPEED;
+    unsigned long rampDownTimeMs = DEFAULT_RAMP_SPEED;
     unsigned long rampStartTime = 0;
     uint8_t rampStartValue = 0;
     unsigned long currentRampDuration = 0;
+    bool isRamping = false;
+    uint8_t midiChannel = 0;
+    uint8_t midiCCNumber = 25;
 
-    MidiCCRamp(uint8_t cc, uint8_t ch,
-               unsigned long upTime,
-               unsigned long downTime)
+    void _setLED(bool state)
     {
-        ccNumber = cc;
-        midiChannel = ch;
-
-        rampUpTimeMs = upTime;
-        rampDownTimeMs = downTime;
-
-        stepIntervalUp = rampUpTimeMs / 127;
-        if (stepIntervalUp == 0)
-            stepIntervalUp = 1;
-
-        stepIntervalDown = rampDownTimeMs / 127;
-        if (stepIntervalDown == 0)
-            stepIntervalDown = 1;
+        digitalWrite(HS_LED, state);
     }
 
-    // ===== Toggle latch dynamically =====
     void setLatch(bool enabled)
     {
-        latchEnabled = enabled;
-        computeTarget();
+        latching = enabled;
+        if (currentValue > 63)
+        {
+            inverted = true;
+        }
+        else
+        {
+            inverted = false;
+        }
+        _setLED(false);
+    }
+
+    void setCurveType(bool isExp)
+    {
+        isLinear = !isExp;
     }
 
     void setCCNumber(uint8_t ccNumber)
     {
-        ccNumber = ccNumber;
+        midiCCNumber = ccNumber;
     }
 
-    void setMidiChannel(uint8_t midiChannel)
+    void setMidiChannel(uint8_t channel)
     {
-        midiChannel = midiChannel;
-    }
-
-    void recalcIntervals()
-    {
-
-        stepIntervalUp = rampUpTimeMs / 127;
-        if (stepIntervalUp == 0)
-            stepIntervalUp = 1;
-
-        stepIntervalDown = rampDownTimeMs / 127;
-        if (stepIntervalDown == 0)
-            stepIntervalDown = 1;
+        midiChannel = channel; // Fixed: was assigning to itself
     }
 
     void setRampTimeUp(unsigned long upTime)
     {
         rampUpTimeMs = upTime;
-        recalcIntervals();
     }
 
     void setRampTimeDown(unsigned long downTime)
     {
         rampDownTimeMs = downTime;
-        recalcIntervals();
     }
 
-    // ===== Footswitch events =====
-    void press()
+    void calcAndStartRamp(String callerId = "None")
     {
-        physicalPressed = true;
-
-        if (latchEnabled)
+        if (isActivated)
         {
-            latchedState = !latchedState;
+            targetValue = inverted ? 0 : 127;
+        }
+        else
+        {
+            targetValue = inverted ? 127 : 0;
         }
 
-        computeTarget();
+        rampStartTime = millis();
+        rampStartValue = currentValue;
+        uint8_t distance = abs(targetValue - currentValue);
+        if (distance == 0)
+        {
+            isRamping = false;
+            return;
+        }
+        float fraction = distance / 127.0f;
+        bool goingUp = (targetValue > currentValue);
+        unsigned long fullDuration = goingUp ? rampUpTimeMs : rampDownTimeMs;
+        currentRampDuration = fullDuration * fraction;
+        isRamping = true;
+    }
+
+    void press()
+    {
+        unsigned long perf = millis();
+        Serial.print("Press start Millis: ");
+        Serial.println(perf);
+        if (switchPressed)
+            return;
+        switchPressed = true;
+
+        if (latching)
+        {
+            isLatched = !isLatched;
+            isActivated = !isActivated;
+        }
+        else
+        {
+            isActivated = true;
+        }
+
+        Serial.print("Pre led took: ");
+        Serial.println(millis() - perf);
+        perf = millis();
+        _setLED(isActivated);
+        Serial.print("Led took: ");
+        Serial.println(millis() - perf);
+        perf = millis();
+
+        calcAndStartRamp("PRESS");
+        Serial.print("Calc took: ");
+        Serial.println(millis() - perf);
+
+        Serial.print("Press exit Millis: ");
+        Serial.println(millis());
     }
 
     void release()
     {
-        physicalPressed = false;
+        if (!switchPressed)
+            return;
+        switchPressed = false;
 
-        if (!latchEnabled)
-        {
-            computeTarget();
-        }
-    }
+        if (latching)
+            return;
 
-    // ===== Core logic =====
-    void computeTarget()
-    {
-
-        uint8_t newTarget;
-
-        if (latchEnabled)
-        {
-            newTarget = latchedState ? 127 : 0;
-        }
-        else
-        {
-            bool inverted = (currentValue == 127 && !physicalPressed);
-            if (!inverted)
-                newTarget = physicalPressed ? 127 : 0;
-            else
-                newTarget = physicalPressed ? 0 : 127;
-        }
-
-        targetValue = newTarget;
-
-        rampStartTime = millis();
-        rampStartValue = currentValue;
-
-        currentRampDuration =
-            (targetValue > currentValue) ? rampUpTimeMs : rampDownTimeMs;
-
-        state = RAMPING;
+        isActivated = false;
+        _setLED(isActivated);
+        calcAndStartRamp("RELEASE");
     }
 
     void update()
     {
 
-        if (state == IDLE)
+        if (!isRamping)
             return;
+
+        Serial.print("enter update millis: ");
+        Serial.println(millis());
 
         if (currentRampDuration <= 1)
         {
             currentValue = targetValue;
-            sendMidiCCRamp();
-            state = IDLE;
+            isRamping = false;
+            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
             return;
         }
 
@@ -171,25 +170,38 @@ struct MidiCCRamp
         if (elapsed >= currentRampDuration)
         {
             currentValue = targetValue;
-            sendMidiCCRamp();
-            state = IDLE;
+            isRamping = false;
+            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
             return;
         }
 
-        float progress = (float)elapsed / currentRampDuration;
+        float t = (float)elapsed / currentRampDuration;
+        if (t > 1.0f)
+            t = 1.0f;
+
+        float shaped;
+
+        if (!isLinear)
+        {
+            shaped = t * t * t;
+
+            // float inv = 1.0f - t;
+            // shaped = 1.0f - (inv * inv * inv);
+        }
+        else // linear
+        {
+            shaped = t;
+        }
 
         int delta = targetValue - rampStartValue;
-        uint8_t newValue = rampStartValue + (delta * progress);
+        uint8_t newValue = rampStartValue + (delta * shaped);
 
         if (newValue != currentValue)
         {
             currentValue = newValue;
-            sendMidiCCRamp();
+            Serial.print("Pre send midi millis: ");
+            Serial.println(millis());
+            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
         }
-    }
-
-    void sendMidiCCRamp()
-    {
-        sendMIDI(midiChannel, false, ccNumber, currentValue);
     }
 };
