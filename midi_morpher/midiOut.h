@@ -4,23 +4,21 @@
 // Adafruit_USBD_MIDI usbMIDI;
 
 // ----- Configure transports -----
-#define USE_DIN_MIDI
+// #define USE_DIN_MIDI
 // #define USE_USB_MIDI
 
 // ----- Core send function -----
 inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value = 0)
 {
 
-    Serial.println(millis());
+    // Serial.println(millis());
     // if (!isPC)
     // {
     //     Serial.print(" Value: ");
     //     Serial.println(value);
     // }
 
-    channel = constrain(channel, 0, 15);
-
-#ifdef USE_DIN_MIDI
+    // #ifdef USE_DIN_MIDI
     if (isPC)
     {
         Serial1.write(0xC0 | channel);
@@ -32,7 +30,7 @@ inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value =
         Serial1.write(number);
         Serial1.write(value);
     }
-#endif
+    // #endif
 
     // #ifdef USE_USB_MIDI
     //     if (isPC)

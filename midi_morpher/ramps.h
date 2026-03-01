@@ -72,7 +72,7 @@ struct MidiCCRamp
         rampDownTimeMs = downTime;
     }
 
-    void calcAndStartRamp(String callerId = "None")
+    void calcAndStartRamp()
     {
         if (isActivated)
         {
@@ -100,9 +100,6 @@ struct MidiCCRamp
 
     void press()
     {
-        unsigned long perf = millis();
-        Serial.print("Press start Millis: ");
-        Serial.println(perf);
         if (switchPressed)
             return;
         switchPressed = true;
@@ -117,20 +114,8 @@ struct MidiCCRamp
             isActivated = true;
         }
 
-        Serial.print("Pre led took: ");
-        Serial.println(millis() - perf);
-        perf = millis();
         _setLED(isActivated);
-        Serial.print("Led took: ");
-        Serial.println(millis() - perf);
-        perf = millis();
-
-        calcAndStartRamp("PRESS");
-        Serial.print("Calc took: ");
-        Serial.println(millis() - perf);
-
-        Serial.print("Press exit Millis: ");
-        Serial.println(millis());
+        calcAndStartRamp();
     }
 
     void release()
@@ -144,17 +129,15 @@ struct MidiCCRamp
 
         isActivated = false;
         _setLED(isActivated);
-        calcAndStartRamp("RELEASE");
+        calcAndStartRamp();
     }
 
     void update()
     {
 
         if (!isRamping)
+            // Serial.println("exit not ramping");
             return;
-
-        Serial.print("enter update millis: ");
-        Serial.println(millis());
 
         if (currentRampDuration <= 1)
         {
@@ -183,8 +166,7 @@ struct MidiCCRamp
 
         if (!isLinear)
         {
-            shaped = t * t * t;
-
+            shaped = t * t;
             // float inv = 1.0f - t;
             // shaped = 1.0f - (inv * inv * inv);
         }
@@ -199,8 +181,6 @@ struct MidiCCRamp
         if (newValue != currentValue)
         {
             currentValue = newValue;
-            Serial.print("Pre send midi millis: ");
-            Serial.println(millis());
             sendMIDI(midiChannel, false, midiCCNumber, currentValue);
         }
     }

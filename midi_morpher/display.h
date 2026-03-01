@@ -76,7 +76,7 @@ void displayHomeScreen(PedalState &pedal)
   display.print("Channel:");
   display.println(String(pedal.midiChannel + 1));
   display.println();
-  display.println(pedal.rampLinearCurve ? "Linear Ramp" : "Exponential Ramp");
+  display.println(pedal.ramp.isLinear ? "Linear Ramp" : "Exponential Ramp");
   display.print("Pots: ");
   display.println(pedal.getPotMode());
   display.println(pedal.ramp.latching ? "HotSwitch Latching" : "HotSwitch Momentary");
