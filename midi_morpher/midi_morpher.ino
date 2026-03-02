@@ -21,6 +21,11 @@ void setup()
 {
     // Serial.begin(115200); // Initialize serial for debugging
     Serial1.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX); // Initialize DIN MIDI serial
+    USB.VID(0x303A);                                    // Espressif VID
+    USB.PID(0x8000);                                    // Custom PID
+    USB.productName("MIDI Morpher 1.0");
+    USB.manufacturerName("Tim");
+    USB.firmwareVersion(0x0100);
     midi.begin();
     USB.begin();
     delay(1000);
@@ -65,7 +70,7 @@ void loop()
     handleEncoder(pedal, displayEncoderTurn, displayLockedMessage);
     handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage);
     hotswitch.handleHotswitch(pedal.ramp);
-    updateNeoPixel(pedal.ramp.currentValue);
+    updateNeoPixel(pedal.ramp.currentValue, analogPots);
     resetDisplayTimeout(pedal);
     checkAndSaveState(pedal);
     delay(10);

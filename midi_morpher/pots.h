@@ -14,6 +14,8 @@ struct AnalogPot
     uint8_t midiCCNumber;
     uint16_t lastValue = 0;
     uint8_t lastMidiValue = 0;
+    bool ccDisplayDirty = false;
+    long ccLastDisplayDirty = 0;
 
     void sendMidiCC(uint8_t midiChannel)
     {
@@ -89,6 +91,9 @@ inline void handleAnalogPot(AnalogPot &pot, PedalState &pedal, void (*displayCal
             {
                 pot.lastMidiValue = midiScaled;
                 pot.sendMidiCC(pedal.midiChannel);
+                pot.ccDisplayDirty = true;
+                pot.ccLastDisplayDirty = millis();
+
                 displayCallback(
                     "MidiCC: " + String(pot.midiCCNumber),
                     true,

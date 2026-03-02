@@ -113,7 +113,14 @@ void displayFootswitchPress(FSButton &button)
   if (!button.isPC)
   {
     display.print("Value: ");
-    display.println(String(button.isPressed ? 127 : 0));
+    if (button.isLatching)
+    {
+      display.println(String(button.isActivated ? 127 : 0));
+    }
+    else
+    {
+      display.println(String(button.isPressed ? 127 : 0));
+    }
   }
   display.display();
 }

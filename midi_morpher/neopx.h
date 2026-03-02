@@ -1,5 +1,6 @@
 #pragma once
 #include <Adafruit_NeoPixel.h>
+#include "pots.h"
 
 #define RGB_PIN 48   // Onboard RGB LED pin
 #define NUM_PIXELS 1 // Only one LED
@@ -12,13 +13,28 @@ void initNeoPixel()
     pixel.setBrightness(1); // Adjust brightness (0-255)
 }
 
-void updateNeoPixel(uint8_t midiValue)
+void updateNeoPixel(uint8_t midiValue, AnalogPot *pots)
 {
-    uint16_t hue = map(midiValue, 0, 127, 43690, 0);
-    // uint16_t hue = map(midiValue, 0, 127, 43690, 65536);
+    uint8_t target = midiValue;
+
+    for (int i = 0; i < 2; i++)
+    {
+        if (pots[i].ccDisplayDirty)
+        {
+            target = pots[i].lastMidiValue;
+            if ((millis() - pots[i].ccLastDisplayDirty) > 1000)
+            {
+                pots[i].ccDisplayDirty = false;
+            }
+            break;
+        }
+    }
+
+    // uint16_t hue = map(target, 0, 127, 43690, 0);
+    uint16_t hue = map(target, 0, 127, 43690, 65536);
     // Convert HSV to RGB and set LED color
     uint32_t color = pixel.gamma32(pixel.ColorHSV(hue));
     pixel.setPixelColor(0, color);
-    pixel.setBrightness(map(midiValue, 0, 127, 1, 20));
+    pixel.setBrightness(map(target, 0, 127, 1, 20));
     pixel.show();
 }
