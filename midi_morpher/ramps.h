@@ -72,7 +72,7 @@ struct MidiCCRamp
         rampDownTimeMs = downTime;
     }
 
-    void calcAndStartRamp()
+        void calcAndStartRamp()
     {
         if (isActivated)
         {

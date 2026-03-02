@@ -49,6 +49,7 @@ void loop()
         bool toggleChanged = handleToggleChange(tgl, pedal, displayLockedMessage);
         if (toggleChanged)
         {
+            homescreenDirty = true;
             displayHomeScreen(pedal);
         }
     }

@@ -3,6 +3,7 @@
 
 inline Preferences prefs;
 inline bool stateDirty = false;
+inline bool homescreenDirty = true;
 inline unsigned long lastDirtyTime = 0;
 inline constexpr unsigned long SAVE_DELAY = 5000;
 inline constexpr unsigned long ENCBTN_SAVE_TIMEOUT = 2000;

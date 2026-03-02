@@ -6,6 +6,7 @@
 #include "config.h"
 #include "pedalState.h"
 #include "footswitchObject.h"
+#include "statePersistance.h"
 
 // Display object
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -65,6 +66,11 @@ void displayLockedMessage(String whoSays = "")
 
 void displayHomeScreen(PedalState &pedal)
 {
+  if (!homescreenDirty)
+  {
+    return;
+  }
+  homescreenDirty = false;
   displayMode = DISPLAY_DEFAULT;
   lastInteraction = millis();
   display.clearDisplay();
