@@ -67,26 +67,47 @@ struct FSButton
 
     void _handleMomentary(uint8_t midiChannel, bool reading, void (*displayCallback)(FSButton &) = nullptr)
     {
-        if (!reading)
+        if (isPC)
         {
-            _setLED(true);
-            if (!isActivated)
+            if (!reading)
             {
+                _setLED(true);
+                sendMIDI(midiChannel, true, midiNumber);
                 if (displayCallback)
                 {
                     displayCallback(*this);
                 }
-                sendMIDI(midiChannel, isPC, midiNumber, isPressed ? 127 : 0);
             }
-            isActivated = true;
-        }
-        else
-        {
-            _setLED(false);
-            isActivated = false;
-            if (displayCallback)
+            else
             {
-                displayCallback(*this);
+                _setLED(false);
+                if (displayCallback)
+                {
+                    displayCallback(*this);
+                }
+            }
+        }
+        else if (!isPC) // cc
+        {
+            if (!reading)
+            {
+                _setLED(true);
+                isActivated = true;
+                sendMIDI(midiChannel, isPC, midiNumber, 127);
+                if (displayCallback)
+                {
+                    displayCallback(*this);
+                }
+            }
+            else
+            {
+                _setLED(false);
+                isActivated = false;
+                sendMIDI(midiChannel, isPC, midiNumber, 0);
+                if (displayCallback)
+                {
+                    displayCallback(*this);
+                }
             }
         }
     }
