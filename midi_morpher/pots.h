@@ -1,5 +1,4 @@
-#ifndef POTS_H
-#define POTS_H
+#pragma once
 #include "config.h"
 #include "pedalState.h"
 #include "midiOut.h"
@@ -84,23 +83,29 @@ inline void handleAnalogPot(AnalogPot &pot, PedalState &pedal, void (*displayCal
         if (selectedValue > 4095)
             selectedValue = 4095;
 
-        long rampMs = map(selectedValue, 0, 4095, pedal.rampMinSpeedMs, pedal.rampMaxSpeedMs);
-
-        bool isMidiCC = false;
-        String potDisplayName = "";
-
         if (pedal.potMode == PotMode::SendCC)
         {
             if (midiScaled != pot.lastMidiValue)
             {
                 pot.lastMidiValue = midiScaled;
-                isMidiCC = true;
-                potDisplayName = "MidiCC: " + String(pot.midiCCNumber);
                 pot.sendMidiCC(pedal.midiChannel);
+                displayCallback(
+                    "MidiCC: " + String(pot.midiCCNumber),
+                    true,
+                    midiScaled,
+                    0);
             }
         }
         else
         {
+            // linear pot feel
+            // long rampMs = map(selectedValue, 0, 4095, pedal.rampMinSpeedMs, pedal.rampMaxSpeedMs);
+
+            // exponential pot feel
+            float normalized = selectedValue / 4095.0;
+            float curved = normalized * normalized;
+            long rampMs = pedal.rampMinSpeedMs + (curved * (pedal.rampMaxSpeedMs - pedal.rampMinSpeedMs));
+
             if (pot.pin == POT1_PIN)
             {
                 pedal.ramp.setRampTimeUp(rampMs);
@@ -109,48 +114,11 @@ inline void handleAnalogPot(AnalogPot &pot, PedalState &pedal, void (*displayCal
             {
                 pedal.ramp.setRampTimeDown(rampMs);
             }
-            potDisplayName = pot.name;
+            displayCallback(
+                pot.name,
+                false,
+                midiScaled,
+                rampMs);
         }
-
-        displayCallback(
-            potDisplayName,
-            isMidiCC,
-            midiScaled,
-            rampMs);
     }
 }
-// inline void handleAnalogPot(AnalogPot &pot, SignalCallback cb)
-// {
-//     const float alpha = 0.18f; // smaller = smoother, larger = faster
-
-//     uint16_t raw = analogRead(pot.pin);
-
-//     // exponential smoothing
-//     pot.filtered += alpha * (raw - pot.filtered);
-
-//     uint16_t smooth = (uint16_t)pot.filtered;
-
-//     // deadband against filtered value
-//     if (abs((int)smooth - (int)pot.lastValue) > potDeadband)
-//     {
-//         pot.lastValue = smooth;
-
-//         cb(
-//             String(pot.name),
-//             smooth,
-//             String(map(smooth, 0, 4095, 0, 127)));
-//     }
-// }
-
-// inline void handleAnalogPot(AnalogPot &pot, SignalCallback cb)
-// {
-//     uint16_t value = analogRead(pot.pin);
-
-//     if (abs(value - pot.lastValue) > potDeadband)
-//     {
-//         pot.lastValue = value;
-//         cb(String(pot.name), value, String(map(value, 0, 4095, 0, 127)));
-//     }
-// }
-
-#endif

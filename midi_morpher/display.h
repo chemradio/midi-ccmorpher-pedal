@@ -176,7 +176,7 @@ void displayPotCC(String potName, uint8_t midiScaled)
   display.display();
 }
 
-void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, long rampMs)
+void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, long rampMs = 0)
 {
   if (isMidiCC)
     displayPotCC(potName, midiScaled);
