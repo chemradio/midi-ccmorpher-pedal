@@ -66,11 +66,6 @@ void displayLockedMessage(String whoSays = "")
 
 void displayHomeScreen(PedalState &pedal)
 {
-  if (!homescreenDirty)
-  {
-    return;
-  }
-  homescreenDirty = false;
   displayMode = DISPLAY_DEFAULT;
   lastInteraction = millis();
   display.clearDisplay();

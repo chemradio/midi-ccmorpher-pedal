@@ -9,14 +9,16 @@ Adafruit_NeoPixel pixel(NUM_PIXELS, RGB_PIN, NEO_GRB + NEO_KHZ800);
 void initNeoPixel()
 {
     pixel.begin();
-    pixel.setBrightness(10); // Adjust brightness (0-255)
+    pixel.setBrightness(1); // Adjust brightness (0-255)
 }
 
 void updateNeoPixel(uint8_t midiValue)
 {
     uint16_t hue = map(midiValue, 0, 127, 43690, 0);
+    // uint16_t hue = map(midiValue, 0, 127, 43690, 65536);
     // Convert HSV to RGB and set LED color
     uint32_t color = pixel.gamma32(pixel.ColorHSV(hue));
     pixel.setPixelColor(0, color);
+    pixel.setBrightness(map(midiValue, 0, 127, 1, 20));
     pixel.show();
 }

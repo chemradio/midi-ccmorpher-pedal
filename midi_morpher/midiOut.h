@@ -1,45 +1,28 @@
 #pragma once
-#include <Arduino.h>
-// #include <Adafruit_TinyUSB.h>
-// Adafruit_USBD_MIDI usbMIDI;
+#include <USB.h>
+#include <USBMIDI.h>
 
-// ----- Configure transports -----
-// #define USE_DIN_MIDI
-// #define USE_USB_MIDI
+extern USBMIDI midi;
 
-// ----- Core send function -----
 inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value = 0)
 {
-
-    // Serial.println(millis());
-    // if (!isPC)
-    // {
-    //     Serial.print(" Value: ");
-    //     Serial.println(value);
-    // }
-
-    // #ifdef USE_DIN_MIDI
     if (isPC)
     {
+        // Program Change - DIN
         Serial1.write(0xC0 | channel);
         Serial1.write(number);
+
+        // Program Change - USB
+        midi.programChange(number, channel + 1);
     }
     else
     {
+        // Control Change - DIN
         Serial1.write(0xB0 | channel);
         Serial1.write(number);
         Serial1.write(value);
-    }
-    // #endif
 
-    // #ifdef USE_USB_MIDI
-    //     if (isPC)
-    //     {
-    //         usbMIDI.sendProgramChange(number, channel + 1);
-    //     }
-    //     else
-    //     {
-    //         usbMIDI.sendControlChange(number, value, channel + 1);
-    //     }
-    // #endif
+        // Control Change - USB
+        midi.controlChange(number, value, channel + 1);
+    }
 }

@@ -1,3 +1,4 @@
+
 #include "config.h"
 #include "pedalState.h"
 #include "midiOut.h"
@@ -9,15 +10,24 @@
 #include "pots.h"
 #include "hotswitch.h"
 #include "neopx.h"
+#include <USB.h>
+#include <USBMIDI.h>
 
 // initialize global state
+USBMIDI midi;
 PedalState pedal;
 
 void setup()
 {
     // Serial.begin(115200); // Initialize serial for debugging
     Serial1.begin(31250, SERIAL_8N1, MIDI_RX, MIDI_TX); // Initialize DIN MIDI serial
-    // // usbMIDI.begin();
+    // Start native USB stack
+    midi.begin();
+    USB.begin();
+
+    delay(1000);
+
+    // Now initialize USB MIDI
     if (!initDisplay())
     {
         while (1)
@@ -49,7 +59,6 @@ void loop()
         bool toggleChanged = handleToggleChange(tgl, pedal, displayLockedMessage);
         if (toggleChanged)
         {
-            homescreenDirty = true;
             displayHomeScreen(pedal);
         }
     }
