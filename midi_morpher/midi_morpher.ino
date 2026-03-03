@@ -10,6 +10,7 @@
 #include "pots.h"
 #include "hotswitch.h"
 #include "neopx.h"
+#include "digipot.h"
 #include <USB.h>
 #include <USBMIDI.h>
 
@@ -34,6 +35,7 @@ void setup()
         while (1)
             delay(1000);
     }
+    digipotSetup();
     initToggles(pedal);
     pedal.initButtons();
     initEncoder();
@@ -49,6 +51,7 @@ void setup()
 
 void loop()
 {
+    // digipotLoop();
     pedal.ramp.update();
     for (auto &button : pedal.buttons)
     {
@@ -71,6 +74,7 @@ void loop()
     handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage);
     hotswitch.handleHotswitch(pedal.ramp);
     updateNeoPixel(pedal.ramp.currentValue, analogPots);
+    setDigipotFromMidi(pedal.ramp.currentValue);
     resetDisplayTimeout(pedal);
     checkAndSaveState(pedal);
     delay(10);
