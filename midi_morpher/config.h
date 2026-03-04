@@ -44,7 +44,7 @@
 
 // MIDI (Hardware Serial)
 #define MIDI_TX 43
-#define MIDI_RX 44
+#define MIDI_RX 36
 
 // Display settings
 #define SCREEN_WIDTH 128
