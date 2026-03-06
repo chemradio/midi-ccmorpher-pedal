@@ -3,11 +3,13 @@
 #include "midiOut.h"
 #include <Adafruit_NeoPixel.h>
 
-enum RampingState
+enum ModulationType
 {
-    IDLE,
-    RAMPING
-};
+    RAMPER,
+    LFO,
+    STEPPER,
+    RANDOM
+}
 
 struct MidiCCRamp
 {
@@ -24,9 +26,10 @@ struct MidiCCRamp
     unsigned long rampStartTime = 0;
     uint8_t rampStartValue = 0;
     unsigned long currentRampDuration = 0;
-    bool isRamping = false;
+    bool isModulating = false;
     uint8_t midiChannel = 0;
     uint8_t midiCCNumber = 25;
+    ModulationType modType = ModulationType::RAMPER;
 
     void _setLED(bool state)
     {
@@ -72,7 +75,7 @@ struct MidiCCRamp
         rampDownTimeMs = downTime;
     }
 
-        void calcAndStartRamp()
+    void calcAndStartRamp()
     {
         if (isActivated)
         {
@@ -88,14 +91,14 @@ struct MidiCCRamp
         uint8_t distance = abs(targetValue - currentValue);
         if (distance == 0)
         {
-            isRamping = false;
+            isModulating = false;
             return;
         }
         float fraction = distance / 127.0f;
         bool goingUp = (targetValue > currentValue);
         unsigned long fullDuration = goingUp ? rampUpTimeMs : rampDownTimeMs;
         currentRampDuration = fullDuration * fraction;
-        isRamping = true;
+        isModulating = true;
     }
 
     void press()
@@ -134,15 +137,46 @@ struct MidiCCRamp
 
     void update()
     {
-
-        if (!isRamping)
-            // Serial.println("exit not ramping");
+        if (!isModulating)
             return;
+
+        switch (modType)
+        {
+        case ModulationType::RAMPER:
+            updateRamper();
+            return;
+        case ModulationType::LFO:
+            updateLFO();
+            return;
+        case ModulationType::STEPPER:
+            updateStepper();
+            return;
+        case ModulationType::RANDOM:
+            updateRandomStepper();
+            return;
+        }
+        return;
+    }
+
+    void updateLFO()
+    {
+        return;
+    }
+    void updateStepper()
+    {
+        return;
+    }
+    void updateRandomStepper()
+    {
+        return;
+    }
+    void updateRamper()
+    {
 
         if (currentRampDuration <= 1)
         {
             currentValue = targetValue;
-            isRamping = false;
+            isModulating = false;
             sendMIDI(midiChannel, false, midiCCNumber, currentValue);
             return;
         }
@@ -153,7 +187,7 @@ struct MidiCCRamp
         if (elapsed >= currentRampDuration)
         {
             currentValue = targetValue;
-            isRamping = false;
+            isModulating = false;
             sendMIDI(midiChannel, false, midiCCNumber, currentValue);
             return;
         }
