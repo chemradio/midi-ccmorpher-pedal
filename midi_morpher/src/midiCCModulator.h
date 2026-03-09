@@ -30,6 +30,17 @@ struct MidiCCModulator
     uint8_t midiCCNumber = 25;
     ModulationType modType = ModulationType::RAMPER;
 
+    float lfoRateHz = 1.0f;               // cycles per second
+    unsigned long lfoStartTime = 0;       // set to millis() when press() is called
+    bool lfoFinishing = false;            // true when completing final cycle before stopping
+    unsigned long randomIntervalMs = 300; // ms between random jumps
+    unsigned long lastRandomTime = 0;
+    uint8_t randomMin = 0;           // lower bound for random target (0-127)
+    uint8_t randomMax = 127;         // upper bound for random target (0-127)
+    uint8_t stepSize = 10;           // CC values per step (1-127). Timing is automatic.
+    unsigned long lastStepTime = 0;  // timestamp of last step
+    bool stepperRampingDown = false; // true when ramping back to 0 on release
+
     void updateRamper();
     void updateLFO();
     void updateStepper();
@@ -121,6 +132,8 @@ struct MidiCCModulator
             isActivated = true;
         }
 
+        lfoStartTime = millis();
+        lfoFinishing = false;
         _setLED(isActivated);
         calcAndStartRamp();
     }
@@ -136,6 +149,12 @@ struct MidiCCModulator
 
         isActivated = false;
         _setLED(isActivated);
+
+        if (modType == ModulationType::LFO)
+        {
+            lfoFinishing = true;
+            isModulating = true;
+        }
         calcAndStartRamp();
     }
 

@@ -9,7 +9,8 @@ enum class FootswitchMode
 {
     MomentaryPC,
     LatchingCC,
-    MomentaryCC
+    MomentaryCC,
+
 };
 
 struct FSButton
