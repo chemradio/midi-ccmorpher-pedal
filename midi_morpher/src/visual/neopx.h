@@ -1,6 +1,6 @@
 #pragma once
 #include <Adafruit_NeoPixel.h>
-#include "pots.h"
+#include "../controls/pots.h"
 
 #define RGB_PIN 48   // Onboard RGB LED pin
 #define NUM_PIXELS 1 // Only one LED

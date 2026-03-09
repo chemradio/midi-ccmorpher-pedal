@@ -3,10 +3,10 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include "config.h"
-#include "pedalState.h"
-#include "footswitchObject.h"
-#include "statePersistance.h"
+#include "../config.h"
+#include "../pedalState.h"
+#include "../footswitches/footswitchObject.h"
+#include "../statePersistance.h"
 
 // Display object
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
@@ -77,10 +77,10 @@ void displayHomeScreen(PedalState &pedal)
   display.print("Channel:");
   display.println(String(pedal.midiChannel + 1));
   display.println();
-  display.println(pedal.ramp.isLinear ? "Linear Ramp" : "Exponential Ramp");
+  display.println(pedal.modulator.isLinear ? "Linear Ramp" : "Exponential Ramp");
   display.print("Pots: ");
   display.println(pedal.getPotMode());
-  display.println(pedal.ramp.latching ? "HotSwitch Latching" : "HotSwitch Momentary");
+  display.println(pedal.modulator.latching ? "HotSwitch Latching" : "HotSwitch Momentary");
   display.println(pedal.settingsLocked ? "LOCKED" : "");
   display.display();
 }

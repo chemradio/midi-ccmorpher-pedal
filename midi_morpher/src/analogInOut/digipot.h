@@ -1,6 +1,6 @@
 #include "Arduino.h"
 #include "X9C10X.h"
-#include "config.h"
+#include "../config.h"
 
 X9C10X pot(10000); //  10 KΩ  (ALT-234)
 

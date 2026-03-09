@@ -1,7 +1,7 @@
 #pragma once
-#include "config.h"
-#include "pedalState.h"
-#include "midiOut.h"
+#include "../config.h"
+#include "../pedalState.h"
+#include "../midiOut.h"
 
 inline const uint8_t potDeadband = 20;
 unsigned long lastSettingsBlockedDisplayed = 0;
@@ -113,11 +113,11 @@ inline void handleAnalogPot(AnalogPot &pot, PedalState &pedal, void (*displayCal
 
             if (pot.pin == POT1_PIN)
             {
-                pedal.ramp.setRampTimeUp(rampMs);
+                pedal.modulator.setRampTimeUp(rampMs);
             }
             else if (pot.pin == POT2_PIN)
             {
-                pedal.ramp.setRampTimeDown(rampMs);
+                pedal.modulator.setRampTimeDown(rampMs);
             }
             displayCallback(
                 pot.name,

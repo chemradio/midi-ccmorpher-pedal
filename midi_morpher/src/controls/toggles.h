@@ -1,7 +1,7 @@
 #pragma once
-#include "config.h"
-#include "pedalState.h"
-#include "statePersistance.h"
+#include "../config.h"
+#include "../pedalState.h"
+#include "../statePersistance.h"
 
 struct Toggle
 {
@@ -22,7 +22,7 @@ inline void initToggles(PedalState &pedal)
     {
         pinMode(toggles[i].pin, INPUT_PULLUP);
     }
-    pedal.ramp.latching = !digitalRead(MS2_PIN);
+    pedal.modulator.latching = !digitalRead(MS2_PIN);
     pedal.potMode = digitalRead(POT_MODE_TOGGLE) ? PotMode::RampSpeed : PotMode::SendCC;
     pedal.rampLinearCurve = !digitalRead(LESW_PIN);
     pedal.settingsLocked = !digitalRead(LST_PIN);
@@ -53,7 +53,7 @@ inline bool handleToggleChange(Toggle &toggle, PedalState &pedal, void (*display
         {
             if (toggle.pin == MS2_PIN)
             {
-                pedal.ramp.setLatch(!state);
+                pedal.modulator.setLatch(!state);
             }
             else if (toggle.pin == POT_MODE_TOGGLE)
             {
@@ -61,7 +61,7 @@ inline bool handleToggleChange(Toggle &toggle, PedalState &pedal, void (*display
             }
             else if (toggle.pin == LESW_PIN)
             {
-                pedal.ramp.setCurveType(!state);
+                pedal.modulator.setCurveType(!state);
             }
             else if (toggle.pin == LST_PIN)
             {

@@ -1,8 +1,8 @@
 #pragma once
-#include "config.h"
-#include "footswitchObject.h"
-#include "pedalState.h"
-#include "statePersistance.h"
+#include "../config.h"
+#include "../footswitches/footswitchObject.h"
+#include "../pedalState.h"
+#include "../statePersistance.h"
 
 inline FSButton encBtn = {ENC_BTN, NO_LED_PIN, "Enc BTN", 0};
 

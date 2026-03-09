@@ -11,7 +11,7 @@ enum ModulationType
     RANDOM
 }
 
-struct MidiCCRamp
+struct MidiCCModulator
 {
     bool isLinear = true;
     bool switchPressed = false;
@@ -30,6 +30,11 @@ struct MidiCCRamp
     uint8_t midiChannel = 0;
     uint8_t midiCCNumber = 25;
     ModulationType modType = ModulationType::RAMPER;
+
+    void updateRamper();
+    void updateLFO();
+    void updateStepper();
+    void updateRandomStepper();
 
     void _setLED(bool state)
     {
@@ -157,65 +162,9 @@ struct MidiCCRamp
         }
         return;
     }
-
-    void updateLFO()
-    {
-        return;
-    }
-    void updateStepper()
-    {
-        return;
-    }
-    void updateRandomStepper()
-    {
-        return;
-    }
-    void updateRamper()
-    {
-
-        if (currentRampDuration <= 1)
-        {
-            currentValue = targetValue;
-            isModulating = false;
-            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
-            return;
-        }
-
-        unsigned long now = millis();
-        unsigned long elapsed = now - rampStartTime;
-
-        if (elapsed >= currentRampDuration)
-        {
-            currentValue = targetValue;
-            isModulating = false;
-            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
-            return;
-        }
-
-        float t = (float)elapsed / currentRampDuration;
-        if (t > 1.0f)
-            t = 1.0f;
-
-        float shaped;
-
-        if (!isLinear)
-        {
-            shaped = t * t;
-            // float inv = 1.0f - t;
-            // shaped = 1.0f - (inv * inv * inv);
-        }
-        else // linear
-        {
-            shaped = t;
-        }
-
-        int delta = targetValue - rampStartValue;
-        uint8_t newValue = rampStartValue + (delta * shaped);
-
-        if (newValue != currentValue)
-        {
-            currentValue = newValue;
-            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
-        }
-    }
 };
+
+#include "modulators/ramper.h"
+#include "modulators/lfo.h"
+#include "modulators/stepper.h"
+#include "modulators/randomStepper.h"

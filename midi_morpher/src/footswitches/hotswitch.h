@@ -1,7 +1,7 @@
 #pragma once
-#include "config.h"
+#include "../config.h"
+#include "../pedalState.h"
+#include "../midiCCModulator.h"
 #include "footswitchObject.h"
-#include "pedalState.h"
-#include "ramps.h"
 
 FSButton hotswitch = FSButton(HS_PIN, HS_LED, "Hotswitch", 0);

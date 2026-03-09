@@ -1,17 +1,17 @@
-#include "config.h"
-#include "pedalState.h"
-#include "midiOut.h"
-#include "display.h"
-#include "toggles.h"
-#include "encoder.h"
-#include "encoderButton.h"
-#include "statePersistance.h"
-#include "pots.h"
-#include "hotswitch.h"
-#include "neopx.h"
-#include "digipot.h"
 #include <USB.h>
 #include <USBMIDI.h>
+#include "src/config.h"
+#include "src/pedalState.h"
+#include "src/midiOut.h"
+#include "src/visual/display.h"
+#include "src/controls/toggles.h"
+#include "src/controls/encoder.h"
+#include "src/controls/encoderButton.h"
+#include "src/statePersistance.h"
+#include "src/controls/pots.h"
+#include "src/footswitches/hotswitch.h"
+#include "src/visual/neopx.h"
+#include "src/analogInOut/digipot.h"
 
 // initialize global state
 USBMIDI midi;
@@ -55,7 +55,7 @@ void setup()
 void loop()
 {
     // digipotLoop();
-    pedal.ramp.update();
+    pedal.modulator.update();
     for (auto &button : pedal.buttons)
     {
         button.handleFootswitch(pedal.midiChannel, displayFootswitchPress);
@@ -75,9 +75,9 @@ void loop()
     }
     handleEncoder(pedal, displayEncoderTurn, displayLockedMessage);
     handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage);
-    hotswitch.handleHotswitch(pedal.ramp);
-    updateNeoPixel(pedal.ramp.currentValue, analogPots);
-    setDigipotFromMidi(pedal.ramp.currentValue);
+    hotswitch.handleHotswitch(pedal.modulator);
+    updateNeoPixel(pedal.modulator.currentValue, analogPots);
+    setDigipotFromMidi(pedal.modulator.currentValue);
     resetDisplayTimeout(pedal);
     checkAndSaveState(pedal);
 
@@ -98,7 +98,7 @@ void loop()
         Serial1.write(data);
         Serial1.flush();
         midi.write(data);
-        }
+    }
 
     // USB MIDI IN - mirror to DIN output - WORKS!
     if (midi.readPacket(&midi_packet_in))

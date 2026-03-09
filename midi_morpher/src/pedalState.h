@@ -1,7 +1,7 @@
 #pragma once
 #include "config.h"
-#include "footswitchObject.h"
-#include "ramps.h"
+#include "footswitches/footswitchObject.h"
+#include "midiCCModulator.h"
 
 enum class PotMode
 {
@@ -21,7 +21,7 @@ struct PedalState
 
     unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
-    MidiCCRamp ramp;
+    MidiCCModulator modulator;
 
     std::array<FSButton, 4> buttons = {
         FSButton(FS1_PIN, FS1_LED, "FS 1", 0),
@@ -32,7 +32,7 @@ struct PedalState
     void setMidiChannel(uint8_t mc)
     {
         midiChannel = mc;
-        ramp.midiChannel = mc;
+        modulator.midiChannel = mc;
     }
     void init()
     {

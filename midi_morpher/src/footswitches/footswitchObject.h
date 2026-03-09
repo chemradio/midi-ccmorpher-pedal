@@ -1,7 +1,7 @@
 #pragma once
-#include "midiOut.h"
-#include "config.h"
-#include "ramps.h"
+#include "../midiOut.h"
+#include "../config.h"
+#include "../midiCCModulator.h"
 inline constexpr unsigned long LONG_PRESS_TIMEOUT = 2000;
 
 // enum for footswitch mode
@@ -150,7 +150,7 @@ struct FSButton
         }
     }
 
-    void handleHotswitch(MidiCCRamp &ramp, void (*displayCallback)(FSButton &) = nullptr)
+    void handleHotswitch(MidiCCModulator &modulator, void (*displayCallback)(FSButton &) = nullptr)
     {
         if (!_handleDebounce())
             return;
@@ -163,11 +163,11 @@ struct FSButton
 
             if (isPressed)
             {
-                ramp.press();
+                modulator.press();
             }
             else
             {
-                ramp.release();
+                modulator.release();
             }
         }
     }
