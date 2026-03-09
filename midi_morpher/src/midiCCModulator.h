@@ -3,16 +3,15 @@
 #include "midiOut.h"
 #include <Adafruit_NeoPixel.h>
 
-enum ModulationType
-{
-    RAMPER,
-    LFO,
-    STEPPER,
-    RANDOM
-}
-
 struct MidiCCModulator
 {
+    enum ModulationType
+    {
+        RAMPER,
+        LFO,
+        STEPPER,
+        RANDOM
+    };
     bool isLinear = true;
     bool switchPressed = false;
     bool inverted = false;
