@@ -4,6 +4,12 @@
 #include "../midiCCModulator.h"
 inline constexpr unsigned long LONG_PRESS_TIMEOUT = 2000;
 
+// there are two options:
+// 1. adding latching toggle to every switch
+// 2. latching is programmed from "MODE SELECT" menu via encoder
+// this kills the "latching trick workflow" to invert the modulation
+// Below are the modulation modes of footswitches:
+
 // enum for footswitch mode
 enum class FootswitchMode
 {
@@ -11,7 +17,51 @@ enum class FootswitchMode
     LatchingCC,
     MomentaryCC,
 
+    RamperUpMomentary,
+    RamperUpLatching,
+    RamperDownMomentary,
+    RamerDownLatching,
+
+    StepperUpMomentary,
+    StepperUpLatching,
+    StepperDownMomentary,
+    StepperDownLatching,
+
+    LfoMomentary,
+    LfoLatching,
+
+    RandomStepperMomentary,
+    RandomStepperLatching,
 };
+
+struct ModeInfo
+{
+    FootswitchMode mode;
+    bool isLatching;
+    bool isPC;
+    const char *name;
+};
+
+static constexpr ModeInfo modes[] = {
+    {FootswitchMode::MomentaryPC, false, true, "PC"},
+    {FootswitchMode::MomentaryCC, false, false, "CC"},
+    {FootswitchMode::LatchingCC, true, false, "CC L"},
+    //
+    {FootswitchMode::RamperUpMomentary, false, false, "RampUp"},
+    {FootswitchMode::RamperUpLatching, true, false, "RampUp L"},
+    {FootswitchMode::RamperDownMomentary, false, false, "RampDown"},
+    {FootswitchMode::RamerDownLatching, true, false, "RampDown L"},
+    //
+    {FootswitchMode::StepperUpMomentary, false, false, "StepUp"},
+    {FootswitchMode::StepperUpLatching, true, false, "StepUp L"},
+    {FootswitchMode::StepperDownMomentary, false, false, "StepDown"},
+    {FootswitchMode::StepperDownLatching, true, false, "StepDown L"},
+    //
+    {FootswitchMode::LfoMomentary, false, false, "LFO"},
+    {FootswitchMode::LfoLatching, true, false, "LFO L"},
+    //
+    {FootswitchMode::RandomStepperMomentary, false, false, "Random"},
+    {FootswitchMode::RandomStepperLatching, true, false, "Random L"}};
 
 struct FSButton
 {
@@ -175,25 +225,33 @@ struct FSButton
 
     const char *toggleFootswitchMode()
     {
-        // three modes total: momentary PC, latching CC, momentary CC, need to cycle through
-        switch (mode)
-        {
-        case FootswitchMode::MomentaryPC:
-            mode = FootswitchMode::LatchingCC;
-            isLatching = true;
-            isPC = false;
-            return "latchCC";
-        case FootswitchMode::LatchingCC:
-            mode = FootswitchMode::MomentaryCC;
-            isLatching = false;
-            isPC = false;
-            return "momCC";
-        case FootswitchMode::MomentaryCC:
-            mode = FootswitchMode::MomentaryPC;
-            isLatching = false;
-            isPC = true;
-            return "momPC";
-        }
-        return "unknown";
+        static int index = 0;
+        index = (index + 1) % 3;
+
+        mode = modes[index].mode;
+        isLatching = modes[index].isLatching;
+        isPC = modes[index].isPC;
+
+        return modes[index].name;
+        // // three modes total: momentary PC, latching CC, momentary CC, need to cycle through
+        // switch (mode)
+        // {
+        // case FootswitchMode::MomentaryPC:
+        //     mode = FootswitchMode::LatchingCC;
+        //     isLatching = true;
+        //     isPC = false;
+        //     return "latchCC";
+        // case FootswitchMode::LatchingCC:
+        //     mode = FootswitchMode::MomentaryCC;
+        //     isLatching = false;
+        //     isPC = false;
+        //     return "momCC";
+        // case FootswitchMode::MomentaryCC:
+        //     mode = FootswitchMode::MomentaryPC;
+        //     isLatching = false;
+        //     isPC = true;
+        //     return "momPC";
+        // }
+        // return "unknown";
     }
 };
