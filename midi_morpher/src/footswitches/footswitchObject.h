@@ -227,7 +227,7 @@ struct FSButton
 
     const char *toggleFootswitchMode()
     {
-        modeIndex = (modeIndex + 1) % 5;
+        modeIndex = (modeIndex + 1) % 15;
 
         mode = modes[modeIndex].mode;
         isLatching = modes[modeIndex].isLatching;
