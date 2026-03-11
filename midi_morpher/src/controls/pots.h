@@ -2,6 +2,7 @@
 #include "../config.h"
 #include "../pedalState.h"
 #include "../midiOut.h"
+#include "../sharedTypes.h"
 
 inline const uint8_t potDeadband = 20;
 unsigned long lastSettingsBlockedDisplayed = 0;

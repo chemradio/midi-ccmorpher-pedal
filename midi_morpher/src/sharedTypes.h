@@ -6,3 +6,9 @@ enum ModulationType
     STEPPER,
     RANDOM
 };
+
+enum class PotMode
+{
+    RampSpeed,
+    SendCC
+};

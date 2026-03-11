@@ -2,6 +2,7 @@
 #include "../config.h"
 #include "../pedalState.h"
 #include "../statePersistance.h"
+#include "../sharedTypes.h"
 
 struct Toggle
 {

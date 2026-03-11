@@ -2,12 +2,7 @@
 #include "config.h"
 #include "footswitches/footswitchObject.h"
 #include "midiCCModulator.h"
-
-enum class PotMode
-{
-    RampSpeed,
-    SendCC
-};
+#include "sharedTypes.h"
 
 struct PedalState
 {
@@ -34,6 +29,7 @@ struct PedalState
         midiChannel = mc;
         modulator.midiChannel = mc;
     }
+
     void init()
     {
         initButtons();
