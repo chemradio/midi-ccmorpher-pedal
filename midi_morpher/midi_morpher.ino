@@ -9,7 +9,6 @@
 #include "src/controls/encoderButton.h"
 #include "src/statePersistance.h"
 #include "src/controls/pots.h"
-#include "src/footswitches/hotswitch.h"
 #include "src/visual/neopx.h"
 #include "src/analogInOut/digipot.h"
 
@@ -58,7 +57,7 @@ void loop()
     pedal.modulator.update();
     for (auto &button : pedal.buttons)
     {
-        button.handleFootswitch(pedal.midiChannel, displayFootswitchPress);
+        button.handleFootswitch(pedal.midiChannel, pedal.modulator, displayFootswitchPress);
     }
 
     for (auto &tgl : toggles)
@@ -75,7 +74,7 @@ void loop()
     }
     handleEncoder(pedal, displayEncoderTurn, displayLockedMessage);
     handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage);
-    hotswitch.handleHotswitch(pedal.modulator);
+
     updateNeoPixel(pedal.modulator.currentValue, analogPots);
     setDigipotFromMidi(pedal.modulator.currentValue);
     resetDisplayTimeout(pedal);

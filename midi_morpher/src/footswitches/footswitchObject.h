@@ -2,6 +2,7 @@
 #include "../midiOut.h"
 #include "../config.h"
 #include "../midiCCModulator.h"
+#include "../sharedTypes.h"
 inline constexpr unsigned long LONG_PRESS_TIMEOUT = 2000;
 
 // there are two options:
@@ -40,28 +41,29 @@ struct ModeInfo
     bool isLatching;
     bool isPC;
     const char *name;
+    ModulationType modMode;
 };
 
 static constexpr ModeInfo modes[] = {
-    {FootswitchMode::MomentaryPC, false, true, "PC"},
-    {FootswitchMode::MomentaryCC, false, false, "CC"},
-    {FootswitchMode::LatchingCC, true, false, "CC L"},
+    {FootswitchMode::MomentaryPC, false, true, "PC", ModulationType::NOMODULATION},
+    {FootswitchMode::MomentaryCC, false, false, "CC", ModulationType::NOMODULATION},
+    {FootswitchMode::LatchingCC, true, false, "CC L", ModulationType::NOMODULATION},
     //
-    {FootswitchMode::RamperUpMomentary, false, false, "RampUp"},
-    {FootswitchMode::RamperUpLatching, true, false, "RampUp L"},
-    {FootswitchMode::RamperDownMomentary, false, false, "RampDown"},
-    {FootswitchMode::RamerDownLatching, true, false, "RampDown L"},
+    {FootswitchMode::RamperUpMomentary, false, false, "RampUp", ModulationType::RAMPER},
+    {FootswitchMode::RamperUpLatching, true, false, "RampUp L", ModulationType::RAMPER},
+    {FootswitchMode::RamperDownMomentary, false, false, "RampDown", ModulationType::RAMPER},
+    {FootswitchMode::RamerDownLatching, true, false, "RampDown L", ModulationType::RAMPER},
     //
-    {FootswitchMode::StepperUpMomentary, false, false, "StepUp"},
-    {FootswitchMode::StepperUpLatching, true, false, "StepUp L"},
-    {FootswitchMode::StepperDownMomentary, false, false, "StepDown"},
-    {FootswitchMode::StepperDownLatching, true, false, "StepDown L"},
+    {FootswitchMode::StepperUpMomentary, false, false, "StepUp", ModulationType::STEPPER},
+    {FootswitchMode::StepperUpLatching, true, false, "StepUp L", ModulationType::STEPPER},
+    {FootswitchMode::StepperDownMomentary, false, false, "StepDown", ModulationType::STEPPER},
+    {FootswitchMode::StepperDownLatching, true, false, "StepDown L", ModulationType::STEPPER},
     //
-    {FootswitchMode::LfoMomentary, false, false, "LFO"},
-    {FootswitchMode::LfoLatching, true, false, "LFO L"},
+    {FootswitchMode::LfoMomentary, false, false, "LFO", ModulationType::LFO},
+    {FootswitchMode::LfoLatching, true, false, "LFO L", ModulationType::LFO},
     //
-    {FootswitchMode::RandomStepperMomentary, false, false, "Random"},
-    {FootswitchMode::RandomStepperLatching, true, false, "Random L"}};
+    {FootswitchMode::RandomStepperMomentary, false, false, "Random", ModulationType::RANDOM},
+    {FootswitchMode::RandomStepperLatching, true, false, "Random L", ModulationType::RANDOM}};
 
 struct FSButton
 {
@@ -79,9 +81,11 @@ struct FSButton
     bool isPressed = false;
     bool isLatching = false;
     bool isActivated = false;
-    bool isLongPressActivated = false;
     bool isPC = true;
     uint8_t midiNumber = 0;
+    uint8_t modeIndex = 0;
+    bool isModSwitch = false;
+
     FootswitchMode mode = FootswitchMode::MomentaryPC;
 
     // constructor
@@ -182,7 +186,7 @@ struct FSButton
         return (reading == LOW);
     }
 
-    void handleFootswitch(uint8_t midiChannel, void (*displayCallback)(FSButton &) = nullptr)
+    void handleFootswitch(uint8_t midiChannel, MidiCCModulator &modulator, void (*displayCallback)(FSButton &) = nullptr)
     {
         if (!_handleDebounce())
             return;
@@ -194,45 +198,43 @@ struct FSButton
             lastDebounce = millis();
             lastState = reading;
 
-            if (isLatching)
-                _handleLatching(midiChannel, reading, displayCallback);
-            else
-                _handleMomentary(midiChannel, reading, displayCallback);
-        }
-    }
-
-    void handleHotswitch(MidiCCModulator &modulator, void (*displayCallback)(FSButton &) = nullptr)
-    {
-        if (!_handleDebounce())
-            return;
-        bool reading = digitalRead(pin);
-        isPressed = (reading == LOW);
-        if (reading != lastState)
-        {
-            lastDebounce = millis();
-            lastState = reading;
-
-            if (isPressed)
+            if (isModSwitch)
             {
-                modulator.press();
+                // every hotswitch has it's own params for modulation
+                // it requires reconfiguring the modulator each time
+                modulator.modType = mode.modType;
+                modulator.latching = isLatching;
+
+                if (isPressed)
+                {
+                    modulator.press();
+                }
+                else
+                {
+                    modulator.release();
+                }
+                return;
             }
             else
             {
-                modulator.release();
+                if (isLatching)
+                    _handleLatching(midiChannel, reading, displayCallback);
+                else
+                    _handleMomentary(midiChannel, reading, displayCallback);
             }
         }
     }
 
     const char *toggleFootswitchMode()
     {
-        static int index = 0;
-        index = (index + 1) % 3;
+        modeIndex = (modeIndex + 1) % 5;
 
-        mode = modes[index].mode;
-        isLatching = modes[index].isLatching;
-        isPC = modes[index].isPC;
+        mode = modes[modeIndex].mode;
+        isLatching = modes[modeIndex].isLatching;
+        isPC = modes[modeIndex].isPC;
 
-        return modes[index].name;
+        return modes[modeIndex].name;
+
         // // three modes total: momentary PC, latching CC, momentary CC, need to cycle through
         // switch (mode)
         // {
