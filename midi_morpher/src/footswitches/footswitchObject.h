@@ -40,41 +40,37 @@ struct ModeInfo {
   bool isPC;
   const char *name;
   ModulationType modMode;
+  bool isModSwitch;
 };
 
 static constexpr ModeInfo modes[] = {
-    {FootswitchMode::MomentaryPC, false, true, "PC",
-     ModulationType::NOMODULATION},
-    {FootswitchMode::MomentaryCC, false, false, "CC",
-     ModulationType::NOMODULATION},
-    {FootswitchMode::LatchingCC, true, false, "CC L",
-     ModulationType::NOMODULATION},
+    {FootswitchMode::MomentaryPC, false, true, "PC", ModulationType::NOMODULATION, false},
+    {FootswitchMode::MomentaryCC, false, false, "CC", ModulationType::NOMODULATION, false},
+    {FootswitchMode::LatchingCC, true, false, "CC L", ModulationType::NOMODULATION, false},
     //
-    {FootswitchMode::RamperUpMomentary, false, false, "RampUp",
-     ModulationType::RAMPER},
-    {FootswitchMode::RamperUpLatching, true, false, "RampUp L",
-     ModulationType::RAMPER},
-    {FootswitchMode::RamperDownMomentary, false, false, "RampDown",
-     ModulationType::RAMPER},
-    {FootswitchMode::RamerDownLatching, true, false, "RampDown L",
-     ModulationType::RAMPER},
+    {FootswitchMode::RamperUpMomentary, false, false, "RampUp", ModulationType::RAMPER, true},
+    {FootswitchMode::RamperUpLatching, true, false, "RampUp L", ModulationType::RAMPER, true},
+    {FootswitchMode::RamperDownMomentary, false, false, "RampDown", ModulationType::RAMPER, true},
+    {FootswitchMode::RamerDownLatching, true, false, "RampDown L", ModulationType::RAMPER, true},
     //
-    {FootswitchMode::StepperUpMomentary, false, false, "StepUp",
-     ModulationType::STEPPER},
-    {FootswitchMode::StepperUpLatching, true, false, "StepUp L",
-     ModulationType::STEPPER},
-    {FootswitchMode::StepperDownMomentary, false, false, "StepDown",
-     ModulationType::STEPPER},
-    {FootswitchMode::StepperDownLatching, true, false, "StepDown L",
-     ModulationType::STEPPER},
+    {FootswitchMode::StepperUpMomentary, false, false, "StepUp", ModulationType::STEPPER, true},
+    {FootswitchMode::StepperUpLatching, true, false, "StepUp L", ModulationType::STEPPER, true},
+    {FootswitchMode::StepperDownMomentary, false, false, "StepDown", ModulationType::STEPPER, true},
+    {FootswitchMode::StepperDownLatching, true, false, "StepDown L", ModulationType::STEPPER, true},
     //
-    {FootswitchMode::LfoMomentary, false, false, "LFO", ModulationType::LFO},
-    {FootswitchMode::LfoLatching, true, false, "LFO L", ModulationType::LFO},
+    {FootswitchMode::LfoMomentary, false, false, "LFO", ModulationType::LFO, true},
+    {FootswitchMode::LfoLatching, true, false, "LFO L", ModulationType::LFO, true},
     //
-    {FootswitchMode::RandomStepperMomentary, false, false, "Random",
-     ModulationType::RANDOM},
-    {FootswitchMode::RandomStepperLatching, true, false, "Random L",
-     ModulationType::RANDOM}};
+    {FootswitchMode::RandomStepperMomentary, false, false, "Random", ModulationType::RANDOM, true},
+    {FootswitchMode::RandomStepperLatching, true, false, "Random L", ModulationType::RANDOM, true}};
+
+inline ModulationType getModulationType(FootswitchMode mode) {
+  for(const auto &m : modes) {
+    if(m.mode == mode)
+      return m.modMode;
+  }
+  return ModulationType::NOMODULATION; // fallback
+}
 
 struct FSButton {
   // unique fields
@@ -97,10 +93,12 @@ struct FSButton {
   bool isModSwitch = false;
 
   FootswitchMode mode = FootswitchMode::MomentaryPC;
+  ModeInfo modMode = ModeInfo({FootswitchMode::MomentaryPC, false, true, "PC", ModulationType::NOMODULATION});
 
   // constructor
   FSButton(uint8_t p, uint8_t lp, const char *n, uint8_t mN)
-      : pin(p), ledPin(lp), name(n), midiNumber(mN) {}
+      : pin(p),
+        ledPin(lp), name(n), midiNumber(mN) {}
 
   // shared methods
   void init() {
@@ -114,8 +112,7 @@ struct FSButton {
     digitalWrite(ledPin, state ? HIGH : LOW);
   }
 
-  void _handleLatching(uint8_t midiChannel, bool reading,
-                       void (*displayCallback)(FSButton &) = nullptr) {
+  void _handleLatching(uint8_t midiChannel, bool reading, void (*displayCallback)(FSButton &) = nullptr) {
     if(isPC || reading) {
       return;
     }
@@ -127,8 +124,7 @@ struct FSButton {
     sendMIDI(midiChannel, isPC, midiNumber, isActivated ? 127 : 0);
   }
 
-  void _handleMomentary(uint8_t midiChannel, bool reading,
-                        void (*displayCallback)(FSButton &) = nullptr) {
+  void _handleMomentary(uint8_t midiChannel, bool reading, void (*displayCallback)(FSButton &) = nullptr) {
     if(isPC) {
       if(!reading) {
         _setLED(true);
@@ -178,8 +174,7 @@ struct FSButton {
     return (reading == LOW);
   }
 
-  void handleFootswitch(uint8_t midiChannel, MidiCCModulator &modulator,
-                        void (*displayCallback)(FSButton &) = nullptr) {
+  void handleFootswitch(uint8_t midiChannel, MidiCCModulator &modulator, void (*displayCallback)(FSButton &) = nullptr) {
     if(!_handleDebounce())
       return;
     bool reading = digitalRead(pin);
@@ -192,7 +187,7 @@ struct FSButton {
       if(isModSwitch) {
         // every hotswitch has it's own params for modulation
         // it requires reconfiguring the modulator each time
-        modulator.modType = mode.modType;
+        modulator.modType = getModulationType(mode);
         modulator.latching = isLatching;
 
         if(isPressed) {
@@ -210,34 +205,33 @@ struct FSButton {
     }
   }
 
-  const char *toggleFootswitchMode() {
+  const char *toggleFootswitchMode(MidiCCModulator &modulator) {
     modeIndex = (modeIndex + 1) % 15;
 
     mode = modes[modeIndex].mode;
+    isModSwitch = modes[modeIndex].isModSwitch;
     isLatching = modes[modeIndex].isLatching;
     isPC = modes[modeIndex].isPC;
+    modMode = modes[modeIndex];
+
+    // reverse current position based on some modes
+    // reverse indexes: 5, 6, 9, 10
+    switch(modeIndex) {
+    case 5:
+    case 6:
+    case 9:
+    case 10:
+      modulator.currentValue = 127;
+      break;
+    default:
+      modulator.currentValue = 0;
+    }
+
+    if(isModSwitch)
+      _setLED(true);
+    else
+      _setLED(false);
 
     return modes[modeIndex].name;
-
-    // // three modes total: momentary PC, latching CC, momentary CC, need to
-    // cycle through switch (mode)
-    // {
-    // case FootswitchMode::MomentaryPC:
-    //     mode = FootswitchMode::LatchingCC;
-    //     isLatching = true;
-    //     isPC = false;
-    //     return "latchCC";
-    // case FootswitchMode::LatchingCC:
-    //     mode = FootswitchMode::MomentaryCC;
-    //     isLatching = false;
-    //     isPC = false;
-    //     return "momCC";
-    // case FootswitchMode::MomentaryCC:
-    //     mode = FootswitchMode::MomentaryPC;
-    //     isLatching = false;
-    //     isPC = true;
-    //     return "momPC";
-    // }
-    // return "unknown";
   }
 };
