@@ -221,11 +221,14 @@ struct FSButton {
     case 6:
     case 9:
     case 10:
-      modulator.currentValue = 127;
+      modulator.invert(true);
       break;
     default:
-      modulator.currentValue = 0;
+      modulator.invert(false);
     }
+
+    // reset modulator
+    modulator.reset();
 
     if(isModSwitch)
       _setLED(true);

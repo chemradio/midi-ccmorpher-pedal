@@ -43,7 +43,7 @@ inline void handleEncoderButton(PedalState &pedal, void (*displayCallback)(Strin
       bool isPC = activeButton.isPC;
       encBtn.lastDebounce = millis();
       displayCallback(fsName, newMode, isPC, activeButton.midiNumber);
-      markStateDirty();
+      // markStateDirty();
       return;
     }
     // else
