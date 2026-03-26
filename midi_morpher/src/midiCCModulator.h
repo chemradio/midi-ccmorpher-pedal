@@ -5,7 +5,6 @@
 #include <Adafruit_NeoPixel.h>
 
 struct MidiCCModulator {
-
   bool isLinear = false;
   bool switchPressed = false;
   bool inverted = false;
@@ -29,11 +28,9 @@ struct MidiCCModulator {
   bool lfoFinishing = false;            // true when completing final cycle before stopping
   unsigned long randomIntervalMs = 300; // ms between random jumps
   unsigned long lastRandomTime = 0;
-  uint8_t randomMin = 0;           // lower bound for random target (0-127)
-  uint8_t randomMax = 127;         // upper bound for random target (0-127)
-  uint8_t stepSize = 10;           // CC values per step (1-127). Timing is automatic.
-  unsigned long lastStepTime = 0;  // timestamp of last step
-  bool stepperRampingDown = false; // true when ramping back to 0 on release
+  uint8_t randomMin = 0;   // lower bound for random target (0-127)
+  uint8_t randomMax = 127; // upper bound for random target (0-127)
+  uint8_t stepperSteps = 10;
 
   void updateRamper();
   void updateLFO();
@@ -55,6 +52,8 @@ struct MidiCCModulator {
     switchPressed = false;
     isActivated = false;
     isModulating = false;
+    lfoStartTime = 0;
+    lastRandomTime = 0;
   }
 
   void _setLED(bool state) {
@@ -100,15 +99,6 @@ struct MidiCCModulator {
 
     rampStartTime = millis();
     rampStartValue = currentValue;
-    uint8_t distance = abs(targetValue - currentValue);
-    if(distance == 0) {
-      isModulating = false;
-      return;
-    }
-    float fraction = distance / 127.0f;
-    bool goingUp = (targetValue > currentValue);
-    unsigned long fullDuration = goingUp ? rampUpTimeMs : rampDownTimeMs;
-    currentRampDuration = fullDuration * fraction;
     isModulating = true;
   }
 

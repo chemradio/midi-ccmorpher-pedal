@@ -9,77 +9,57 @@
 //   stepIntervalMs = rampUpTimeMs / (127 / stepSize)
 //   This makes the staircase take the same total time as the smooth ramper.
 
-inline void MidiCCModulator::updateStepper()
-{
-    // --- Ramp down to 0 on release (reuses ramper math) ---
-    if (stepperRampingDown)
-    {
-        if (currentRampDuration <= 1)
-        {
-            currentValue = 0;
-            isModulating = false;
-            stepperRampingDown = false;
-            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
-            return;
-        }
+inline void MidiCCModulator::updateStepper() {
+  uint8_t distance = abs(targetValue - currentValue);
+  if(distance == 0) {
+    isModulating = false;
+    return;
+  }
 
-        unsigned long now = millis();
-        unsigned long elapsed = now - rampStartTime;
+  // scale ramp time based on already travelled distance
+  float fraction = distance / 127.0f; // get the fraction based on travelled distance.
+  bool goingUp = (targetValue > currentValue);
+  unsigned long fullDuration = goingUp ? rampUpTimeMs : rampDownTimeMs;
+  currentRampDuration = fullDuration * fraction;
 
-        if (elapsed >= currentRampDuration)
-        {
-            currentValue = 0;
-            isModulating = false;
-            stepperRampingDown = false;
-            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
-            return;
-        }
-
-        float t = (float)elapsed / (float)currentRampDuration;
-        if (t > 1.0f)
-            t = 1.0f;
-
-        float shaped = isLinear ? t : (t * t);
-        int delta = (int)targetValue - (int)rampStartValue;
-        uint8_t newVal = rampStartValue + (int8_t)(delta * shaped);
-
-        if (newVal != currentValue)
-        {
-            currentValue = newVal;
-            sendMIDI(midiChannel, false, midiCCNumber, currentValue);
-        }
-        return;
-    }
-
-    // --- Stopped at 127 or deactivated ---
-    if (!isActivated)
-    {
-        isModulating = false;
-        return;
-    }
-
-    // Already at ceiling — hold until released
-    if (currentValue >= 127)
-        return;
-
-    // --- Step upward ---
-    // Calculate interval so the full 0->127 journey takes rampUpTimeMs
-    uint8_t clampedStep = (stepSize < 1) ? 1 : stepSize;
-    float numSteps = 127.0f / (float)clampedStep;
-    unsigned long stepInterval = (unsigned long)((float)rampUpTimeMs / numSteps);
-    if (stepInterval < 1)
-        stepInterval = 1;
-
-    unsigned long now = millis();
-    if (now - lastStepTime < stepInterval)
-        return;
-
-    lastStepTime = now;
-
-    uint8_t newVal = currentValue + clampedStep;
-    if (newVal > 127 || newVal < currentValue) // overflow guard
-        newVal = 127;
-
-    currentValue = newVal;
+  //   early exit if already close
+  if(currentRampDuration <= 1) {
+    currentValue = targetValue;
+    isModulating = false;
     sendMIDI(midiChannel, false, midiCCNumber, currentValue);
+    return;
+  }
+
+  //   early exit if overtime ramping
+  unsigned long now = millis();
+  unsigned long elapsed = now - rampStartTime;
+  if(elapsed >= currentRampDuration) {
+    currentValue = targetValue;
+    isModulating = false;
+    sendMIDI(midiChannel, false, midiCCNumber, currentValue);
+    return;
+  }
+
+  float t = (float)elapsed / currentRampDuration;
+  if(t > 1.0f)
+    t = 1.0f;
+
+  float shaped;
+
+  if(!isLinear) {
+    shaped = t * t;
+    // float inv = 1.0f - t;
+    // shaped = 1.0f - (inv * inv * inv);
+  } else // linear
+  {
+    shaped = t;
+  }
+
+  int delta = targetValue - rampStartValue;
+  uint8_t newValue = rampStartValue + (delta * shaped);
+
+  if(newValue != currentValue) {
+    currentValue = newValue;
+    sendMIDI(midiChannel, false, midiCCNumber, currentValue);
+  }
 }
