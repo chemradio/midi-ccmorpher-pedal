@@ -36,16 +36,7 @@ inline void MidiCCModulator::updateLFO() {
   if(t > 1.0f)
     t = 1.0f;
 
-  float shaped;
-
-  if(!isLinear) {
-    shaped = t * t;
-    // float inv = 1.0f - t;
-    // shaped = 1.0f - (inv * inv * inv);
-  } else // linear
-  {
-    shaped = t;
-  }
+  float shaped = shapeRamp(t, rampShape);
 
   int delta = targetValue - rampStartValue;
   uint8_t newValue = rampStartValue + (delta * shaped);

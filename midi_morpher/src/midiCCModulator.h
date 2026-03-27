@@ -4,8 +4,14 @@
 #include "sharedTypes.h"
 #include <Adafruit_NeoPixel.h>
 
+enum RampShape {
+  SHAPE_LINEAR,
+  SHAPE_EXP,
+  SHAPE_SINE,
+  SHAPE_SQUARE
+};
+
 struct MidiCCModulator {
-  bool isLinear = false;
   bool switchPressed = false;
   bool inverted = false;
   bool latching = false;
@@ -21,6 +27,7 @@ struct MidiCCModulator {
   bool isModulating = false;
   uint8_t midiChannel = 0;
   uint8_t midiCCNumber = 25;
+  RampShape rampShape = RampShape::SHAPE_LINEAR;
   ModulationType modType = ModulationType::RAMPER;
 
   float lfoRateHz = 1.0f;               // cycles per second
@@ -45,6 +52,28 @@ struct MidiCCModulator {
 
     currentValue = inverted ? 127 : 0;
     targetValue = inverted ? 0 : 127;
+    rampStartValue = currentValue;
+    rampStartTime = millis();
+  }
+
+  // t is 0.0–1.0, returns shaped 0.0–1.0
+  float shapeRamp(float t, RampShape shape) {
+    switch(shape) {
+    case SHAPE_EXP:
+      return t * t;
+
+    case SHAPE_SINE:
+      // S-curve: slow start, fast middle, slow end
+      return 0.5f - 0.5f * cosf(t * M_PI);
+
+    case SHAPE_SQUARE:
+      // Snaps to target halfway through
+      return t < 0.5f ? 0.0f : 1.0f;
+
+    case SHAPE_LINEAR:
+    default:
+      return t;
+    }
   }
 
   void reset() {

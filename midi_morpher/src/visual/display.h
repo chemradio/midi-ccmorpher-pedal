@@ -1,18 +1,17 @@
 // display.h - OLED display functions
 #pragma once
-#include <Wire.h>
+#include "../config.h"
+#include "../footswitches/footswitchObject.h"
+#include "../pedalState.h"
+#include "../statePersistance.h"
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include "../config.h"
-#include "../pedalState.h"
-#include "../footswitches/footswitchObject.h"
-#include "../statePersistance.h"
+#include <Wire.h>
 
 // Display object
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-enum DisplayMode
-{
+enum DisplayMode {
   DISPLAY_DEFAULT,
   DISPLAY_PARAM
 };
@@ -23,11 +22,9 @@ unsigned long lastInteraction = 0;
 const unsigned long displayTimeout = 2000;
 DisplayMode displayMode = DISPLAY_DEFAULT;
 
-bool initDisplay()
-{
+bool initDisplay() {
   Wire.begin(SDA_PIN, SCL_PIN);
-  if (!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS))
-  {
+  if(!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
     return false;
   }
   display.clearDisplay();
@@ -36,8 +33,7 @@ bool initDisplay()
   return true;
 }
 
-void showStartupScreen()
-{
+void showStartupScreen() {
   display.dim(false);
   display.clearDisplay();
   display.invertDisplay(false);
@@ -50,8 +46,7 @@ void showStartupScreen()
   display.display();
   displayMode = DISPLAY_PARAM;
 }
-void displayLockedMessage(String whoSays = "")
-{
+void displayLockedMessage(String whoSays = "") {
   display.clearDisplay();
   display.invertDisplay(false);
   display.setTextSize(2);
@@ -64,8 +59,7 @@ void displayLockedMessage(String whoSays = "")
   displayMode = DISPLAY_PARAM;
 }
 
-void displayHomeScreen(PedalState &pedal)
-{
+void displayHomeScreen(PedalState &pedal) {
   displayMode = DISPLAY_DEFAULT;
   lastInteraction = millis();
   display.clearDisplay();
@@ -77,7 +71,6 @@ void displayHomeScreen(PedalState &pedal)
   display.print("Channel:");
   display.println(String(pedal.midiChannel + 1));
   display.println();
-  display.println(pedal.modulator.isLinear ? "Linear Ramp" : "Exponential Ramp");
   display.print("Pots: ");
   display.println(pedal.getPotMode());
   display.println(pedal.modulator.latching ? "HotSwitch Latching" : "HotSwitch Momentary");
@@ -85,21 +78,18 @@ void displayHomeScreen(PedalState &pedal)
   display.display();
 }
 
-void resetDisplayTimeout(PedalState &pedal)
-{
+void resetDisplayTimeout(PedalState &pedal) {
   unsigned long now = millis();
 
-  if (displayMode == DISPLAY_PARAM &&
-      now - lastInteraction > displayTimeout)
-  {
+  if(displayMode == DISPLAY_PARAM &&
+     now - lastInteraction > displayTimeout) {
     lastInteraction = now;
     displayMode = DISPLAY_DEFAULT;
     displayHomeScreen(pedal);
   }
 }
 
-void displayFootswitchPress(FSButton &button)
-{
+void displayFootswitchPress(FSButton &button) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
 
@@ -110,23 +100,18 @@ void displayFootswitchPress(FSButton &button)
   display.println(button.name);
   display.print(button.isPC ? "PC: " : "CC: ");
   display.println(String(button.midiNumber + 1));
-  if (!button.isPC)
-  {
+  if(!button.isPC) {
     display.print("Value: ");
-    if (button.isLatching)
-    {
+    if(button.isLatching) {
       display.println(String(button.isActivated ? 127 : 0));
-    }
-    else
-    {
+    } else {
       display.println(String(button.isPressed ? 127 : 0));
     }
   }
   display.display();
 }
 
-void displayEncoderTurn(String fsName, bool isPC, uint8_t value)
-{
+void displayEncoderTurn(String fsName, bool isPC, uint8_t value) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -138,8 +123,7 @@ void displayEncoderTurn(String fsName, bool isPC, uint8_t value)
   display.display();
 }
 
-void encoderButtonFSModeChange(String fsName, String newMode, bool isPC, uint8_t midiNumber)
-{
+void encoderButtonFSModeChange(String fsName, String newMode, bool isPC, uint8_t midiNumber) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -154,8 +138,7 @@ void encoderButtonFSModeChange(String fsName, String newMode, bool isPC, uint8_t
   display.display();
 }
 
-void displayPotRampSpeed(String potName, long rampMs)
-{
+void displayPotRampSpeed(String potName, long rampMs) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -169,8 +152,7 @@ void displayPotRampSpeed(String potName, long rampMs)
   display.display();
 }
 
-void displayPotCC(String potName, uint8_t midiScaled)
-{
+void displayPotCC(String potName, uint8_t midiScaled) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -183,9 +165,8 @@ void displayPotCC(String potName, uint8_t midiScaled)
   display.display();
 }
 
-void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, long rampMs = 0)
-{
-  if (isMidiCC)
+void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, long rampMs = 0) {
+  if(isMidiCC)
     displayPotCC(potName, midiScaled);
   else
     displayPotRampSpeed(potName, rampMs);
