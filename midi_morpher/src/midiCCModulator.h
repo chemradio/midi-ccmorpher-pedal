@@ -44,6 +44,7 @@ struct MidiCCModulator {
       inverted = !inverted;
 
     currentValue = inverted ? 127 : 0;
+    targetValue = inverted ? 0 : 127;
   }
 
   void reset() {
