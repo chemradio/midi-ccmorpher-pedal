@@ -1,6 +1,6 @@
 #pragma once
 
-uint8_t quantize(uint8_t value, uint8_t steps) {
+inline uint8_t quantize(uint8_t value, uint8_t steps) {
   if(steps <= 1)
     return 0;
 
@@ -9,7 +9,7 @@ uint8_t quantize(uint8_t value, uint8_t steps) {
   return index * stepSize;
 }
 
-uint8_t quantize_rounded(uint8_t value, uint8_t steps) {
+inline uint8_t quantize_rounded(uint8_t value, uint8_t steps) {
   if(steps <= 1)
     return 0;
   uint8_t index = ((uint16_t)value * (uint16_t)(steps - 1) + 63) / 127;
@@ -57,7 +57,7 @@ inline void MidiCCModulator::updateStepper() {
 
   int delta = targetValue - rampStartValue;
   uint8_t newValue = rampStartValue + (delta * shaped);
-  newValue = quantize(newVale, stepperSteps);
+  newValue = quantize(newValue, stepperSteps);
 
   if(newValue != currentValue) {
     currentValue = newValue;

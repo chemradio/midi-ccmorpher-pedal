@@ -221,10 +221,10 @@ struct FSButton {
     case 6:
     case 9:
     case 10:
-      modulator.invert(true);
+      modulator.invert();
       break;
     default:
-      modulator.invert(false);
+      modulator.invert();
     }
 
     // reset modulator

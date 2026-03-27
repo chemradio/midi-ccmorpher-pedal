@@ -44,12 +44,8 @@ struct MidiCCModulator {
   void updateStepper();
   void updateRandomStepper();
 
-  void invert(bool inv) {
-    if(inv)
-      inverted = inv;
-    else
-      inverted = !inverted;
-
+  void invert() {
+    inverted = !inverted;
     currentValue = inverted ? 127 : 0;
     targetValue = inverted ? 0 : 127;
     rampStartValue = currentValue;
@@ -101,7 +97,6 @@ struct MidiCCModulator {
   }
 
   void setCurveType(bool isExp) {
-    isLinear = !isExp;
   }
 
   void setCCNumber(uint8_t ccNumber) {

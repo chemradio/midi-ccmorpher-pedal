@@ -71,7 +71,7 @@ void loop() {
   updateNeoPixel(pedal.modulator.currentValue, analogPots);
   setDigipotFromMidi(pedal.modulator.currentValue);
   resetDisplayTimeout(pedal);
-  checkAndSaveState(pedal);
+  // checkAndSaveState(pedal);
 
   // // MIDI THRU functionality
   // while (Serial2.available() > 0)
