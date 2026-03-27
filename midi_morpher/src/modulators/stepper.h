@@ -1,15 +1,23 @@
 #pragma once
 
-// Stepper additional state — add these to MidiCCModulator if not present:
-//   uint8_t stepSize = 10;            // CC values per step (1-127). Timing is automatic.
-//   unsigned long lastStepTime = 0;   // timestamp of last step
-//   bool stepperRampingDown = false;  // true when ramping back to 0 on release
+uint8_t quantize(uint8_t value, uint8_t steps) {
+  if(steps <= 1)
+    return 0;
 
-// Timing model:
-//   stepIntervalMs = rampUpTimeMs / (127 / stepSize)
-//   This makes the staircase take the same total time as the smooth ramper.
+  uint16_t stepSize = 127 / (steps - 1);
+  uint8_t index = (value + stepSize / 2) / stepSize;
+  return index * stepSize;
+}
+
+uint8_t quantize_rounded(uint8_t value, uint8_t steps) {
+  if(steps <= 1)
+    return 0;
+  uint8_t index = ((uint16_t)value * (uint16_t)(steps - 1) + 63) / 127;
+  return ((uint16_t)index * 127 + (steps / 2)) / (steps - 1);
+}
 
 inline void MidiCCModulator::updateStepper() {
+
   uint8_t distance = abs(targetValue - currentValue);
   if(distance == 0) {
     isModulating = false;
@@ -30,9 +38,10 @@ inline void MidiCCModulator::updateStepper() {
     return;
   }
 
-  //   early exit if overtime ramping
   unsigned long now = millis();
   unsigned long elapsed = now - rampStartTime;
+
+  //   early exit if overtime ramping
   if(elapsed >= currentRampDuration) {
     currentValue = targetValue;
     isModulating = false;
@@ -57,6 +66,7 @@ inline void MidiCCModulator::updateStepper() {
 
   int delta = targetValue - rampStartValue;
   uint8_t newValue = rampStartValue + (delta * shaped);
+  newValue = quantize(newVale, stepperSteps);
 
   if(newValue != currentValue) {
     currentValue = newValue;
