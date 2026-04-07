@@ -12,6 +12,18 @@ Additionaly the pedal also supports all basic MIDI functionality like sending PC
 
 ---
 
+### Build Setup
+
+Install the ESP32 Arduino core board package (`Espressif Systems` → `esp32`, version ≥ 3.0.0), then install these libraries via Arduino Library Manager:
+
+- **Adafruit GFX Library** ≥ 1.11.0
+- **Adafruit SSD1306** ≥ 2.5.0
+- **Adafruit NeoPixel** ≥ 1.12.0
+
+Full dependency manifest: [`libraries.json`](libraries.json)
+
+---
+
 ### Quick Start
 
 Change the output MIDI channel by turning the encoder knob.

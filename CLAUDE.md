@@ -12,10 +12,48 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 4 footswitches, a r
 
 - **MCU:** ESP32-S3-N16R8 devboard, native USB (Arduino framework)
 - **Display:** SSD1306 OLED (I2C)
-- **Digital pot:** AD5292-BRUZ-20 (SPI) — drives analog expression output
+- **Digital pot:** AD5292-BRUZ-20 (SPI, 1024 positions) — drives analog expression output
 - **Controls:** 4 onboard footswitches, rotary encoder with push button, 2 pots (UP speed, DOWN speed), LOCK switch
 - **External:** 2 additional footswitches via jack, expression pedal in/out jacks
 - **I/O:** mini-TRS MIDI out + in (MIDI Thru), USB-C MIDI out/thru, expression pedal out
+
+### Pin Assignments
+
+| Pin | Role |
+|-----|------|
+| 1 | POT1 (UP speed) |
+| 2 | POT2 (DOWN speed) |
+| 3 | EXTFS2 LED |
+| 4 | FS1 |
+| 5 | FS1 LED |
+| 6 | FS2 |
+| 7 | FS2 LED |
+| 8 | EXTFS2 |
+| 9 | Encoder A |
+| 10 | Encoder B |
+| 11 | Encoder button |
+| 12 | Expression in |
+| 13 | MS2 (momentary/latching toggle) |
+| 17 | EXTFS1 |
+| 18 | EXTFS1 LED |
+| 36 | MIDI RX |
+| 38 | Digipot CS (SYNC) |
+| 39 | Digipot SCK |
+| 40 | Digipot MOSI (SDI) |
+| 41 | SDA (OLED) |
+| 42 | SCL (OLED) |
+| 43 | MIDI TX |
+| 47 | LOCK switch |
+| 48 | NeoPixel (onboard RGB) |
+
+### AD5292-BRUZ-20 SPI Details
+
+- Interface: SPI_MODE1, 1 MHz, MSB first
+- 16-bit transfer: bits[15:10] = command, bits[9:0] = position (0–1023)
+- Command `0b000111` + data `0b10`: unlocks RDAC write protect (must send on init)
+- Command `0b000001` + position: writes wiper position
+- MIDI 0–127 maps to position 0–1023 via `map()`
+- SDO (MISO) not used — leave unconnected
 
 ---
 
@@ -109,6 +147,28 @@ For all modulation types, the return speed scales with how far the ramp progress
 ## MIDI Thru
 
 - mini-TRS MIDI input acts as MIDI Thru — passes incoming MIDI through to output for daisy-chaining.
+
+---
+
+## Libraries
+
+External libraries (install via Arduino Library Manager):
+
+| Library | Min version |
+|---------|-------------|
+| Adafruit GFX Library | 1.11.0 |
+| Adafruit SSD1306 | 2.5.0 |
+| Adafruit NeoPixel | 1.12.0 |
+
+Built-in with ESP32 Arduino core (no install needed): `SPI.h`, `Wire.h`, `Preferences.h`, `USB.h`, `USBMIDI.h`.
+
+Full dependency manifest: `libraries.json` at project root.
+
+### Pot Noise Filtering (`src/potentiometers/analogReadHelpers.h`)
+
+- Raw read: 8-sample average per read (`readPotAvg`)
+- EMA filter: alpha = 1/4 — `filtered = filtered - (filtered >> 2) + (raw >> 2)`
+- Deadband: 20 counts on 12-bit ADC (0–4095) before a change is reported
 
 ---
 
