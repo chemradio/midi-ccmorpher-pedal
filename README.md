@@ -6,11 +6,27 @@ A MIDI controller pedal for musicians with MIDI CC Morphing.
 
 ### A midi-controller pedal with 4 footswitches (FS) with MIDI Out.
 
-The key standout feature of the pedal is ability to send modulated MIDI CC messages. The output is universal: mini-TRS MIDI Out, USB-MIDI and analog expression out.
+The key standout feature of the pedal is ability to send modulated MIDI CC sweep messages. The output is universal: mini-TRS MIDI Out, USB-MIDI and analog expression out.
 
 Additionaly the pedal also supports all basic MIDI functionality like sending PC, CC and Note messages.
 
 ---
+
+### Quick Start
+
+Change output MIDI channel by turning encoder knob.
+
+While holding a footswitch:
+
+- pressing the encoder selects footswitch mode
+- turning the encoder selects MIDI values to send
+- turning pots adjusts UP and DOWN modulation speeds for this footswitch only
+
+Lock encoder and pots by engaging the LOCK switch to prevent accidential changes.
+
+---
+
+### Detailed Description
 
 Any footswitch can be customized to control internal MIDI modulation engine with different types of modulation. Each footswitch can be momentary or latching and trigger different MIDI modulation/morphing functions.
 
@@ -20,7 +36,7 @@ Pedal's output MIDI Channel is selected by turning the encoder without pressing 
 
 #### Modulator/Morpher types
 
-1. RAMPER: sends continuous MIDI CC messages from 0 to 127 and back to 0.
+1. RAMPER: sends continuous MIDI CC messages from 0 to 127 and back to 0. The curve shape is exponential.
     - momentary: on press send 0 to 127 ramp, on release - go back to 0
     - latching: on press send 0 to 127 ramp, on release - do nothing, on next press - go back to 0
 2. RAMPER Inverted: same as RAMPER but the resting position is 127 instead of 0.
@@ -46,7 +62,7 @@ Turning the encoder while in basic modes selects the PC, CC and NOTE numbers.
 
 ---
 
-Total modes list in order of appearance in menu:
+Full mode list in order of appearance in the menu:
 
 - PC
 - CC momentary
@@ -75,16 +91,22 @@ Total modes list in order of appearance in menu:
 - Fractal Scenes (CC34 with values 0-7) encoder picks CC value
 - Kemper Slots (CC50-CC54 with value 1) encoder picks CC number instead of value in this mode
 
+---
+
 ### Inputs, outputs, additional controls
 
 - mini-TRS MIDI output and input. Input is used to serve as a MIDI Thru for mirroring/daisy-chaining other MIDI Controllers.
 - Separate external expression pedal input and output. All modulation effects are sent to this output. The emulated resistance is achieved by internal digital potentiometer (AD5292-BRUZ-20). Expression pedal input for connecting external analog expression controller or pedal. If connected the pedal mirrors the expression pedal input to expression pedal output and by sending MIDI CC20 values.
+- USB-C MIDI output/thru
 - Additional 2 footswitches can be connected via external jack.
 - LOCK switch can be engaged to prevent accidentaly changing encoder and pot values.
 
-#### Internal components
+### Internal memory
 
-- ESP32-S3-N16R8 Devboard is the brain
+The pedal stores all footswitch modes in the internal memory. There's no way to reset the pedal to factory settings. I don't think anybody would need it anyway.
+
+### Internal components
+
+- ESP32-S3-N16R8 Devboard with native Arduino firmware
 - SSD1306 OLED display
 - Digital potentiometer AD5292-BRUZ-20 for expression output
--
