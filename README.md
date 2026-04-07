@@ -4,7 +4,7 @@ A MIDI controller pedal for musicians with MIDI CC Morphing.
 
 ---
 
-### A midi-controller pedal with 4 footswitches (FS) with MIDI Out.
+### A midi-controller pedal with 4 footswitches with MIDI Out.
 
 The key standout feature of the pedal is ability to send modulated MIDI CC sweep messages. The output is universal: mini-TRS MIDI Out, USB-MIDI and analog expression out.
 
@@ -14,7 +14,7 @@ Additionaly the pedal also supports all basic MIDI functionality like sending PC
 
 ### Quick Start
 
-Change output MIDI channel by turning encoder knob.
+Change the output MIDI channel by turning the encoder knob.
 
 While holding a footswitch:
 
@@ -110,3 +110,4 @@ The pedal stores all footswitch modes in the internal memory. There's no way to 
 - ESP32-S3-N16R8 Devboard with native Arduino firmware
 - SSD1306 OLED display
 - Digital potentiometer AD5292-BRUZ-20 for expression output
+- Powered via USB-C with default USB 5V
