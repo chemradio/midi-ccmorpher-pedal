@@ -44,6 +44,20 @@ struct MidiCCModulator {
   void updateStepper();
   void updateRandomStepper();
 
+  // resting at 0: presses ramp up to 127
+  void setRestingLow() {
+    inverted = false;
+    currentValue = 0;
+    targetValue = 127;
+  }
+
+  // resting at 127: presses ramp down to 0
+  void setRestingHigh() {
+    inverted = true;
+    currentValue = 127;
+    targetValue = 0;
+  }
+
   void invert() {
     inverted = !inverted;
     currentValue = inverted ? 127 : 0;
