@@ -1,0 +1,42 @@
+{
+    "name": "MIDI Morpher",
+    "target": "esp32s3",
+    "board": {
+        "package": "esp32",
+        "vendor": "Espressif Systems",
+        "fqbn": "esp32:esp32:esp32s3",
+        "version": ">=3.0.0",
+        "url": "https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json"
+    },
+    "dependencies": {
+        "external": [
+            {
+                "name": "Adafruit GFX Library",
+                "version": ">=1.11.0",
+                "install": "Arduino Library Manager → search 'Adafruit GFX Library'",
+                "used_by": ["src/visual/display.h"]
+            },
+            {
+                "name": "Adafruit SSD1306",
+                "version": ">=2.5.0",
+                "install": "Arduino Library Manager → search 'Adafruit SSD1306'",
+                "used_by": ["src/visual/display.h"]
+            },
+            {
+                "name": "Adafruit NeoPixel",
+                "version": ">=1.12.0",
+                "install": "Arduino Library Manager → search 'Adafruit NeoPixel'",
+                "used_by": ["src/visual/neopx.h"]
+            }
+        ],
+        "bundled_with_esp32_core": [
+            "Arduino.h",
+            "SPI.h",
+            "Wire.h",
+            "Preferences.h",
+            "USB.h",
+            "USBMIDI.h"
+        ],
+        "stdlib": ["math.h", "stdlib.h"]
+    }
+}

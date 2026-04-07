@@ -1,0 +1,3 @@
+The SPI mode is set to SPI_MODE1. If the wiper doesn't respond, change it to SPI_MODE0 in digipot.h line:
+  digipotSPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));                                                                      
+  Both modes are documented as compatible with AD52xx parts depending on the revision.       
