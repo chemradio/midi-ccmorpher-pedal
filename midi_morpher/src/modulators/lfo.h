@@ -2,44 +2,48 @@
 #include <math.h>
 
 inline void MidiCCModulator::updateLFO() {
-  uint8_t distance = abs(targetValue - currentValue);
+  uint8_t distance = (uint8_t)abs((int)targetValue - (int)currentValue);
+
   if(distance == 0) {
-    invert(); // reverse direction
+    if(lfoFinishing) {
+      // Reached rest value — stop.
+      isModulating  = false;
+      lfoFinishing  = false;
+      lfoTowardRest = false;
+      sendMIDI(midiChannel, false, midiCCNumber, currentValue);
+      return;
+    }
+    // Bounce: flip direction and set new target.
+    lfoTowardRest  = !lfoTowardRest;
+    targetValue    = lfoTowardRest ? restVal() : activeVal();
+    rampStartValue = currentValue;
+    rampStartTime  = millis();
     return;
   }
 
-  // scale ramp time based on already travelled distance
-  float fraction = distance / 127.0f; // get the fraction based on travelled distance.
-  bool goingUp = (targetValue > currentValue);
+  // Proportional duration based on remaining distance.
+  float fraction = distance / 127.0f;
+  bool  goingUp  = (targetValue > currentValue);
   unsigned long fullDuration = goingUp ? rampUpTimeMs : rampDownTimeMs;
-  currentRampDuration = fullDuration * fraction;
+  currentRampDuration = (unsigned long)(fullDuration * fraction);
 
   if(currentRampDuration <= 1) {
     currentValue = targetValue;
     sendMIDI(midiChannel, false, midiCCNumber, currentValue);
-    invert(); // reverse direction
     return;
   }
 
-  unsigned long now = millis();
-  unsigned long elapsed = now - rampStartTime;
-
-  //   early exit if overtime ramping
+  unsigned long elapsed = millis() - rampStartTime;
   if(elapsed >= currentRampDuration) {
     currentValue = targetValue;
     sendMIDI(midiChannel, false, midiCCNumber, currentValue);
-    invert(); // reverse direction
     return;
   }
 
-  float t = (float)elapsed / currentRampDuration;
-  if(t > 1.0f)
-    t = 1.0f;
-
+  float t      = (float)elapsed / (float)currentRampDuration;
   float shaped = shapeRamp(t, rampShape);
-
-  int delta = targetValue - rampStartValue;
-  uint8_t newValue = rampStartValue + (delta * shaped);
+  int   delta  = (int)targetValue - (int)rampStartValue;
+  uint8_t newValue = (uint8_t)((int)rampStartValue + (int)((float)delta * shaped));
 
   if(newValue != currentValue) {
     currentValue = newValue;

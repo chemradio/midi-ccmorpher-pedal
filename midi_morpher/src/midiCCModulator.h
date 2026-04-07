@@ -2,7 +2,6 @@
 #include "config.h"
 #include "midiOut.h"
 #include "sharedTypes.h"
-#include <Adafruit_NeoPixel.h>
 
 enum RampShape {
   SHAPE_LINEAR,
@@ -12,105 +11,85 @@ enum RampShape {
 };
 
 struct MidiCCModulator {
-  bool switchPressed = false;
-  bool inverted = false;
-  bool latching = false;
-  bool isLatched = false;
-  bool isActivated = false;
-  uint8_t targetValue = 0;
-  uint8_t currentValue = 0;
-  unsigned long rampUpTimeMs = DEFAULT_RAMP_SPEED;
-  unsigned long rampDownTimeMs = DEFAULT_RAMP_SPEED;
-  unsigned long rampStartTime = 0;
-  uint8_t rampStartValue = 0;
+  bool     switchPressed   = false;
+  bool     restingHigh     = false; // true = resting at 127 (inverted modes)
+  bool     latching        = false;
+  bool     isActivated     = false;
+  bool     isModulating    = false;
+  bool     lfoFinishing    = false; // true when LFO is returning to rest after release/latch-off
+  bool     lfoTowardRest   = false; // LFO direction: true = currently sweeping toward rest value
+
+  uint8_t  currentValue    = 0;
+  uint8_t  targetValue     = 0;
+  uint8_t  rampStartValue  = 0;
+  uint8_t  randomMin       = 0;
+  uint8_t  randomMax       = 127;
+  uint8_t  stepperSteps    = 10;
+  uint8_t  midiChannel     = 0;
+  uint8_t  midiCCNumber    = 25;
+
+  unsigned long rampUpTimeMs      = DEFAULT_RAMP_SPEED;
+  unsigned long rampDownTimeMs    = DEFAULT_RAMP_SPEED;
+  unsigned long rampStartTime     = 0;
   unsigned long currentRampDuration = 0;
-  bool isModulating = false;
-  uint8_t midiChannel = 0;
-  uint8_t midiCCNumber = 25;
-  RampShape rampShape = RampShape::SHAPE_LINEAR;
+  unsigned long lastRandomTime    = 0;
+
+  RampShape    rampShape = SHAPE_LINEAR;
   ModulationType modType = ModulationType::RAMPER;
 
-  float lfoRateHz = 1.0f;               // cycles per second
-  unsigned long lfoStartTime = 0;       // set to millis() when press() is called
-  bool lfoFinishing = false;            // true when completing final cycle before stopping
-  unsigned long randomIntervalMs = 300; // ms between random jumps
-  unsigned long lastRandomTime = 0;
-  uint8_t randomMin = 0;   // lower bound for random target (0-127)
-  uint8_t randomMax = 127; // upper bound for random target (0-127)
-  uint8_t stepperSteps = 10;
-
+  // ── Forward declarations for modulator update functions ──────────────────
   void updateRamper();
   void updateLFO();
   void updateStepper();
   void updateRandomStepper();
 
-  // resting at 0: presses ramp up to 127
-  void setRestingLow() {
-    inverted = false;
+  // ── Rest position ─────────────────────────────────────────────────────────
+  // Called from toggleFootswitchMode to configure inverted/normal mode.
+
+  void setRestingLow() {   // normal: rests at 0, sweeps to 127
+    restingHigh  = false;
     currentValue = 0;
-    targetValue = 127;
+    targetValue  = 127;
   }
 
-  // resting at 127: presses ramp down to 0
-  void setRestingHigh() {
-    inverted = true;
+  void setRestingHigh() {  // inverted: rests at 127, sweeps to 0
+    restingHigh  = true;
     currentValue = 127;
-    targetValue = 0;
+    targetValue  = 0;
   }
 
-  void invert() {
-    inverted = !inverted;
-    currentValue = inverted ? 127 : 0;
-    targetValue = inverted ? 0 : 127;
-    rampStartValue = currentValue;
-    rampStartTime = millis();
-  }
+  // ── Ramp shape ────────────────────────────────────────────────────────────
+  // t is 0.0–1.0, returns shaped 0.0–1.0.
 
-  // t is 0.0–1.0, returns shaped 0.0–1.0
   float shapeRamp(float t, RampShape shape) {
     switch(shape) {
     case SHAPE_EXP:
       return t * t;
-
     case SHAPE_SINE:
-      // S-curve: slow start, fast middle, slow end
       return 0.5f - 0.5f * cosf(t * M_PI);
-
     case SHAPE_SQUARE:
-      // Snaps to target halfway through
       return t < 0.5f ? 0.0f : 1.0f;
-
     case SHAPE_LINEAR:
     default:
       return t;
     }
   }
 
-  void reset() {
-    currentValue = inverted ? 127 : 0;
-    targetValue = inverted ? 0 : 127;
-    switchPressed = false;
-    isActivated = false;
-    isModulating = false;
-    lfoStartTime = 0;
-    lastRandomTime = 0;
-  }
+  // ── State control ─────────────────────────────────────────────────────────
 
-  void _setLED(bool state) {
-    digitalWrite(HS_LED, state);
+  void reset() {
+    currentValue  = restingHigh ? 127 : 0;
+    targetValue   = restingHigh ? 0   : 127;
+    switchPressed = false;
+    isActivated   = false;
+    isModulating  = false;
+    lfoFinishing  = false;
+    lfoTowardRest = false;
+    lastRandomTime = 0;
   }
 
   void setLatch(bool enabled) {
     latching = enabled;
-    if(currentValue > 63) {
-      inverted = true;
-    } else {
-      inverted = false;
-    }
-    _setLED(false);
-  }
-
-  void setCurveType(bool isExp) {
   }
 
   void setCCNumber(uint8_t ccNumber) {
@@ -118,84 +97,87 @@ struct MidiCCModulator {
   }
 
   void setMidiChannel(uint8_t channel) {
-    midiChannel = channel; // Fixed: was assigning to itself
+    midiChannel = channel;
   }
 
-  void setRampTimeUp(unsigned long upTime) {
-    rampUpTimeMs = upTime;
-  }
+  void setRampTimeUp(unsigned long ms)   { rampUpTimeMs   = ms; }
+  void setRampTimeDown(unsigned long ms) { rampDownTimeMs = ms; }
 
-  void setRampTimeDown(unsigned long downTime) {
-    rampDownTimeMs = downTime;
-  }
+  // ── Ramp helpers ──────────────────────────────────────────────────────────
+
+  uint8_t restVal()   const { return restingHigh ? 127 : 0; }
+  uint8_t activeVal() const { return restingHigh ? 0   : 127; }
 
   void calcAndStartRamp() {
-    if(isActivated) {
-      targetValue = inverted ? 0 : 127;
-    } else {
-      targetValue = inverted ? 127 : 0;
-    }
-
-    rampStartTime = millis();
+    targetValue    = isActivated ? activeVal() : restVal();
+    rampStartTime  = millis();
     rampStartValue = currentValue;
-    isModulating = true;
+    isModulating   = true;
   }
 
+  // ── Press / Release ───────────────────────────────────────────────────────
+
   void press() {
-    if(switchPressed)
-      return;
+    if(switchPressed) return;
     switchPressed = true;
 
     if(latching) {
-      isLatched = !isLatched;
       isActivated = !isActivated;
     } else {
       isActivated = true;
     }
 
-    lfoStartTime = millis();
-    lfoFinishing = false;
-    _setLED(isActivated);
-    calcAndStartRamp();
+    if(modType == ModulationType::LFO) {
+      if(isActivated) {
+        // Start LFO sweep from rest toward active peak.
+        lfoTowardRest  = false;
+        lfoFinishing   = false;
+        targetValue    = activeVal();
+      } else {
+        // Latching off: return smoothly to rest.
+        lfoFinishing   = true;
+        lfoTowardRest  = true;
+        targetValue    = restVal();
+      }
+      rampStartValue = currentValue;
+      rampStartTime  = millis();
+      isModulating   = true;
+    } else {
+      lfoFinishing = false;
+      calcAndStartRamp();
+    }
   }
 
   void release() {
-    if(!switchPressed)
-      return;
+    if(!switchPressed) return;
     switchPressed = false;
-
-    if(latching)
-      return;
+    if(latching) return;
 
     isActivated = false;
-    _setLED(isActivated);
 
     if(modType == ModulationType::LFO) {
-      lfoFinishing = true;
-      isModulating = true;
+      // Momentary release: stop oscillating, ramp back to rest.
+      lfoFinishing   = true;
+      lfoTowardRest  = true;
+      targetValue    = restVal();
+      rampStartValue = currentValue;
+      rampStartTime  = millis();
+      isModulating   = true;
+    } else {
+      calcAndStartRamp();
     }
-    calcAndStartRamp();
   }
 
-  void update() {
-    if(!isModulating)
-      return;
+  // ── Main update ───────────────────────────────────────────────────────────
 
+  void update() {
+    if(!isModulating) return;
     switch(modType) {
-    case ModulationType::RAMPER:
-      updateRamper();
-      return;
-    case ModulationType::LFO:
-      updateLFO();
-      return;
-    case ModulationType::STEPPER:
-      updateStepper();
-      return;
-    case ModulationType::RANDOM:
-      updateRandomStepper();
-      return;
+    case ModulationType::RAMPER: updateRamper();       return;
+    case ModulationType::LFO:    updateLFO();          return;
+    case ModulationType::STEPPER: updateStepper();     return;
+    case ModulationType::RANDOM: updateRandomStepper(); return;
     }
-    return;
   }
 };
 

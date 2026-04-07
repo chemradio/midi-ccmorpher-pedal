@@ -9,7 +9,6 @@ struct PedalState
     // pedal globals
     uint8_t midiChannel = 0;
     bool settingsLocked = false;
-    bool rampLinearCurve = true;
     int8_t activeButtonIndex = -1;
 
     PotMode potMode = PotMode::RampSpeed;

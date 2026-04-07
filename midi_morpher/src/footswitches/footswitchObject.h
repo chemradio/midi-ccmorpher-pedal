@@ -3,7 +3,6 @@
 #include "../midiCCModulator.h"
 #include "../midiOut.h"
 #include "../sharedTypes.h"
-inline constexpr unsigned long LONG_PRESS_TIMEOUT = 2000;
 
 // ── Footswitch mode enum ─────────────────────────────────────────────────────
 // Order matches the spec mode list exactly (26 modes).
@@ -60,7 +59,7 @@ struct ModeInfo {
   bool isScene;      // Helix / QC / Fractal / Kemper
   const char *name;
   ModulationType modType;
-  RampShape lfoShape;  // used only when modType == LFO
+  RampShape shape;     // ramp/wave shape applied to this mode
   uint8_t sceneCC;     // base CC number for scene/snapshot modes
   uint8_t sceneMaxVal; // encoder ceiling (7 for 0–7, 4 for Kemper slots 0–4)
   bool scenePickCC;    // true = encoder selects CC number (Kemper), false = encoder selects value
@@ -69,7 +68,7 @@ struct ModeInfo {
 // ── Mode table ───────────────────────────────────────────────────────────────
 // Single source of truth for all 26 modes.
 // Columns: mode, isLatching, isPC, isNote, isModSwitch, isInverted, isScene,
-//          name, modType, lfoShape, sceneCC, sceneMaxVal, scenePickCC
+//          name, modType, shape, sceneCC, sceneMaxVal, scenePickCC
 
 static constexpr ModeInfo modes[] = {
   // ── Basic ────────────────────────────────────────────────────────────────
@@ -78,11 +77,11 @@ static constexpr ModeInfo modes[] = {
   { FootswitchMode::LatchingCC,         true,  false, false, false, false, false, "CC Latch",      ModulationType::NOMODULATION, SHAPE_LINEAR, 0,  0, false },
   { FootswitchMode::MomentaryNote,      false, false, true,  false, false, false, "Note",          ModulationType::NOMODULATION, SHAPE_LINEAR, 0,  0, false },
 
-  // ── Ramper ───────────────────────────────────────────────────────────────
-  { FootswitchMode::RamperMomentary,    false, false, false, true,  false, false, "Ramp",          ModulationType::RAMPER,       SHAPE_LINEAR, 0,  0, false },
-  { FootswitchMode::RamperLatching,     true,  false, false, true,  false, false, "Ramp Latch",    ModulationType::RAMPER,       SHAPE_LINEAR, 0,  0, false },
-  { FootswitchMode::RamperInvMomentary, false, false, false, true,  true,  false, "Ramp Inv",      ModulationType::RAMPER,       SHAPE_LINEAR, 0,  0, false },
-  { FootswitchMode::RamperInvLatching,  true,  false, false, true,  true,  false, "Ramp Inv L",    ModulationType::RAMPER,       SHAPE_LINEAR, 0,  0, false },
+  // ── Ramper — exponential curve per spec ───────────────────────────────────
+  { FootswitchMode::RamperMomentary,    false, false, false, true,  false, false, "Ramp",          ModulationType::RAMPER,       SHAPE_EXP,    0,  0, false },
+  { FootswitchMode::RamperLatching,     true,  false, false, true,  false, false, "Ramp Latch",    ModulationType::RAMPER,       SHAPE_EXP,    0,  0, false },
+  { FootswitchMode::RamperInvMomentary, false, false, false, true,  true,  false, "Ramp Inv",      ModulationType::RAMPER,       SHAPE_EXP,    0,  0, false },
+  { FootswitchMode::RamperInvLatching,  true,  false, false, true,  true,  false, "Ramp Inv L",    ModulationType::RAMPER,       SHAPE_EXP,    0,  0, false },
 
   // ── LFO Sine ─────────────────────────────────────────────────────────────
   { FootswitchMode::LfoSineMomentary,   false, false, false, true,  false, false, "LFO Sine",      ModulationType::LFO,          SHAPE_SINE,   0,  0, false },
@@ -96,11 +95,11 @@ static constexpr ModeInfo modes[] = {
   { FootswitchMode::LfoSqMomentary,     false, false, false, true,  false, false, "LFO Sq",        ModulationType::LFO,          SHAPE_SQUARE, 0,  0, false },
   { FootswitchMode::LfoSqLatching,      true,  false, false, true,  false, false, "LFO Sq L",      ModulationType::LFO,          SHAPE_SQUARE, 0,  0, false },
 
-  // ── Stepper ──────────────────────────────────────────────────────────────
-  { FootswitchMode::StepperMomentary,   false, false, false, true,  false, false, "Step",          ModulationType::STEPPER,      SHAPE_LINEAR, 0,  0, false },
-  { FootswitchMode::StepperLatching,    true,  false, false, true,  false, false, "Step Latch",    ModulationType::STEPPER,      SHAPE_LINEAR, 0,  0, false },
-  { FootswitchMode::StepperInvMomentary,false, false, false, true,  true,  false, "Step Inv",      ModulationType::STEPPER,      SHAPE_LINEAR, 0,  0, false },
-  { FootswitchMode::StepperInvLatching, true,  false, false, true,  true,  false, "Step Inv L",    ModulationType::STEPPER,      SHAPE_LINEAR, 0,  0, false },
+  // ── Stepper — exponential curve, same as ramper per spec ─────────────────
+  { FootswitchMode::StepperMomentary,   false, false, false, true,  false, false, "Step",          ModulationType::STEPPER,      SHAPE_EXP,    0,  0, false },
+  { FootswitchMode::StepperLatching,    true,  false, false, true,  false, false, "Step Latch",    ModulationType::STEPPER,      SHAPE_EXP,    0,  0, false },
+  { FootswitchMode::StepperInvMomentary,false, false, false, true,  true,  false, "Step Inv",      ModulationType::STEPPER,      SHAPE_EXP,    0,  0, false },
+  { FootswitchMode::StepperInvLatching, true,  false, false, true,  true,  false, "Step Inv L",    ModulationType::STEPPER,      SHAPE_EXP,    0,  0, false },
 
   // ── Random Stepper ───────────────────────────────────────────────────────
   { FootswitchMode::RandomMomentary,    false, false, false, true,  false, false, "Random",        ModulationType::RANDOM,       SHAPE_LINEAR, 0,  0, false },
@@ -123,8 +122,7 @@ static constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]);
 
 inline ModulationType getModulationType(FootswitchMode mode) {
   for(const auto &m : modes) {
-    if(m.mode == mode)
-      return m.modType;
+    if(m.mode == mode) return m.modType;
   }
   return ModulationType::NOMODULATION;
 }
@@ -183,6 +181,7 @@ struct FSButton {
       modulator.modType  = getModulationType(mode);
       modulator.latching = isLatching;
       pressed ? modulator.press() : modulator.release();
+      _setLED(modulator.isActivated); // sync footswitch LED to modulator state
       if(displayCallback) displayCallback(*this);
       return;
     }
@@ -254,12 +253,12 @@ struct FSButton {
     } else {
       modulator.setRestingLow();
     }
-    modulator.rampShape = m.lfoShape;
+    modulator.rampShape = m.shape;
     modulator.reset();
 
-    // Reset activation state so CC Latch always starts OFF (value 0, LED off).
+    // Always start with LED off — active state begins at rest.
     isActivated = false;
-    _setLED(isModSwitch);
+    _setLED(false);
     return m.name;
   }
 };
