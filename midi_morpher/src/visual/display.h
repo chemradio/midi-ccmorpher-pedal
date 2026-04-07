@@ -89,52 +89,176 @@ void resetDisplayTimeout(PedalState &pedal) {
   }
 }
 
+// Prints a MIDI note number as a note name+octave, e.g. 60 → "C4", 61 → "C#4".
+// Middle C = 60 = C4.
+static void _printNoteName(uint8_t note) {
+  static const char *names[] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+  display.print(names[note % 12]);
+  display.print((int)(note / 12) - 1);
+}
+
+// Helper used by both press and mode-change displays.
+// Prints the mode name at size 2 if it fits in 128px, else size 1.
+// Returns the y position of the next available row after the name.
+static int _displayModeName(const char *modeName, int y) {
+  bool big = strlen(modeName) <= 10;
+  display.setTextSize(big ? 2 : 1);
+  display.setCursor(0, y);
+  display.print(modeName);
+  return y + (big ? 18 : 10);
+}
+
+// Prints "CC: X", "PC: X", "Note: X" or scene info on one row.
+static void _displayNumber(const FSButton &button, int y) {
+  display.setTextSize(1);
+  display.setCursor(0, y);
+  if(button.isScene) {
+    if(button.modMode.scenePickCC) {
+      display.print("CC: ");
+      display.print(button.modMode.sceneCC + button.midiNumber);
+    } else {
+      display.print("CC:");
+      display.print(button.modMode.sceneCC);
+      display.print(" Val:");
+      display.print(button.midiNumber);
+    }
+  } else if(button.isPC) {
+    display.print("PC: ");
+    display.print(button.midiNumber + 1);
+  } else if(button.isNote) {
+    display.print("Note: ");
+    display.print(button.midiNumber);
+  } else {
+    display.print("CC: ");
+    display.print(button.midiNumber + 1);
+  }
+}
+
 void displayFootswitchPress(FSButton &button) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
-
   display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0, 0);
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
 
-  display.println(button.name);
-  display.print(button.isPC ? "PC: " : "CC: ");
-  display.println(String(button.midiNumber + 1));
-  if(!button.isPC) {
-    display.print("Value: ");
-    if(button.isLatching) {
-      display.println(String(button.isActivated ? 127 : 0));
-    } else {
-      display.println(String(button.isPressed ? 127 : 0));
-    }
-  }
-  display.display();
-}
-
-void displayEncoderTurn(String fsName, bool isPC, uint8_t value) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0, 0);
-  display.println(fsName);
-  display.print(isPC ? "PC: " : "CC: ");
-  display.println(String(value + 1));
-  display.display();
-}
-
-void encoderButtonFSModeChange(String fsName, String newMode, bool isPC, uint8_t midiNumber) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
+  // Row 1 — button name (small)
   display.setTextSize(1);
   display.setCursor(0, 0);
-  display.println(fsName);
-  display.print("New Mode: ");
-  display.println(newMode);
-  //
-  display.print("MIDI Num: ");
-  display.println(String(midiNumber + 1));
+  display.print(button.name);
+
+  // Row 2 — mode name (large if short)
+  int y = _displayModeName(button.modMode.name, 10);
+
+  // Row 3 — CC / PC / Note number
+  _displayNumber(button, y);
+
+  // Row 4 — state
+  display.setCursor(0, y + 10);
+  if(button.isModSwitch) {
+    display.print(button.isPressed ? "ACTIVE" : "OFF");
+  } else if(button.isPC) {
+    display.print(button.isPressed ? "SENT" : "");
+  } else if(button.isNote) {
+    display.print(button.isActivated ? "NOTE ON" : "NOTE OFF");
+  } else if(button.isScene) {
+    display.print(button.isPressed ? "SENT" : "");
+  } else {
+    // CC momentary or latching
+    display.print(button.isActivated ? "ON  127" : "OFF   0");
+  }
+
+  display.display();
+}
+
+// Encoder turned while holding a footswitch — show what value changed and to what.
+// Big number = the focus; small header = context (FS name + mode).
+void displayEncoderFSTurn(FSButton &button) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+
+  // Row 1 — "FS 1  Ramp Inv" (context, small)
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(button.name);
+  display.print("  ");
+  display.print(button.modMode.name);
+
+  // Row 2 — label; Row 3 — value (large)
+  display.setCursor(0, 12);
+  display.setTextSize(1);
+
+  if(button.isNote) {
+    // Note mode: show note name (C4, D#3 …) instead of raw number
+    display.print("Note:");
+    display.setTextSize(3);
+    display.setCursor(0, 24);
+    _printNoteName(button.midiNumber);
+  } else {
+    uint8_t displayVal;
+    if(button.isScene) {
+      if(button.modMode.scenePickCC) {
+        display.print("Slot CC:");
+        displayVal = button.modMode.sceneCC + button.midiNumber;
+      } else {
+        display.print("Scene:");
+        displayVal = button.midiNumber; // 0-indexed, matches device expectation
+      }
+    } else if(button.isPC) {
+      display.print("PC:");
+      displayVal = button.midiNumber + 1; // 1-indexed for humans
+    } else {
+      // CC or modulation — midiNumber is the CC number
+      display.print("CC:");
+      displayVal = button.midiNumber + 1;
+    }
+    display.setTextSize(3);
+    display.setCursor(0, 24);
+    display.print(displayVal);
+  }
+
+  display.display();
+}
+
+// Encoder turned with no footswitch held — MIDI channel selection.
+void displayMidiChannel(uint8_t channel) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print("MIDI Channel:");
+
+  display.setTextSize(3);
+  display.setCursor(0, 14);
+  display.print(channel + 1); // display as 1–16
+
+  display.display();
+}
+
+void encoderButtonFSModeChange(FSButton &button) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+
+  // Row 1 — button name (small)
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(button.name);
+
+  // Row 2 — new mode name (large if short)
+  int y = _displayModeName(button.modMode.name, 10);
+
+  // Row 3 — CC / PC / Note number
+  _displayNumber(button, y);
+
   display.display();
 }
 

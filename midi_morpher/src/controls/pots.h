@@ -45,6 +45,7 @@ inline void handleAnalogPot(
       selectedValue = 4095;
 
     if(pedal.potMode == PotMode::SendCC) {
+      return;
       if(midiScaled != pot.lastMidiValue) {
         pot.lastMidiValue = midiScaled;
         pot.sendMidiCC(pedal.midiChannel);
@@ -58,6 +59,7 @@ inline void handleAnalogPot(
             0);
       }
     } else {
+      return;
       // linear pot feel
       // long rampMs = map(selectedValue, 0, 4095, pedal.rampMinSpeedMs,
       // pedal.rampMaxSpeedMs);

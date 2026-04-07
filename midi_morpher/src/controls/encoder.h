@@ -24,48 +24,33 @@ inline void initEncoder()
     attachInterrupt(digitalPinToInterrupt(ENC_B), encoderISR, CHANGE);
 }
 
-inline void handleEncoder(PedalState &pedal, void (*displayCallback)(String, bool, uint8_t), void (*displayLockedMessage)(String))
-{
-    // Check encoder position
-    if (encoderPos == lastEncoderPos)
-        return;
+inline void handleEncoder(PedalState &pedal,
+                         void (*displayFSCallback)(FSButton &),
+                         void (*displayChannelCallback)(uint8_t),
+                         void (*displayLockedMessage)(String)) {
+  if(encoderPos == lastEncoderPos) return;
 
-    int delta = encoderPos - lastEncoderPos;
-    lastEncoderPos = encoderPos;
+  int delta      = encoderPos - lastEncoderPos;
+  lastEncoderPos = encoderPos;
 
-    uint8_t outValue = 0;
-    bool isPC = false;
-    String fsName = "";
+  if(pedal.settingsLocked) {
+    displayLockedMessage("enc");
+    return;
+  }
 
-    int8_t activeButtonIndex = pedal.getActiveButtonIndex();
+  int8_t activeButtonIndex = pedal.getActiveButtonIndex();
 
-    if (activeButtonIndex >= 0)
-    {
-        if (pedal.settingsLocked)
-        {
-            displayLockedMessage("enc");
-            return;
-        }
-        FSButton &activeButton = pedal.buttons[activeButtonIndex];
-        activeButton.midiNumber = constrain(activeButton.midiNumber + delta, 0, 127);
-        fsName = activeButton.name;
-        isPC = activeButton.isPC;
-        outValue = activeButton.midiNumber;
-    }
-    else
-    {
-        if (pedal.settingsLocked)
-        {
-            displayLockedMessage("enc");
-            return;
-        }
-        uint8_t midiChannel = pedal.midiChannel;
-        outValue = constrain(midiChannel + delta, 0, 15);
-        pedal.setMidiChannel(outValue);
-        fsName = "MIDI Ch";
-        isPC = false;
-    }
+  if(activeButtonIndex >= 0) {
+    FSButton &btn = pedal.buttons[activeButtonIndex];
+    // Scene modes clamp to their encoder ceiling; all others use full MIDI range.
+    uint8_t maxVal = btn.isScene ? btn.modMode.sceneMaxVal : 127;
+    btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta, 0, (int)maxVal);
+    displayFSCallback(btn);
+  } else {
+    uint8_t ch = (uint8_t)constrain((int)pedal.midiChannel + delta, 0, 15);
+    pedal.setMidiChannel(ch);
+    displayChannelCallback(ch);
+  }
 
-    displayCallback(fsName, isPC, outValue);
-    markStateDirty();
+  markStateDirty();
 }

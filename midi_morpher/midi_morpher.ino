@@ -65,7 +65,7 @@ void loop() {
   for(auto &pot : analogPots) {
     handleAnalogPot(pot, pedal, displayPotValue, displayLockedMessage);
   }
-  handleEncoder(pedal, displayEncoderTurn, displayLockedMessage);
+  handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage);
   handleEncoderButton(pedal, encoderButtonFSModeChange, pedal.modulator, displayLockedMessage);
 
   updateNeoPixel(pedal.modulator.currentValue, analogPots);

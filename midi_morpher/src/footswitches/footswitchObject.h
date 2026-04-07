@@ -136,20 +136,18 @@ struct FSButton {
   uint8_t ledPin;
   const char *name;
 
-  bool ledState = false;
-  bool lastState = HIGH;
+  bool ledState    = false;
+  bool lastState   = HIGH;
   unsigned long lastDebounce = 0;
-  unsigned long holdTime = 0;
-  uint8_t lastCCValue = 0;
-  bool isPressed = false;
-  bool isLatching = false;
+  bool isPressed   = false;
+  bool isLatching  = false;
   bool isActivated = false;
-  bool isPC = true;
-  bool isNote = false;
-  bool isScene = false;
+  bool isPC        = true;
+  bool isNote      = false;
+  bool isScene     = false;
   uint8_t midiNumber = 0;
-  uint8_t modeIndex = 0;
-  bool isModSwitch = false;
+  uint8_t modeIndex  = 0;
+  bool isModSwitch   = false;
 
   FootswitchMode mode = FootswitchMode::MomentaryPC;
   ModeInfo modMode = { FootswitchMode::MomentaryPC, false, true, false, false, false, false,
@@ -169,89 +167,74 @@ struct FSButton {
     digitalWrite(ledPin, state ? HIGH : LOW);
   }
 
-  void _handleLatching(uint8_t midiChannel, bool reading, void (*displayCallback)(FSButton &) = nullptr) {
-    if(isPC || reading) {
-      return;
-    }
-    isActivated = !isActivated;
-    _setLED(isActivated);
-    if(displayCallback) {
-      displayCallback(*this);
-    }
-    sendMIDI(midiChannel, isPC, midiNumber, isActivated ? 127 : 0);
-  }
-
-  void _handleMomentary(uint8_t midiChannel, bool reading, void (*displayCallback)(FSButton &) = nullptr) {
-    if(isPC) {
-      if(!reading) {
-        _setLED(true);
-        sendMIDI(midiChannel, true, midiNumber);
-        if(displayCallback) {
-          displayCallback(*this);
-        }
-      } else {
-        _setLED(false);
-        if(displayCallback) {
-          displayCallback(*this);
-        }
-      }
-    } else if(!isPC) {
-      if(!reading) {
-        _setLED(true);
-        isActivated = true;
-        sendMIDI(midiChannel, isPC, midiNumber, 127);
-        if(displayCallback) {
-          displayCallback(*this);
-        }
-      } else {
-        _setLED(false);
-        isActivated = false;
-        sendMIDI(midiChannel, isPC, midiNumber, 0);
-        if(displayCallback) {
-          displayCallback(*this);
-        }
-      }
-    }
-  }
-
-  bool _handleDebounce() {
-    return (millis() - lastDebounce) >= DEBOUNCE_DELAY;
-  }
-
-  bool readState() {
-    if(!_handleDebounce())
-      return lastState;
-    bool reading = digitalRead(pin);
-    return (reading == LOW);
-  }
-
   void handleFootswitch(uint8_t midiChannel, MidiCCModulator &modulator, void (*displayCallback)(FSButton &) = nullptr) {
-    if(!_handleDebounce())
-      return;
+    if((millis() - lastDebounce) < DEBOUNCE_DELAY) return;
+
     bool reading = digitalRead(pin);
-    isPressed = (reading == LOW);
+    bool pressed = (reading == LOW);
+    if(reading == lastState) return;
 
-    if(reading != lastState) {
-      lastDebounce = millis();
-      lastState = reading;
+    lastDebounce = millis();
+    lastState    = reading;
+    isPressed    = pressed;
 
-      if(isModSwitch) {
-        modulator.modType = getModulationType(mode);
-        modulator.latching = isLatching;
-
-        if(isPressed) {
-          modulator.press();
-        } else {
-          modulator.release();
-        }
-        return;
-      } else {
-        if(isLatching)
-          _handleLatching(midiChannel, reading, displayCallback);
-        else
-          _handleMomentary(midiChannel, reading, displayCallback);
-      }
+    // ── Modulation ───────────────────────────────────────────────────────
+    if(isModSwitch) {
+      modulator.modType  = getModulationType(mode);
+      modulator.latching = isLatching;
+      pressed ? modulator.press() : modulator.release();
+      if(displayCallback) displayCallback(*this);
+      return;
     }
+
+    // ── Program Change ───────────────────────────────────────────────────
+    if(isPC) {
+      _setLED(pressed);
+      if(pressed) sendMIDI(midiChannel, true, midiNumber);
+      if(displayCallback) displayCallback(*this);
+      return;
+    }
+
+    // ── Note ─────────────────────────────────────────────────────────────
+    if(isNote) {
+      isActivated = pressed;
+      _setLED(pressed);
+      sendNote(midiChannel, midiNumber, pressed);
+      if(displayCallback) displayCallback(*this);
+      return;
+    }
+
+    // ── Scene / Snapshot ─────────────────────────────────────────────────
+    if(isScene) {
+      _setLED(pressed);
+      if(pressed) {
+        if(modMode.scenePickCC) {
+          // Kemper: encoder selects CC offset (CC50–CC54), always value 1
+          sendMIDI(midiChannel, false, modMode.sceneCC + midiNumber, 1);
+        } else {
+          // Helix / QC / Fractal: fixed CC, encoder selects scene value (0–7)
+          sendMIDI(midiChannel, false, modMode.sceneCC, midiNumber);
+        }
+      }
+      if(displayCallback) displayCallback(*this);
+      return;
+    }
+
+    // ── CC latching ───────────────────────────────────────────────────────
+    if(isLatching) {
+      if(!pressed) return; // toggle only on press, ignore release
+      isActivated = !isActivated;
+      _setLED(isActivated);
+      sendMIDI(midiChannel, false, midiNumber, isActivated ? 127 : 0);
+      if(displayCallback) displayCallback(*this);
+      return;
+    }
+
+    // ── CC momentary ─────────────────────────────────────────────────────
+    isActivated = pressed;
+    _setLED(pressed);
+    sendMIDI(midiChannel, false, midiNumber, pressed ? 127 : 0);
+    if(displayCallback) displayCallback(*this);
   }
 
   const char *toggleFootswitchMode(MidiCCModulator &modulator) {
@@ -274,6 +257,8 @@ struct FSButton {
     modulator.rampShape = m.lfoShape;
     modulator.reset();
 
+    // Reset activation state so CC Latch always starts OFF (value 0, LED off).
+    isActivated = false;
     _setLED(isModSwitch);
     return m.name;
   }

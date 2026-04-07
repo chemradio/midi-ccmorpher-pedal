@@ -10,7 +10,7 @@ inline void initEncoderButton() {
   pinMode(encBtn.pin, INPUT_PULLUP);
 }
 
-inline void handleEncoderButton(PedalState &pedal, void (*displayCallback)(String, String, bool, uint8_t), MidiCCModulator &modulator, void (*displayLockedMessage)(String)) {
+inline void handleEncoderButton(PedalState &pedal, void (*displayCallback)(FSButton &), MidiCCModulator &modulator, void (*displayLockedMessage)(String)) {
 
   // debounce
   if((millis() - encBtn.lastDebounce) < DEBOUNCE_DELAY)
@@ -33,17 +33,12 @@ inline void handleEncoderButton(PedalState &pedal, void (*displayCallback)(Strin
     encBtn.lastDebounce = millis();
 
     int8_t activeButtonIndex = pedal.getActiveButtonIndex();
-    Serial.print("Active button index: ");
-    Serial.println(activeButtonIndex);
 
     if(activeButtonIndex >= 0) {
       FSButton &activeButton = pedal.buttons[activeButtonIndex];
-      const char *newMode = activeButton.toggleFootswitchMode(modulator);
-      const char *fsName = activeButton.name;
-      bool isPC = activeButton.isPC;
+      activeButton.toggleFootswitchMode(modulator);
       encBtn.lastDebounce = millis();
-      displayCallback(fsName, newMode, isPC, activeButton.midiNumber);
-      // markStateDirty();
+      displayCallback(activeButton);
       return;
     }
     // else
