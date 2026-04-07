@@ -27,11 +27,24 @@ inline void initEncoder()
 inline void handleEncoder(PedalState &pedal,
                          void (*displayFSCallback)(FSButton &),
                          void (*displayChannelCallback)(uint8_t),
-                         void (*displayLockedMessage)(String)) {
+                         void (*displayLockedMessage)(String),
+                         void (*displayFSChannel)(FSButton &)) {
   if(encoderPos == lastEncoderPos) return;
 
   int delta      = encoderPos - lastEncoderPos;
   lastEncoderPos = encoderPos;
+
+  // ── Per-FS channel select (entered via long-press of encoder button) ────────
+  if(pedal.inChannelSelect) {
+    FSButton &btn = pedal.buttons[pedal.channelSelectIdx];
+    // Position 0 = GLB (0xFF), positions 1–16 = channels 1–16.
+    int current = (btn.fsChannel == 0xFF) ? 0 : (int)(btn.fsChannel + 1);
+    int next    = constrain(current + delta, 0, 16);
+    btn.fsChannel = (next == 0) ? 0xFF : (uint8_t)(next - 1);
+    markStateDirty();
+    displayFSChannel(btn);
+    return;
+  }
 
   if(pedal.settingsLocked) {
     displayLockedMessage("enc");
@@ -42,7 +55,6 @@ inline void handleEncoder(PedalState &pedal,
 
   if(activeButtonIndex >= 0) {
     FSButton &btn = pedal.buttons[activeButtonIndex];
-    // Scene modes clamp to their encoder ceiling; all others use full MIDI range.
     uint8_t maxVal = btn.isScene ? btn.modMode.sceneMaxVal : 127;
     btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta, 0, (int)maxVal);
     displayFSCallback(btn);

@@ -19,7 +19,7 @@ enum DisplayMode {
 // Temporary display text
 String tempDisplayText = "";
 unsigned long lastInteraction = 0;
-const unsigned long displayTimeout = 2000;
+const unsigned long displayTimeout = DISPLAY_TIMEOUT;
 DisplayMode displayMode = DISPLAY_DEFAULT;
 
 bool initDisplay() {
@@ -46,6 +46,17 @@ void showStartupScreen() {
   display.display();
   displayMode = DISPLAY_PARAM;
 }
+void displayLockChange(bool locked) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(locked);
+  display.setTextSize(3);
+  display.setCursor(0, 10);
+  display.println(locked ? F("LOCKED") : F("UNLOCKD"));
+  display.display();
+}
+
 void displayLockedMessage(String whoSays = "") {
   display.clearDisplay();
   display.invertDisplay(false);
@@ -59,22 +70,73 @@ void displayLockedMessage(String whoSays = "") {
   displayMode = DISPLAY_PARAM;
 }
 
+// Returns the parameter string shown on the right side of each FS row.
+static String _buttonNumStr(const FSButton &btn) {
+  if(btn.isNote) {
+    static const char *noteNames[] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+    return String(noteNames[btn.midiNumber % 12]) + String((int)(btn.midiNumber / 12) - 1);
+  }
+  if(btn.isScene) {
+    if(btn.modMode.scenePickCC)
+      return "CC:" + String(btn.modMode.sceneCC + btn.midiNumber);
+    return "V:" + String(btn.midiNumber);
+  }
+  if(btn.isPC)
+    return "PC:" + String(btn.midiNumber + 1);
+  return "CC:" + String(btn.midiNumber + 1);
+}
+
 void displayHomeScreen(PedalState &pedal) {
   displayMode = DISPLAY_DEFAULT;
   lastInteraction = millis();
   display.clearDisplay();
   display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
   display.setTextSize(1);
+
+  // ── Status bar ─────────────────────────────────────────────────────────────
   display.setCursor(0, 0);
-  display.println("MIDI Morpher");
-  display.setTextSize(1);
-  display.print("Channel:");
-  display.println(String(pedal.midiChannel + 1));
-  display.println();
-  display.print("Pots: ");
-  display.println(pedal.getPotMode());
-  display.println(pedal.modulator.latching ? "HotSwitch Latching" : "HotSwitch Momentary");
-  display.println(pedal.settingsLocked ? "LOCKED" : "");
+  display.print(F("Ch:"));
+  display.print(pedal.midiChannel + 1);
+
+  display.setCursor(50, 0);
+  display.print(pedal.modulator.latching ? F("Latch") : F("Mom"));
+
+  if(pedal.settingsLocked) {
+    display.setCursor(104, 0);
+    display.print(F("LOCK"));
+  }
+
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+
+  // ── Footswitch rows ────────────────────────────────────────────────────────
+  for(int i = 0; i < 4; i++) {
+    const FSButton &btn = pedal.buttons[i];
+    int y = 12 + i * 13;
+
+    display.setCursor(0, y);
+    display.print(i + 1);
+    display.print(' ');
+
+    // Mode name truncated to 8 chars to leave room for the optional channel indicator
+    const char *name = btn.modMode.name;
+    for(uint8_t c = 0; c < 8 && name[c] != '\0'; c++) display.print(name[c]);
+
+    // Parameter right-aligned to display edge
+    String numStr = _buttonNumStr(btn);
+    int numX = 128 - (int)numStr.length() * 6;
+
+    // Per-FS channel override: show channel number just left of the parameter
+    if(btn.fsChannel != 0xFF) {
+      String chStr = String(btn.fsChannel + 1);
+      display.setCursor(numX - (int)chStr.length() * 6 - 6, y);
+      display.print(chStr);
+    }
+
+    display.setCursor(numX, y);
+    display.print(numStr);
+  }
+
   display.display();
 }
 
@@ -134,6 +196,31 @@ static void _displayNumber(const FSButton &button, int y) {
   }
 }
 
+// Shown while the user is editing a per-FS MIDI channel (hold encoder button with FS held).
+void displayFSChannel(FSButton &btn) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(btn.name);
+  display.setCursor(0, 10);
+  display.print(F("MIDI Channel:"));
+
+  display.setTextSize(3);
+  display.setCursor(0, 24);
+  if(btn.fsChannel == 0xFF) {
+    display.print(F("GLB"));
+  } else {
+    display.print(btn.fsChannel + 1);
+  }
+
+  display.display();
+}
+
 void displayFootswitchPress(FSButton &button) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
@@ -149,8 +236,14 @@ void displayFootswitchPress(FSButton &button) {
   // Row 2 — mode name (large if short)
   int y = _displayModeName(button.modMode.name, 10);
 
-  // Row 3 — CC / PC / Note number
+  // Row 3 — CC / PC / Note number + per-FS channel (right-aligned on same row)
   _displayNumber(button, y);
+  if(button.fsChannel != 0xFF) {
+    char chBuf[6];
+    snprintf(chBuf, sizeof(chBuf), "CH:%d", button.fsChannel + 1);
+    display.setCursor(128 - (int)strlen(chBuf) * 6, y);
+    display.print(chBuf);
+  }
 
   // Row 4 — state
   display.setCursor(0, y + 10);
@@ -296,37 +389,3 @@ void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, long ram
     displayPotRampSpeed(potName, rampMs);
 }
 
-// //
-// void displayToggleChange(String toggleName, bool state, bool rampDirection = false)
-// {
-//   return;
-//   displayMode = DISPLAY_PARAM;
-//   lastInteraction = millis();
-
-//   display.clearDisplay();
-
-//   display.setTextSize(2);
-//   display.setCursor(0, 0);
-//   display.println(toggleName);
-//   display.println();
-//   if (rampDirection)
-//   {
-//     display.println(state ? "UP" : "DOWN");
-//   }
-//   else
-//   {
-//     display.println(state ? "ON" : "OFF");
-//   }
-//   display.display();
-// }
-
-// void showSignal(String deviceName, long numSignal = 0, String strSignal = "")
-// {
-//   display.clearDisplay();
-//   display.setTextSize(2);
-//   display.setCursor(0, 0);
-//   display.println(deviceName);
-//   display.println(numSignal);
-//   display.println(strSignal);
-//   display.display();
-// }

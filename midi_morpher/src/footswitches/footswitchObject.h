@@ -137,6 +137,8 @@ struct FSButton {
   bool ledState    = false;
   bool lastState   = HIGH;
   unsigned long lastDebounce = 0;
+  unsigned long rampUpMs     = DEFAULT_RAMP_SPEED; // per-footswitch UP ramp time
+  unsigned long rampDownMs   = DEFAULT_RAMP_SPEED; // per-footswitch DOWN ramp time
   bool isPressed   = false;
   bool isLatching  = false;
   bool isActivated = false;
@@ -146,6 +148,7 @@ struct FSButton {
   uint8_t midiNumber = 0;
   uint8_t modeIndex  = 0;
   bool isModSwitch   = false;
+  uint8_t fsChannel  = 0xFF; // 0xFF = follow global MIDI channel; 0–15 = per-FS override
 
   FootswitchMode mode = FootswitchMode::MomentaryPC;
   ModeInfo modMode = { FootswitchMode::MomentaryPC, false, true, false, false, false, false,
@@ -165,7 +168,13 @@ struct FSButton {
     digitalWrite(ledPin, state ? HIGH : LOW);
   }
 
+  // Returns the channel this footswitch should use — per-FS override or global fallback.
+  uint8_t effectiveChannel(uint8_t globalChannel) const {
+    return (fsChannel == 0xFF) ? globalChannel : fsChannel;
+  }
+
   void handleFootswitch(uint8_t midiChannel, MidiCCModulator &modulator, void (*displayCallback)(FSButton &) = nullptr) {
+    const uint8_t ch = effectiveChannel(midiChannel);
     if((millis() - lastDebounce) < DEBOUNCE_DELAY) return;
 
     bool reading = digitalRead(pin);
@@ -178,10 +187,13 @@ struct FSButton {
 
     // ── Modulation ───────────────────────────────────────────────────────
     if(isModSwitch) {
-      modulator.modType  = getModulationType(mode);
-      modulator.latching = isLatching;
+      modulator.modType        = getModulationType(mode);
+      modulator.latching       = isLatching;
+      modulator.rampUpTimeMs   = rampUpMs;
+      modulator.rampDownTimeMs = rampDownMs;
+      modulator.midiChannel    = ch;  // use per-FS channel for all CC output
       pressed ? modulator.press() : modulator.release();
-      _setLED(modulator.isActivated); // sync footswitch LED to modulator state
+      _setLED(modulator.isActivated);
       if(displayCallback) displayCallback(*this);
       return;
     }
@@ -189,7 +201,7 @@ struct FSButton {
     // ── Program Change ───────────────────────────────────────────────────
     if(isPC) {
       _setLED(pressed);
-      if(pressed) sendMIDI(midiChannel, true, midiNumber);
+      if(pressed) sendMIDI(ch, true, midiNumber);
       if(displayCallback) displayCallback(*this);
       return;
     }
@@ -198,7 +210,7 @@ struct FSButton {
     if(isNote) {
       isActivated = pressed;
       _setLED(pressed);
-      sendNote(midiChannel, midiNumber, pressed);
+      sendNote(ch, midiNumber, pressed);
       if(displayCallback) displayCallback(*this);
       return;
     }
@@ -208,11 +220,9 @@ struct FSButton {
       _setLED(pressed);
       if(pressed) {
         if(modMode.scenePickCC) {
-          // Kemper: encoder selects CC offset (CC50–CC54), always value 1
-          sendMIDI(midiChannel, false, modMode.sceneCC + midiNumber, 1);
+          sendMIDI(ch, false, modMode.sceneCC + midiNumber, 1);
         } else {
-          // Helix / QC / Fractal: fixed CC, encoder selects scene value (0–7)
-          sendMIDI(midiChannel, false, modMode.sceneCC, midiNumber);
+          sendMIDI(ch, false, modMode.sceneCC, midiNumber);
         }
       }
       if(displayCallback) displayCallback(*this);
@@ -221,10 +231,10 @@ struct FSButton {
 
     // ── CC latching ───────────────────────────────────────────────────────
     if(isLatching) {
-      if(!pressed) return; // toggle only on press, ignore release
+      if(!pressed) return;
       isActivated = !isActivated;
       _setLED(isActivated);
-      sendMIDI(midiChannel, false, midiNumber, isActivated ? 127 : 0);
+      sendMIDI(ch, false, midiNumber, isActivated ? 127 : 0);
       if(displayCallback) displayCallback(*this);
       return;
     }
@@ -232,7 +242,7 @@ struct FSButton {
     // ── CC momentary ─────────────────────────────────────────────────────
     isActivated = pressed;
     _setLED(pressed);
-    sendMIDI(midiChannel, false, midiNumber, pressed ? 127 : 0);
+    sendMIDI(ch, false, midiNumber, pressed ? 127 : 0);
     if(displayCallback) displayCallback(*this);
   }
 

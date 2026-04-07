@@ -11,7 +11,8 @@ struct PedalState
     bool settingsLocked = false;
     int8_t activeButtonIndex = -1;
 
-    PotMode potMode = PotMode::RampSpeed;
+    bool   inChannelSelect  = false;  // encoder is currently editing a per-FS MIDI channel
+    int8_t channelSelectIdx = -1;     // which button is being edited
 
     unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
@@ -71,30 +72,5 @@ struct PedalState
         }
     }
 
-    const char *getPotMode()
-    {
-        switch (potMode)
-        {
-        case PotMode::RampSpeed:
-            return "Ramp Speed";
-        case PotMode::SendCC:
-            return "Send CC";
-        default:
-            return "Unknown";
-        }
-    }
 
-    const char *togglePotMode()
-    {
-        switch (potMode)
-        {
-        case PotMode::RampSpeed:
-            potMode = PotMode::SendCC;
-            return "Send CC";
-        case PotMode::SendCC:
-            potMode = PotMode::RampSpeed;
-            return "Ramp Speed";
-        }
-        return "unknown";
-    }
 };

@@ -4,18 +4,21 @@
 #include "../potentiometers/analogReadHelpers.h"
 #include "../sharedTypes.h"
 
-unsigned long lastSettingsBlockedDisplayed = 0;
-unsigned long settingsBlockedDisplayTimeout = 1000;
-
-inline AnalogPot analogPots[] = {{POT1_PIN, "UP Speed", POT1_CC},
-                                 {POT2_PIN, "Down Speed", POT2_CC}};
+inline AnalogPot analogPots[] = {
+  {POT1_PIN, "UP",   POT1_CC},
+  {POT2_PIN, "DOWN", POT2_CC},
+};
 
 inline void initAnalogPots() {
-  for(int i = 0; i < 2; i++) {
-    pinMode(analogPots[i].pin, INPUT);
-    uint16_t medianRead = readPotMedian(analogPots[i].pin);
+  for(auto &pot : analogPots) {
+    pinMode(pot.pin, INPUT);
   }
+  // EMA seeds itself on the first update() call — no pre-read needed.
 }
+
+// Throttle for the "settings locked" display message.
+inline unsigned long lastLockedPotMsg  = 0;
+inline constexpr unsigned long LOCKED_POT_MSG_INTERVAL = 1000;
 
 inline void handleAnalogPot(
     AnalogPot &pot,
@@ -23,59 +26,52 @@ inline void handleAnalogPot(
     void (*displayCallback)(String, bool, uint8_t, long),
     void (*displayLockedMessage)(String)) {
 
-  // uint16_t raw = analogRead(pot.pin);
-  uint16_t selectedValue = readPotMedian(pot.pin);
+  if(!pot.update()) return; // filtered value hasn't moved enough — do nothing
 
-  if(abs((int)selectedValue - (int)pot.lastValue) > potDeadband) {
-
-    pot.lastValue = selectedValue;
-    uint8_t midiScaled = (selectedValue * 128UL) / 4096;
-
-    if(pedal.settingsLocked) {
-      unsigned long now = millis();
-      if((now - lastSettingsBlockedDisplayed) > settingsBlockedDisplayTimeout) {
-        displayLockedMessage("pots");
-        lastSettingsBlockedDisplayed = now;
-      }
-      return;
+  // ── Settings locked ───────────────────────────────────────────────────────
+  if(pedal.settingsLocked) {
+    unsigned long now = millis();
+    if(now - lastLockedPotMsg > LOCKED_POT_MSG_INTERVAL) {
+      lastLockedPotMsg = now;
+      displayLockedMessage("pots");
     }
+    return;
+  }
 
-    // clamp to ADC range
-    if(selectedValue > 4095)
-      selectedValue = 4095;
+  // ── Ramp speed mode ───────────────────────────────────────────────────────
+  // Active while a mod-switch footswitch is held. Adjusts that footswitch's
+  // stored ramp time and applies it to the modulator immediately.
+  int8_t activeIdx = pedal.getActiveButtonIndex();
+  if(activeIdx >= 0 && pedal.buttons[activeIdx].isModSwitch) {
+    FSButton &btn = pedal.buttons[activeIdx];
 
-    if(pedal.potMode == PotMode::SendCC) {
-      return;
-      if(midiScaled != pot.lastMidiValue) {
-        pot.lastMidiValue = midiScaled;
-        pot.sendMidiCC(pedal.midiChannel);
-        pot.ccDisplayDirty = true;
-        pot.ccLastDisplayDirty = millis();
+    // Exponential pot feel: small movements at the low end, larger at the top.
+    float normalized = pot.lastValue / 4095.0f;
+    long  rampMs     = pedal.rampMinSpeedMs +
+                       (long)(normalized * normalized *
+                              (float)(pedal.rampMaxSpeedMs - pedal.rampMinSpeedMs));
 
-        displayCallback(
-            "MidiCC: " + String(pot.midiCCNumber),
-            true,
-            midiScaled,
-            0);
-      }
+    uint8_t midiScaled = (uint8_t)((pot.lastValue * 128UL) / 4096);
+
+    if(pot.pin == POT1_PIN) {
+      btn.rampUpMs = rampMs;
+      pedal.modulator.setRampTimeUp(rampMs);
+      markStateDirty();
+      displayCallback(String(btn.name) + " UP", false, midiScaled, rampMs);
     } else {
-      return;
-      // linear pot feel
-      // long rampMs = map(selectedValue, 0, 4095, pedal.rampMinSpeedMs,
-      // pedal.rampMaxSpeedMs);
-
-      // exponential pot feel
-      float normalized = selectedValue / 4095.0;
-      float curved = normalized * normalized;
-      long rampMs = pedal.rampMinSpeedMs +
-                    (curved * (pedal.rampMaxSpeedMs - pedal.rampMinSpeedMs));
-
-      if(pot.pin == POT1_PIN) {
-        pedal.modulator.setRampTimeUp(rampMs);
-      } else if(pot.pin == POT2_PIN) {
-        pedal.modulator.setRampTimeDown(rampMs);
-      }
-      displayCallback(pot.name, false, midiScaled, rampMs);
+      btn.rampDownMs = rampMs;
+      pedal.modulator.setRampTimeDown(rampMs);
+      markStateDirty();
+      displayCallback(String(btn.name) + " DN", false, midiScaled, rampMs);
+    }
+  } else {
+    // ── Send CC mode ──────────────────────────────────────────────────────
+    // Default: pot acts as a direct CC controller.
+    uint8_t midiScaled = (uint8_t)((pot.lastValue * 128UL) / 4096);
+    if(midiScaled != pot.lastMidiValue) {
+      pot.lastMidiValue = midiScaled;
+      pot.sendMidiCC(pedal.midiChannel);
+      displayCallback("CC " + String(pot.midiCCNumber), true, midiScaled, 0);
     }
   }
 }

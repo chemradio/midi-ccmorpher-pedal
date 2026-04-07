@@ -2,11 +2,11 @@
 #include "../config.h"
 #include "../potentiometers/analogReadHelpers.h"
 
-void initExpInput() {
-  pinMode(EXP_IN, INPUT);
-  uint16_t medianRead = readPotMedian(EXP_IN);
-}
+// Expression pedal input — not yet wired into the main loop.
+// When implemented: read EXP_IN, mirror to digipot output, send as CC20.
 
-void handleExpInput() {
-  readPotMedian
+inline AnalogPot expInput = {EXP_IN, "Exp In", 20};
+
+inline void initExpInput() {
+  pinMode(EXP_IN, INPUT);
 }

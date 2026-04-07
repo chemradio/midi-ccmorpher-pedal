@@ -1,40 +1,38 @@
+#pragma once
 #include "../config.h"
-#include "Arduino.h"
-#include "X9C10X.h"
+#include <Arduino.h>
+#include <SPI.h>
 
-X9C10X pot(10000); //  10 KΩ  (ALT-234)
+// AD5292-BRUZ-20: 1024-position SPI digipot
+// 16-bit transfer: bits[15:10] = command, bits[9:0] = data
 
-uint8_t direction = LOW;
-uint8_t step = 1;
-uint8_t prevMidiValue = 0;
+static SPIClass digipotSPI(HSPI);
+
+static void ad5292Write(uint8_t cmd, uint16_t data) {
+  uint16_t word = ((uint16_t)(cmd & 0x3F) << 10) | (data & 0x3FF);
+  digitalWrite(DIGIPOT_CS, LOW);
+  digipotSPI.transfer16(word);
+  digitalWrite(DIGIPOT_CS, HIGH);
+}
 
 void digipotSetup() {
-  pot.begin(DIGIPOT_INC, DIGIPOT_UD, DIGIPOT_CS); //  pulse, direction, select
-  pot.setPosition(0);
+  pinMode(DIGIPOT_CS, OUTPUT);
+  digitalWrite(DIGIPOT_CS, HIGH);
+  digipotSPI.begin(DIGIPOT_SCK, -1, DIGIPOT_MOSI, DIGIPOT_CS);
+  digipotSPI.beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE1));
+
+  // Unlock RDAC write protect (control register bit D1 = 1)
+  ad5292Write(0b000111, 0b10);
+  // Set wiper to 0 on startup
+  ad5292Write(0b000001, 0);
 }
 
-void digipotLoop() {
-  for(uint8_t i = 0; i < 100; i++) {
-    pot.incr();
-    delay(200);
-  }
-
-  for(uint8_t i = 0; i < 100; i++) {
-    pot.decr();
-    delay(200);
-  }
-}
+static uint8_t prevMidiValue = 255; // force write on first call
 
 void setDigipotFromMidi(uint8_t midiValue) {
-  if(midiValue == prevMidiValue)
-    return;
-  // Clamp to valid MIDI range
-  if(midiValue > 127)
-    midiValue = 127;
-
-  // Map MIDI (0-127) to digipot position (0-99)
-  uint8_t targetPosition = map(midiValue, 0, 127, 0, 99);
-
-  // Set the position
-  pot.setPosition(targetPosition);
+  if (midiValue == prevMidiValue) return;
+  prevMidiValue = midiValue;
+  if (midiValue > 127) midiValue = 127;
+  uint16_t position = map(midiValue, 0, 127, 0, 1023);
+  ad5292Write(0b000001, position);
 }

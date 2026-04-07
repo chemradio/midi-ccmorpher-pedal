@@ -1,67 +1,67 @@
-// config.h - Pin definitions and constants
+// config.h — Pin assignments and firmware constants
+// Target: ESP32-S3-N16R8, Arduino framework
 
 #pragma once
 #include <Arduino.h>
 
-// Footswitch pins
-#define FS1_PIN 4
-#define FS1_LED 5
-#define FS2_PIN 6
-#define FS2_LED 7
-#define HS_PIN 15
-#define HS_LED 16
-#define EXTFS1_PIN 17
-#define EXTFS1_LED 18
-#define EXTFS2_PIN 8
-#define EXTFS2_LED 3
+// ── Footswitches ──────────────────────────────────────────────────────────────
+#define FS1_PIN      4
+#define FS1_LED      5
+#define FS2_PIN      6
+#define FS2_LED      7
+#define EXTFS1_PIN  17   // External footswitch 1 (via jack)
+#define EXTFS1_LED  18
+#define EXTFS2_PIN   8   // External footswitch 2 (via jack)
+#define EXTFS2_LED   3
 
-#define NO_LED_PIN 255
+// ── Encoder ───────────────────────────────────────────────────────────────────
+#define ENC_A        9
+#define ENC_B       10
+#define ENC_BTN     11
 
-// Encoder pins
-#define ENC_A 9
-#define ENC_B 10
-#define ENC_BTN 11
+// ── Analog inputs ─────────────────────────────────────────────────────────────
+#define POT1_PIN     1   // UP speed / CC pot
+#define POT2_PIN     2   // DOWN speed / CC pot
+#define EXP_IN      12   // Expression pedal input
 
-// Analog inputs
-#define POT1_PIN 1
-#define POT2_PIN 2
-#define EXP_IN 12
+// ── Toggle switches ───────────────────────────────────────────────────────────
+#define MS2_PIN     13   // HotSwitch: Momentary / Latching
+#define LST_PIN     47   // Lock settings
 
-// Toggle switches
-#define MS2_PIN 13         // Momentary/Latching
-#define POT_MODE_TOGGLE 14 // Switches between pots func - ramp speed vs direct send CC
-#define LESW_PIN 21        // Linear/Exponential
-#define LST_PIN 47         // Lock settings
+// ── I2C display (SSD1306 OLED) ────────────────────────────────────────────────
+#define SDA_PIN         41
+#define SCL_PIN         42
+#define SCREEN_WIDTH   128
+#define SCREEN_HEIGHT   64
+#define OLED_RESET      -1
+#define OLED_ADDRESS  0x3C
 
-// I2C Display
-#define SDA_PIN 41
-#define SCL_PIN 42
+// ── Status LED (onboard NeoPixel) ─────────────────────────────────────────────
+#define RGB_PIN         48
+#define NEOPIXEL_COUNT   1
 
-// Digital pot (X9C103S)
-#define DIGIPOT_CS 38
-#define DIGIPOT_INC 39
-#define DIGIPOT_UD 40
+// ── Digital potentiometer (AD5292-BRUZ-20 — analog expression output) ────────
+#define DIGIPOT_CS   38   // SYNC (active low chip select)
+#define DIGIPOT_SCK  39   // SCLK
+#define DIGIPOT_MOSI 40   // SDI
 
-// MIDI (Hardware Serial)
-#define MIDI_TX 43
-#define MIDI_RX 36
+// ── MIDI serial ───────────────────────────────────────────────────────────────
+#define MIDI_TX     43
+#define MIDI_RX     36
 
-// Display settings
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
-#define OLED_RESET -1
-#define OLED_ADDRESS 0x3C
+// ── Timing ────────────────────────────────────────────────────────────────────
+#define DEBOUNCE_DELAY           80   // ms — footswitch & button debounce
+#define DISPLAY_TIMEOUT        2000   // ms — temp screen hold before home screen returns
+#define CHANNEL_SELECT_HOLD_MS  600   // ms — encoder button hold time to enter per-FS channel select
 
-// Timing constants
-#define DEBOUNCE_DELAY 80
-#define DISPLAY_TIMEOUT 2000
+// ── Sentinel ──────────────────────────────────────────────────────────────────
+#define NO_LED_PIN 255   // Marker for controls without a status LED
 
-// MIDI constants
-#define NUM_FOOTSWITCHES 4
-#define NUM_PROGRESS_LEDS 8
-#define POT1_CC 20
-#define POT2_CC 21
-#define HOTSWITCH_CC 22
-#define DEFAULT_RAMP_SPEED 1000
-#define RAMP_DURATIONS_MIN_MS 0
-#define RAMP_DURATIONS_MAX_MS 5000
+// ── MIDI CC assignments ───────────────────────────────────────────────────────
+#define POT1_CC  20   // CC sent by UP pot in send-CC mode
+#define POT2_CC  21   // CC sent by DOWN pot in send-CC mode
+
+// ── Modulation ────────────────────────────────────────────────────────────────
+#define DEFAULT_RAMP_SPEED     1000   // ms — per-footswitch ramp time on first boot
+#define RAMP_DURATIONS_MIN_MS     0   // ms — pot full left  = instant
+#define RAMP_DURATIONS_MAX_MS  5000   // ms — pot full right = 5 s

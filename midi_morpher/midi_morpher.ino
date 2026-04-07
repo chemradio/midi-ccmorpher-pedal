@@ -57,7 +57,7 @@ void loop() {
   }
 
   for(auto &tgl : toggles) {
-    bool toggleChanged = handleToggleChange(tgl, pedal, displayLockedMessage);
+    bool toggleChanged = handleToggleChange(tgl, pedal, displayLockedMessage, displayLockChange);
     if(toggleChanged) {
       displayHomeScreen(pedal);
     }
@@ -65,13 +65,13 @@ void loop() {
   for(auto &pot : analogPots) {
     handleAnalogPot(pot, pedal, displayPotValue, displayLockedMessage);
   }
-  handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage);
-  handleEncoderButton(pedal, encoderButtonFSModeChange, pedal.modulator, displayLockedMessage);
+  handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage, displayFSChannel);
+  handleEncoderButton(pedal, encoderButtonFSModeChange, pedal.modulator, displayLockedMessage, displayFSChannel);
 
   updateNeoPixel(pedal.modulator.currentValue, analogPots);
   setDigipotFromMidi(pedal.modulator.currentValue);
   resetDisplayTimeout(pedal);
-  // checkAndSaveState(pedal);
+  checkAndSaveState(pedal);
 
   // // MIDI THRU functionality
   // while (Serial2.available() > 0)

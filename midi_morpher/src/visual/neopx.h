@@ -2,10 +2,7 @@
 #include <Adafruit_NeoPixel.h>
 #include "../controls/pots.h"
 
-#define RGB_PIN 48   // Onboard RGB LED pin
-#define NUM_PIXELS 1 // Only one LED
-
-Adafruit_NeoPixel pixel(NUM_PIXELS, RGB_PIN, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel pixel(NEOPIXEL_COUNT, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 void initNeoPixel()
 {
