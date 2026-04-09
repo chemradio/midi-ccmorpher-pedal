@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 4 footswitches, a rotary encoder, two potentiometers, and an SSD1306 OLED display. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, and an analog expression output (via AD5292-BRUZ-20 digital potentiometer).
+MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), a rotary encoder, two potentiometers, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, and an analog expression output (via AD5292-BRUZ-20 digital potentiometer).
 
 **Firmware target:** ESP32-S3-N16R8, Arduino framework.
 
@@ -11,11 +11,12 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 4 footswitches, a r
 ## Hardware
 
 - **MCU:** ESP32-S3-N16R8 devboard, native USB (Arduino framework)
-- **Display:** SSD1306 OLED (I2C)
+- **Display:** SSD1306 OLED (I2C, 128×64)
 - **Digital pot:** AD5292-BRUZ-20 (SPI, 1024 positions) — drives analog expression output
-- **Controls:** 4 onboard footswitches, rotary encoder with push button, 2 pots (UP speed, DOWN speed), LOCK switch
-- **External:** 2 additional footswitches via jack, expression pedal in/out jacks
+- **Controls:** 4 onboard footswitches (FS1–FS4), 2 external footswitches via jack (ExtFS1, ExtFS2), rotary encoder with push button, 2 pots (UP speed, DOWN speed), LOCK switch
+- **External:** expression pedal in/out jacks
 - **I/O:** mini-TRS MIDI out + in (MIDI Thru), USB-C MIDI out/thru, expression pedal out
+- **WiFi:** built-in AP mode — SSID "MIDI Morpher", password "midimorpher", UI at 192.168.4.1
 
 ### Pin Assignments
 
@@ -23,19 +24,24 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 4 footswitches, a r
 |-----|------|
 | 1 | POT1 (UP speed) |
 | 2 | POT2 (DOWN speed) |
-| 3 | EXTFS2 LED |
+| 3 | ExtFS2 LED |
 | 4 | FS1 |
 | 5 | FS1 LED |
 | 6 | FS2 |
 | 7 | FS2 LED |
-| 8 | EXTFS2 |
+| 8 | ExtFS2 |
 | 9 | Encoder A |
 | 10 | Encoder B |
 | 11 | Encoder button |
-| 12 | Expression in |
-| 13 | MS2 (momentary/latching toggle) |
-| 17 | EXTFS1 |
-| 18 | EXTFS1 LED |
+| 12 | Expression In |
+| 13 | MS2 (momentary/latching toggle switch) |
+| 14 | FS3 |
+| 15 | FS3 LED |
+| 16 | FS4 |
+| 17 | ExtFS1 |
+| 18 | ExtFS1 LED |
+| 21 | FS4 LED |
+| 22 | WiFi status LED |
 | 36 | MIDI RX |
 | 38 | Digipot CS (SYNC) |
 | 39 | Digipot SCK |
@@ -150,6 +156,22 @@ For all modulation types, the return speed scales with how far the ramp progress
 
 ---
 
+## WiFi Web Interface
+
+- AP SSID: `MIDI Morpher`, password: `midimorpher`
+- UI served at `http://192.168.4.1` — dark-themed SPA embedded as PROGMEM string in `src/wifi/webUI.h`
+- REST API in `src/wifi/webServer.h`:
+  - `GET /api/state` — returns full JSON state (channel, wifiEnabled, all 6 buttons with mode/CC/channel/rampMs)
+  - `POST /api/channel` — set global MIDI channel `{"channel": 0}`
+  - `POST /api/button/:id` — update a footswitch `{"modeIndex":4,"midiNumber":11,"fsChannel":255,"rampUpMs":1000,"rampDownMs":1000}`
+  - `POST /api/wifi` — enable/disable AP `{"enabled": false}`
+- WiFi LED: GPIO 22, HIGH while AP running
+- LOCK switch turns off AP; AP restarts when LOCK is disengaged (if WiFi enabled)
+- Recovery: hold FS1 + FS2 for 3 seconds to re-enable WiFi after it was disabled via UI
+- `fsChannel` of 255 (0xFF) means "follow global channel"
+
+---
+
 ## Libraries
 
 External libraries (install via Arduino Library Manager):
@@ -160,7 +182,7 @@ External libraries (install via Arduino Library Manager):
 | Adafruit SSD1306 | 2.5.0 |
 | Adafruit NeoPixel | 1.12.0 |
 
-Built-in with ESP32 Arduino core (no install needed): `SPI.h`, `Wire.h`, `Preferences.h`, `USB.h`, `USBMIDI.h`.
+Built-in with ESP32 Arduino core (no install needed): `SPI.h`, `Wire.h`, `Preferences.h`, `USB.h`, `USBMIDI.h`, `WebServer.h`, `WiFi.h`.
 
 Full dependency manifest: `libraries.json` at project root.
 
