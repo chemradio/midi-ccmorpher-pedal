@@ -31,7 +31,6 @@ struct MidiCCModulator {
   unsigned long rampUpTimeMs = DEFAULT_RAMP_SPEED;
   unsigned long rampDownTimeMs = DEFAULT_RAMP_SPEED;
   unsigned long rampStartTime = 0;
-  unsigned long currentRampDuration = 0;
   unsigned long lastRandomTime = 0;
 
   RampShape rampShape = SHAPE_LINEAR;
@@ -105,8 +104,31 @@ struct MidiCCModulator {
 
   // ── Ramp helpers ──────────────────────────────────────────────────────────
 
-  uint8_t restVal() const { return restingHigh ? 127 : 0; }
-  uint8_t activeVal() const { return restingHigh ? 0 : 127; }
+  uint8_t restVal()   const { return restingHigh ? 127 : 0;   }
+  uint8_t activeVal() const { return restingHigh ? 0   : 127; }
+
+  // Proportional interpolation step shared by Ramper, Stepper, and LFO.
+  // Precondition: currentValue != targetValue.
+  // Returns true  when the ramp is complete (outValue = targetValue).
+  // Returns false when in progress         (outValue = shaped interpolation).
+  bool calcRampValue(uint8_t &outValue) {
+    bool     goingUp  = (targetValue > currentValue);
+    uint8_t  distance = goingUp ? (targetValue - currentValue)
+                                : (currentValue - targetValue);
+    unsigned long fullDur = goingUp ? rampUpTimeMs : rampDownTimeMs;
+    unsigned long dur     = (unsigned long)(fullDur * (distance / 127.0f));
+
+    if (dur <= 1) { outValue = targetValue; return true; }
+
+    unsigned long elapsed = millis() - rampStartTime;
+    if (elapsed >= dur)  { outValue = targetValue; return true; }
+
+    float   t      = (float)elapsed / (float)dur;
+    float   shaped = shapeRamp(t, rampShape);
+    int     delta  = (int)targetValue - (int)rampStartValue;
+    outValue = (uint8_t)((int)rampStartValue + (int)((float)delta * shaped));
+    return false;
+  }
 
   void calcAndStartRamp() {
     targetValue = isActivated ? activeVal() : restVal();

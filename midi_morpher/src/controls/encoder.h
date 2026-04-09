@@ -13,9 +13,6 @@ extern volatile int8_t encoderStepAccumulator;
 // Remove inline from ISR
 void IRAM_ATTR encoderISR();
 
-inline bool btnLastState = HIGH;
-inline unsigned long btnLastDebounce = 0;
-
 inline void initEncoder()
 {
     pinMode(ENC_A, INPUT_PULLUP);

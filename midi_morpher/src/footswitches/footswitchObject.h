@@ -70,7 +70,7 @@ struct ModeInfo {
 // Columns: mode, isLatching, isPC, isNote, isModSwitch, isInverted, isScene,
 //          name, modType, shape, sceneCC, sceneMaxVal, scenePickCC
 
-static constexpr ModeInfo modes[] = {
+inline constexpr ModeInfo modes[] = {
   // ── Basic ────────────────────────────────────────────────────────────────
   { FootswitchMode::MomentaryPC,        false, true,  false, false, false, false, "PC",            ModulationType::NOMODULATION, SHAPE_LINEAR, 0,  0, false },
   { FootswitchMode::MomentaryCC,        false, false, false, false, false, false, "CC",            ModulationType::NOMODULATION, SHAPE_LINEAR, 0,  0, false },
@@ -116,7 +116,7 @@ static constexpr ModeInfo modes[] = {
   { FootswitchMode::KemperSlot,         false, false, false, false, false, true,  "Kemper Slot",   ModulationType::NOMODULATION, SHAPE_LINEAR, 50, 4, true  },
 };
 
-static constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]);
+inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]);
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 

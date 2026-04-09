@@ -9,6 +9,7 @@
 #include "src/statePersistance.h"
 #include "src/visual/display.h"
 #include "src/visual/neopx.h"
+#include "src/wifi/webServer.h"
 #include <USB.h>
 #include <USBMIDI.h>
 
@@ -44,6 +45,7 @@ void setup() {
   initAnalogPots();
   // hotswitch.init();
   loadState(pedal);
+  initWebServer(pedal);
   initNeoPixel();
   showStartupScreen();
   delay(2000);
@@ -72,6 +74,7 @@ void loop() {
   setDigipotFromMidi(pedal.modulator.currentValue);
   resetDisplayTimeout(pedal);
   checkAndSaveState(pedal);
+  handleWebServer(pedal);
 
   // // MIDI THRU functionality
   // while (Serial2.available() > 0)

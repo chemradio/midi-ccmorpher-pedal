@@ -6,16 +6,16 @@
 // AD5292-BRUZ-20: 1024-position SPI digipot
 // 16-bit transfer: bits[15:10] = command, bits[9:0] = data
 
-static SPIClass digipotSPI(HSPI);
+inline SPIClass digipotSPI(HSPI);
 
-static void ad5292Write(uint8_t cmd, uint16_t data) {
+inline void ad5292Write(uint8_t cmd, uint16_t data) {
   uint16_t word = ((uint16_t)(cmd & 0x3F) << 10) | (data & 0x3FF);
   digitalWrite(DIGIPOT_CS, LOW);
   digipotSPI.transfer16(word);
   digitalWrite(DIGIPOT_CS, HIGH);
 }
 
-void digipotSetup() {
+inline void digipotSetup() {
   pinMode(DIGIPOT_CS, OUTPUT);
   digitalWrite(DIGIPOT_CS, HIGH);
   digipotSPI.begin(DIGIPOT_SCK, -1, DIGIPOT_MOSI, DIGIPOT_CS);
@@ -27,9 +27,9 @@ void digipotSetup() {
   ad5292Write(0b000001, 0);
 }
 
-static uint8_t prevMidiValue = 255; // force write on first call
+inline uint8_t prevMidiValue = 255; // force write on first call
 
-void setDigipotFromMidi(uint8_t midiValue) {
+inline void setDigipotFromMidi(uint8_t midiValue) {
   if (midiValue == prevMidiValue) return;
   prevMidiValue = midiValue;
   if (midiValue > 127) midiValue = 127;

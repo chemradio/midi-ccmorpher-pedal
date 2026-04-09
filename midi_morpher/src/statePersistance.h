@@ -24,14 +24,14 @@ struct FSButtonPersisted
 struct PedalPersisted
 {
     uint8_t midiChannel;
-    FSButtonPersisted buttons[4];
+    FSButtonPersisted buttons[6];
 };
 
 inline void saveState(const PedalState &state)
 {
     PedalPersisted p;
     p.midiChannel = state.midiChannel;
-    for (int i = 0; i < 4; i++)
+    for (int i = 0; i < 6; i++)
     {
         p.buttons[i].modeIndex  = state.buttons[i].modeIndex;
         p.buttons[i].midiNumber = state.buttons[i].midiNumber;
@@ -55,7 +55,7 @@ inline void loadState(PedalState &state)
 
         state.setMidiChannel(constrain(p.midiChannel, 0, 15));
 
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 6; i++)
         {
             uint8_t idx = p.buttons[i].modeIndex < NUM_MODES ? p.buttons[i].modeIndex : 0;
             const ModeInfo &m = modes[idx];

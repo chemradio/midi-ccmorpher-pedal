@@ -2,7 +2,7 @@
 #include <Adafruit_NeoPixel.h>
 #include "../controls/pots.h"
 
-Adafruit_NeoPixel pixel(NEOPIXEL_COUNT, RGB_PIN, NEO_GRB + NEO_KHZ800);
+inline Adafruit_NeoPixel pixel(NEOPIXEL_COUNT, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 void initNeoPixel()
 {

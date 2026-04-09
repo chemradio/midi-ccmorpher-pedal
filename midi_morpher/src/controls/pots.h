@@ -69,7 +69,9 @@ inline void handleAnalogPot(
     // Default: pot acts as a direct CC controller.
     uint8_t midiScaled = (uint8_t)((pot.lastValue * 128UL) / 4096);
     if(midiScaled != pot.lastMidiValue) {
-      pot.lastMidiValue = midiScaled;
+      pot.lastMidiValue       = midiScaled;
+      pot.ccDisplayDirty      = true;
+      pot.ccLastDisplayDirty  = millis();
       pot.sendMidiCC(pedal.midiChannel);
       displayCallback("CC " + String(pot.midiCCNumber), true, midiScaled, 0);
     }

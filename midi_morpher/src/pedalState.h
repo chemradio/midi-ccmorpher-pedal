@@ -18,11 +18,13 @@ struct PedalState
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
     MidiCCModulator modulator;
 
-    std::array<FSButton, 4> buttons = {
-        FSButton(FS1_PIN, FS1_LED, "FS 1", 0),
-        FSButton(FS2_PIN, FS2_LED, "FS 2", 1),
-        FSButton(EXTFS1_PIN, EXTFS1_LED, "extFS 1", 2),
-        FSButton(EXTFS2_PIN, EXTFS2_LED, "extFS 2", 3)};
+    std::array<FSButton, 6> buttons = {
+        FSButton(FS1_PIN,    FS1_LED,    "FS 1",    0),
+        FSButton(FS2_PIN,    FS2_LED,    "FS 2",    0),
+        FSButton(FS3_PIN,    FS3_LED,    "FS 3",    0),
+        FSButton(FS4_PIN,    FS4_LED,    "FS 4",    0),
+        FSButton(EXTFS1_PIN, EXTFS1_LED, "Ext FS 1", 0),
+        FSButton(EXTFS2_PIN, EXTFS2_LED, "Ext FS 2", 0)};
 
     void setMidiChannel(uint8_t mc)
     {
@@ -55,22 +57,5 @@ struct PedalState
         return -1; // no button pressed
     }
 
-    void adjustActiveMidiNumber(int8_t delta)
-    {
-        if (activeButtonIndex >= 0 && activeButtonIndex < buttons.size())
-        {
-            FSButton &btn = buttons[activeButtonIndex];
-            int newValue = btn.midiNumber + delta;
-
-            // Clamp to valid MIDI range (0-127)
-            if (newValue < 0)
-                newValue = 0;
-            if (newValue > 127)
-                newValue = 127;
-
-            btn.midiNumber = newValue;
-        }
-    }
-
-
 };
+

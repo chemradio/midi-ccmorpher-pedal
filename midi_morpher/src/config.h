@@ -4,15 +4,24 @@
 #pragma once
 #include <Arduino.h>
 
-// ── Footswitches ──────────────────────────────────────────────────────────────
+// ── Footswitches (onboard) ────────────────────────────────────────────────────
 #define FS1_PIN      4
 #define FS1_LED      5
 #define FS2_PIN      6
 #define FS2_LED      7
-#define EXTFS1_PIN  17   // External footswitch 1 (via jack)
+#define FS3_PIN     14
+#define FS3_LED     15
+#define FS4_PIN     16
+#define FS4_LED     21
+
+// ── Footswitches (external, via jack) ────────────────────────────────────────
+#define EXTFS1_PIN  17
 #define EXTFS1_LED  18
-#define EXTFS2_PIN   8   // External footswitch 2 (via jack)
+#define EXTFS2_PIN   8
 #define EXTFS2_LED   3
+
+// ── WiFi status LED ───────────────────────────────────────────────────────────
+#define WIFI_LED_PIN 22
 
 // ── Encoder ───────────────────────────────────────────────────────────────────
 #define ENC_A        9
@@ -65,3 +74,8 @@
 #define DEFAULT_RAMP_SPEED     1000   // ms — per-footswitch ramp time on first boot
 #define RAMP_DURATIONS_MIN_MS     0   // ms — pot full left  = instant
 #define RAMP_DURATIONS_MAX_MS  5000   // ms — pot full right = 5 s
+
+// ── Display layout ────────────────────────────────────────────────────────────
+// Only the 4 onboard footswitches fit on the 64 px tall OLED home screen.
+// Increase this if you ever swap to a taller display.
+static constexpr uint8_t DISPLAY_FS_ROWS = 4;

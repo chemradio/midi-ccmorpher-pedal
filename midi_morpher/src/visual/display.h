@@ -8,19 +8,17 @@
 #include <Adafruit_SSD1306.h>
 #include <Wire.h>
 
-// Display object
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+inline Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
 enum DisplayMode {
   DISPLAY_DEFAULT,
   DISPLAY_PARAM
 };
 
-// Temporary display text
-String tempDisplayText = "";
-unsigned long lastInteraction = 0;
-const unsigned long displayTimeout = DISPLAY_TIMEOUT;
-DisplayMode displayMode = DISPLAY_DEFAULT;
+inline String        tempDisplayText = "";
+inline unsigned long lastInteraction = 0;
+inline DisplayMode   displayMode     = DISPLAY_DEFAULT;
+inline constexpr unsigned long displayTimeout = DISPLAY_TIMEOUT;
 
 bool initDisplay() {
   Wire.begin(SDA_PIN, SCL_PIN);
@@ -110,7 +108,7 @@ void displayHomeScreen(PedalState &pedal) {
   display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
 
   // ── Footswitch rows ────────────────────────────────────────────────────────
-  for(int i = 0; i < 4; i++) {
+  for(int i = 0; i < DISPLAY_FS_ROWS; i++) {
     const FSButton &btn = pedal.buttons[i];
     int y = 12 + i * 13;
 
