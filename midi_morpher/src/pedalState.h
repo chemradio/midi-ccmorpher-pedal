@@ -13,6 +13,7 @@ struct PedalState
 
     bool   inChannelSelect  = false;  // encoder is currently editing a per-FS MIDI channel
     int8_t channelSelectIdx = -1;     // which button is being edited
+    int8_t lastActiveFSIndex = -1;    // which footswitch was last pressed (for activity LED)
 
     unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;

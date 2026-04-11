@@ -12,7 +12,7 @@ static const char WEB_UI_HTML[] PROGMEM = R"rawliteral(
   --bg:#080808;--s1:#111;--s2:#191919;--s3:#222;
   --acc:#00d9ff;--acc2:rgba(0,217,255,0.1);
   --txt:#ddd;--dim:#555;--bdr:#252525;
-  --grn:#00e676;--rad:10px;--tr:.18s ease;
+  --grn:#00e676;--red:#ff5252;--rad:10px;--tr:.18s ease;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh}
@@ -26,52 +26,81 @@ header{
 .logo-icon{
   width:30px;height:30px;display:flex;align-items:center;justify-content:center;
   background:var(--acc2);border:1px solid rgba(0,217,255,0.35);
-  border-radius:7px;color:var(--acc);font-size:.8rem;font-weight:800;letter-spacing:-.02em;
+  border-radius:7px;color:var(--acc);font-size:.8rem;font-weight:800;
 }
 .logo-text{font-size:.95rem;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--acc)}
 .logo-sub{font-size:.68rem;color:var(--dim);letter-spacing:.04em;margin-top:1px}
-
-.hdr-r{display:flex;align-items:center;gap:16px}
+.hdr-r{display:flex;align-items:center;gap:10px}
 .badge{
   font-size:.7rem;letter-spacing:.03em;padding:3px 9px;border-radius:20px;
   color:transparent;transition:color var(--tr),background var(--tr);
 }
+.badge.unsaved{color:var(--red);background:rgba(255,82,82,.1)}
 .badge.saving{color:var(--acc);background:var(--acc2)}
 .badge.saved{color:var(--grn);background:rgba(0,230,118,.08)}
 
-.wifi-row{display:flex;align-items:center;gap:7px;font-size:.75rem;color:var(--dim)}
-.wdot{width:7px;height:7px;border-radius:50%;background:#2a2a2a;transition:var(--tr)}
-.wdot.on{background:var(--acc);box-shadow:0 0 7px var(--acc)}
-
-.tog{position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0}
-.tog input{opacity:0;width:0;height:0;position:absolute}
-.tog-t{position:absolute;inset:0;background:#2a2a2a;border-radius:22px;transition:var(--tr)}
-.tog-t::after{
-  content:'';position:absolute;left:3px;top:3px;
-  width:16px;height:16px;background:#666;border-radius:50%;transition:var(--tr);
-}
-.tog input:checked~.tog-t{background:var(--acc)}
-.tog input:checked~.tog-t::after{background:#fff;transform:translateX(18px);box-shadow:0 1px 4px rgba(0,0,0,.5)}
-
 main{max-width:1100px;margin:0 auto;padding:20px}
 
+/* Global bar */
 .gbar{
-  display:flex;align-items:center;gap:10px;
+  display:flex;align-items:center;gap:14px;flex-wrap:wrap;
   background:var(--s1);border:1px solid var(--bdr);
-  border-radius:var(--rad);padding:14px 18px;margin-bottom:18px;
+  border-radius:var(--rad);padding:14px 18px;margin-bottom:14px;
 }
 .gbar label{font-size:.73rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--dim)}
 .gbar select{
-  margin-left:auto;background:var(--s2);color:var(--txt);
-  border:1px solid var(--bdr);border-radius:7px;
-  padding:6px 10px;font-size:.83rem;min-width:120px;
-  outline:none;cursor:pointer;transition:border-color var(--tr);
+  background:var(--s2);color:var(--txt);border:1px solid var(--bdr);border-radius:7px;
+  padding:6px 28px 6px 10px;font-size:.83rem;outline:none;cursor:pointer;
   -webkit-appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 10px center;padding-right:26px;
+  background-repeat:no-repeat;background-position:right 10px center;
 }
 .gbar select:focus{border-color:var(--acc)}
+.sep{width:1px;height:22px;background:var(--bdr);flex-shrink:0}
+.latch-row{display:flex;align-items:center;gap:8px;font-size:.75rem;color:var(--dim)}
 
+/* Toggle */
+.tog{position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0}
+.tog input{opacity:0;width:0;height:0;position:absolute}
+.tog-t{position:absolute;inset:0;background:#2a2a2a;border-radius:22px;transition:var(--tr)}
+.tog-t::after{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;background:#666;border-radius:50%;transition:var(--tr)}
+.tog input:checked~.tog-t{background:var(--acc)}
+.tog input:checked~.tog-t::after{background:#fff;transform:translateX(18px);box-shadow:0 1px 4px rgba(0,0,0,.5)}
+
+/* Preset bar */
+.preset-bar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  background:var(--s1);border:1px solid var(--bdr);
+  border-radius:var(--rad);padding:12px 18px;margin-bottom:14px;
+}
+.preset-bar span{font-size:.73rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-right:4px}
+.pbtn{
+  padding:5px 14px;border-radius:20px;border:1px solid var(--bdr);
+  background:var(--s2);color:var(--dim);font-size:.75rem;font-weight:700;
+  cursor:pointer;letter-spacing:.04em;transition:all var(--tr);
+}
+.pbtn:hover{border-color:#444;color:var(--txt)}
+.pbtn.active{background:var(--acc2);border-color:rgba(0,217,255,.5);color:var(--acc)}
+.save-btn{
+  margin-left:auto;padding:5px 16px;border-radius:20px;
+  border:1px solid rgba(0,217,255,.3);background:var(--acc2);
+  color:var(--acc);font-size:.75rem;font-weight:700;cursor:pointer;
+  letter-spacing:.04em;transition:all var(--tr);
+}
+.save-btn:hover{background:rgba(0,217,255,.2);border-color:var(--acc)}
+.save-btn:active{transform:scale(.97)}
+
+/* Pots bar */
+.pots-bar{
+  display:grid;grid-template-columns:1fr 1fr;gap:14px;
+  background:var(--s1);border:1px solid var(--bdr);
+  border-radius:var(--rad);padding:14px 18px;margin-bottom:18px;
+}
+.pot-item .plbl{font-size:.73rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--dim);margin-bottom:6px}
+.pot-row{display:flex;align-items:center;gap:8px}
+.pot-val{font-size:.75rem;color:var(--acc);min-width:28px;text-align:right;font-variant-numeric:tabular-nums}
+
+/* Footswitch grid */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
 @media(max-width:860px){.grid{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:540px){.grid{grid-template-columns:1fr};main{padding:12px}}
@@ -83,61 +112,53 @@ main{max-width:1100px;margin:0 auto;padding:20px}
 }
 .card:hover{border-color:#333;box-shadow:0 4px 20px rgba(0,0,0,.5)}
 
-.card-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
-.card-name{font-size:.83rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-.chip{
-  font-size:.62rem;padding:2px 7px;border-radius:20px;
-  font-weight:600;text-transform:uppercase;letter-spacing:.05em;
-}
+.card-hdr{display:flex;align-items:center;gap:8px;margin-bottom:16px}
+.card-name{font-size:.83rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;flex:1}
+.chip{font-size:.62rem;padding:2px 7px;border-radius:20px;font-weight:600;text-transform:uppercase;letter-spacing:.05em}
 .chip-on{background:var(--acc2);color:var(--acc);border:1px solid rgba(0,217,255,.22)}
 .chip-ext{background:rgba(255,255,255,.03);color:var(--dim);border:1px solid var(--bdr)}
 
+/* Trigger button */
+.trig-btn{
+  padding:3px 10px;border-radius:6px;border:1px solid var(--bdr);
+  background:var(--s2);color:var(--dim);font-size:.7rem;cursor:pointer;
+  transition:all var(--tr);user-select:none;-webkit-user-select:none;
+}
+.trig-btn:hover{border-color:#444;color:var(--txt)}
+.trig-btn.on{background:rgba(0,230,118,.15);border-color:rgba(0,230,118,.4);color:var(--grn)}
+
 .fld{margin-bottom:12px}
 .fld:last-child{margin-bottom:0}
-.lbl{
-  font-size:.66rem;font-weight:600;text-transform:uppercase;
-  letter-spacing:.07em;color:var(--dim);margin-bottom:5px;
-  display:flex;align-items:center;gap:5px;
-}
+.lbl{font-size:.66rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:5px;display:flex;align-items:center;gap:5px}
 .hint{font-weight:400;color:#444;text-transform:none;letter-spacing:0;font-size:.64rem}
-
 .fld select,.fld input[type=number]{
-  width:100%;background:var(--s2);color:var(--txt);
-  border:1px solid var(--bdr);border-radius:7px;
-  padding:7px 10px;font-size:.82rem;outline:none;
+  width:100%;background:var(--s2);color:var(--txt);border:1px solid var(--bdr);
+  border-radius:7px;padding:7px 10px;font-size:.82rem;outline:none;
   transition:border-color var(--tr);-webkit-appearance:none;
 }
 .fld select{
-  cursor:pointer;
+  cursor:pointer;background-color:var(--s2);
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23555'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 10px center;
-  padding-right:26px;background-color:var(--s2);
+  background-repeat:no-repeat;background-position:right 10px center;padding-right:26px;
 }
 .fld select:focus,.fld input[type=number]:focus{border-color:var(--acc)}
-.fld input[type=number]{cursor:text}
-
 hr.div{border:none;border-top:1px solid var(--bdr);margin:12px 0}
 
+/* Range sliders */
 .ramp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .rlbl{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:4px}
 .srow{display:flex;align-items:center;gap:7px}
 input[type=range]{
-  -webkit-appearance:none;flex:1;height:3px;
-  background:var(--bdr);border-radius:2px;outline:none;cursor:pointer;
+  -webkit-appearance:none;flex:1;height:3px;background:var(--bdr);border-radius:2px;outline:none;cursor:pointer;
 }
 input[type=range]::-webkit-slider-thumb{
   -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
   background:var(--acc);cursor:pointer;box-shadow:0 0 5px rgba(0,217,255,.4);
-  transition:box-shadow var(--tr);
 }
-input[type=range]:active::-webkit-slider-thumb{box-shadow:0 0 10px var(--acc)}
 .sval{font-size:.71rem;color:var(--acc);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
 .ramp-wrap.hidden{display:none}
 
-footer{
-  text-align:center;padding:28px;
-  font-size:.68rem;color:#333;letter-spacing:.04em;
-}
+footer{text-align:center;padding:28px;font-size:.68rem;color:#333;letter-spacing:.04em}
 </style>
 </head>
 <body>
@@ -151,26 +172,54 @@ footer{
   </div>
   <div class="hdr-r">
     <span id="badge" class="badge"></span>
-    <div class="wifi-row">
-      <div class="wdot" id="wdot"></div>
-      <span>WiFi</span>
-      <label class="tog">
-        <input type="checkbox" id="wifiTog">
-        <span class="tog-t"></span>
-      </label>
-    </div>
   </div>
 </header>
 
 <main>
+  <!-- Global channel + latching toggle -->
   <div class="gbar">
-    <label>Global MIDI Channel</label>
+    <label>MIDI Channel</label>
     <select id="gch"></select>
+    <div class="sep"></div>
+    <div class="latch-row">
+      <span>Latching</span>
+      <label class="tog">
+        <input type="checkbox" id="latchTog">
+        <span class="tog-t"></span>
+      </label>
+    </div>
   </div>
+
+  <!-- Preset selector bar -->
+  <div class="preset-bar">
+    <span>Preset</span>
+    <div id="pbtns"></div>
+    <button class="save-btn" id="saveBtn" onclick="savePreset()">Save Preset</button>
+  </div>
+
+  <!-- Pot virtual controls -->
+  <div class="pots-bar">
+    <div class="pot-item">
+      <div class="plbl">POT1 — CC 20</div>
+      <div class="pot-row">
+        <input type="range" id="pot0" min="0" max="127" value="0" oninput="potMove(0,this.value)">
+        <span class="sval" id="pv0">0</span>
+      </div>
+    </div>
+    <div class="pot-item">
+      <div class="plbl">POT2 — CC 21</div>
+      <div class="pot-row">
+        <input type="range" id="pot1" min="0" max="127" value="0" oninput="potMove(1,this.value)">
+        <span class="sval" id="pv1">0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footswitch cards -->
   <div class="grid" id="grid"></div>
 </main>
 
-<footer>192.168.4.1 &nbsp;|&nbsp; MIDI Morpher v1.0</footer>
+<footer>192.168.4.1 &nbsp;|&nbsp; MIDI Morpher v2.0</footer>
 
 <script>
 const MODES=[
@@ -181,18 +230,30 @@ const MODES=[
   "Random","Random L","Random Inv","Random Inv L",
   "Helix Snap","QC Scene","Fractal Scene","Kemper Slot"
 ];
+// Indices of modulation modes (show ramp sliders)
 const MOD=new Set([4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]);
+// Indices of latching modes (click-toggle trigger, not hold)
+const LATCHING=new Set([2,5,7,9,11,13,15,17,19,21]);
 const HINT={0:"PC#",3:"Note",22:"0-7",23:"0-7",24:"0-7",25:"CC 50-54"};
 
-let saveTimer=null;
+let activePreset=0;
+let uiDirty=false;
+let potTimers=[null,null];
 const badge=document.getElementById('badge');
-const wdot=document.getElementById('wdot');
 
-function setStatus(s){
-  badge.className='badge '+s;
-  badge.textContent=s==='saving'?'Saving...':s==='saved'?'Saved':'';
+function markDirty(){
+  uiDirty=true;
+  badge.className='badge unsaved';
+  badge.textContent='● Unsaved';
+}
+function markClean(){
+  uiDirty=false;
+  badge.className='badge saved';
+  badge.textContent='Saved';
+  setTimeout(()=>{if(!uiDirty){badge.className='badge';badge.textContent='';}},2500);
 }
 
+// ── State load ────────────────────────────────────────────────────────────────
 async function load(){
   try{
     const r=await fetch('/api/state');
@@ -204,6 +265,9 @@ async function load(){
 }
 
 function render(s){
+  activePreset=s.activePreset||0;
+
+  // Global channel
   const g=document.getElementById('gch');
   g.innerHTML='';
   for(let i=1;i<=16;i++){
@@ -214,16 +278,57 @@ function render(s){
   }
   g.onchange=()=>post('/api/channel',{channel:+g.value});
 
-  const wt=document.getElementById('wifiTog');
-  wt.checked=s.wifiEnabled;
-  wdot.className='wdot'+(s.wifiEnabled?' on':'');
-  wt.onchange=()=>toggleWifi(wt.checked);
+  // Latching toggle
+  const lt=document.getElementById('latchTog');
+  lt.checked=!!s.latching;
+  lt.onchange=()=>post('/api/latching',{latching:lt.checked});
 
+  // Preset buttons
+  const pb=document.getElementById('pbtns');
+  pb.innerHTML='';
+  for(let i=0;i<6;i++){
+    const b=document.createElement('button');
+    b.className='pbtn'+(i===activePreset?' active':'');
+    b.textContent='P'+(i+1);
+    b.onclick=()=>loadPreset(i);
+    pb.appendChild(b);
+  }
+
+  // Footswitch cards
   const grid=document.getElementById('grid');
   grid.innerHTML='';
   s.buttons.forEach((b,i)=>grid.appendChild(mkCard(b,i)));
+
+  // If server says dirty, reflect it
+  if(s.presetDirty) markDirty();
+  else if(!uiDirty){ badge.className='badge'; badge.textContent=''; }
 }
 
+// ── Preset actions ────────────────────────────────────────────────────────────
+async function loadPreset(idx){
+  await fetch('/api/preset/load/'+idx,{method:'POST'});
+  uiDirty=false;
+  await load();
+}
+
+async function savePreset(){
+  badge.className='badge saving';
+  badge.textContent='Saving...';
+  await fetch('/api/preset/save/'+activePreset,{method:'POST'});
+  markClean();
+}
+
+// ── Pot controls ──────────────────────────────────────────────────────────────
+function potMove(id,val){
+  document.getElementById('pv'+id).textContent=val;
+  clearTimeout(potTimers[id]);
+  potTimers[id]=setTimeout(()=>{
+    fetch('/api/pot',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({id:id,value:+val})});
+  },40);
+}
+
+// ── Footswitch card builder ───────────────────────────────────────────────────
 function mkCard(b,i){
   const ext=i>=4;
   const isMod=MOD.has(b.modeIndex);
@@ -232,7 +337,8 @@ function mkCard(b,i){
   d.innerHTML=`
 <div class="card-hdr">
   <span class="card-name">${b.name}</span>
-  <span class="chip ${ext?'chip-ext':'chip-on'}">${ext?'External':'Onboard'}</span>
+  <span class="chip ${ext?'chip-ext':'chip-on'}">${ext?'Ext':'Onboard'}</span>
+  <button class="trig-btn" id="trig${i}" title="Trigger footswitch">&#9654;</button>
 </div>
 <div class="fld">
   <div class="lbl">Mode</div>
@@ -303,23 +409,49 @@ function mkCard(b,i){
   d.querySelector('#dn'+i).oninput=e=>{
     d.querySelector('#dv'+i).textContent=fmt(+e.target.value);sched(i);
   };
+
+  // Trigger button — latching: click-toggle; momentary: hold
+  const tb=d.querySelector('#trig'+i);
+  const latching=LATCHING.has(b.modeIndex)||!MOD.has(b.modeIndex)&&b.isLatching;
+  if(LATCHING.has(b.modeIndex)){
+    // Latching mode: single click = press+release (toggles state)
+    tb.onclick=()=>trigClick(i,tb);
+  } else {
+    // Momentary: hold = active, release = off
+    tb.addEventListener('mousedown', e=>{ e.preventDefault(); trigPress(i,tb); });
+    tb.addEventListener('mouseup',   ()=>trigRelease(i,tb));
+    tb.addEventListener('touchstart',e=>{ e.preventDefault(); trigPress(i,tb); },{passive:false});
+    tb.addEventListener('touchend',  ()=>trigRelease(i,tb));
+  }
+
   return d;
 }
 
-function setHint(i,mi){
-  const el=document.getElementById('h'+i);
-  if(el)el.textContent='('+(HINT[mi]||(MOD.has(mi)?'CC#':'CC#'))+')';
+// ── Trigger helpers ───────────────────────────────────────────────────────────
+async function trigClick(idx,btn){
+  btn.classList.add('on');
+  await fetch('/api/button/'+idx+'/press',{method:'POST'});
+  await fetch('/api/button/'+idx+'/release',{method:'POST'});
+  setTimeout(()=>btn.classList.remove('on'),300);
+}
+async function trigPress(idx,btn){
+  btn.classList.add('on');
+  await fetch('/api/button/'+idx+'/press',{method:'POST'});
+}
+async function trigRelease(idx,btn){
+  btn.classList.remove('on');
+  await fetch('/api/button/'+idx+'/release',{method:'POST'});
 }
 
-function fmt(ms){return(ms/1000).toFixed(1)+'s'}
-
+// ── Config save ───────────────────────────────────────────────────────────────
+let saveTimers={};
 function sched(i){
-  setStatus('saving');
-  clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>saveBtn(i),600);
+  markDirty();
+  clearTimeout(saveTimers[i]);
+  saveTimers[i]=setTimeout(()=>applyBtn(i),600);
 }
 
-async function saveBtn(i){
+async function applyBtn(i){
   await post('/api/button/'+i,{
     modeIndex:+document.getElementById('m'+i).value,
     midiNumber:+document.getElementById('n'+i).value,
@@ -331,18 +463,14 @@ async function saveBtn(i){
 
 async function post(url,data){
   await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-  setStatus('saved');
-  setTimeout(()=>setStatus(''),2500);
 }
 
-async function toggleWifi(on){
-  if(!on){
-    const ok=confirm('Disable WiFi?\n\nTo re-enable: hold FS1 + FS2 together for 3 seconds.');
-    if(!ok){document.getElementById('wifiTog').checked=true;return;}
-  }
-  wdot.className='wdot'+(on?' on':'');
-  await fetch('/api/wifi',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled:on})});
+function setHint(i,mi){
+  const el=document.getElementById('h'+i);
+  if(el)el.textContent='('+(HINT[mi]||(MOD.has(mi)?'CC#':'CC#'))+')';
 }
+
+function fmt(ms){return(ms/1000).toFixed(1)+'s'}
 
 load();
 </script>

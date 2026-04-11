@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), a rotary encoder, two potentiometers, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, and an analog expression output (via AD5292-BRUZ-20 digital potentiometer).
+MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), a rotary encoder, two potentiometers, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, and an analog expression output (via AD5292-BRUZ-20 digital potentiometer). The pedal supports 6 presets that store complete configurations.
 
 **Firmware target:** ESP32-S3-N16R8, Arduino framework.
 
@@ -13,10 +13,11 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 - **MCU:** ESP32-S3-N16R8 devboard, native USB (Arduino framework)
 - **Display:** SSD1306 OLED (I2C, 128×64)
 - **Digital pot:** AD5292-BRUZ-20 (SPI, 1024 positions) — drives analog expression output
-- **Controls:** 4 onboard footswitches (FS1–FS4), 2 external footswitches via jack (ExtFS1, ExtFS2), rotary encoder with push button, 2 pots (UP speed, DOWN speed), LOCK switch
+- **Controls:** 4 onboard footswitches (FS1–FS4), 2 external footswitches via jack (ExtFS1, ExtFS2), rotary encoder with push button, 2 pots (UP speed, DOWN speed), MS2 latching toggle, LOCK switch, PRESET momentary button
+- **LEDs:** 6 footswitch LEDs (repurposed as preset indicators), 1 activity LED, 1 WiFi status LED, 1 NeoPixel RGB
 - **External:** expression pedal in/out jacks
 - **I/O:** mini-TRS MIDI out + in (MIDI Thru), USB-C MIDI out/thru, expression pedal out
-- **WiFi:** built-in AP mode — SSID "MIDI Morpher", password "midimorpher", UI at 192.168.4.1
+- **WiFi:** built-in AP mode — SSID "MIDI Morpher", password "midimorpher", UI at 192.168.4.1. Always on except when LOCK switch is engaged.
 
 ### Pin Assignments
 
@@ -24,11 +25,11 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 |-----|------|
 | 1 | POT1 (UP speed) |
 | 2 | POT2 (DOWN speed) |
-| 3 | ExtFS2 LED |
+| 3 | ExtFS2 LED (preset indicator) |
 | 4 | FS1 |
-| 5 | FS1 LED |
+| 5 | FS1 LED (preset indicator) |
 | 6 | FS2 |
-| 7 | FS2 LED |
+| 7 | FS2 LED (preset indicator) |
 | 8 | ExtFS2 |
 | 9 | Encoder A |
 | 10 | Encoder B |
@@ -36,11 +37,13 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 | 12 | Expression In |
 | 13 | MS2 (momentary/latching toggle switch) |
 | 14 | FS3 |
-| 15 | FS3 LED |
+| 15 | FS3 LED (preset indicator) |
 | 16 | FS4 |
 | 17 | ExtFS1 |
-| 18 | ExtFS1 LED |
-| 21 | FS4 LED |
+| 18 | ExtFS1 LED (preset indicator) |
+| 19 | PRESET button (momentary, INPUT_PULLUP) |
+| 20 | Activity LED |
+| 21 | FS4 LED (preset indicator) |
 | 22 | WiFi status LED |
 | 36 | MIDI RX |
 | 38 | Digipot CS (SYNC) |
@@ -94,6 +97,25 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 
 ---
 
+## Preset System
+
+- 6 presets, each storing: global MIDI channel + per-footswitch modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs
+- NVS namespace `"presets"` — key `"prs"` (PresetData[6] blob) + key `"act"` (active preset index)
+- **No auto-save.** `markStateDirty()` only sets `presetDirty = true` (used for display indicator). Settings are volatile until explicitly saved.
+- **PRESET button short press:** `applyPreset((activePreset+1)%6, pedal)` — loads next preset live
+- **PRESET button long press (≥ PRESET_SAVE_HOLD_MS = 1500 ms):** `saveCurrentPreset(pedal)` — writes to NVS; blocked when LOCK engaged
+- `presetDirty = true` is set by any setting change (encoder, pots, web UI); cleared on preset load or save
+- On first boot (no `"presets"` namespace): factory defaults for all 6 slots; old `"pedal"` namespace (same struct layout as `PresetData`) migrated into slot 0 if found
+
+### Footswitch LEDs (repurposed)
+
+- `FSButton::_setLED()` only updates the `ledState` bool — does **not** drive GPIO
+- GPIO is driven exclusively by `updatePresetLEDs()` in the main loop: only `buttons[activePreset].ledPin` is HIGH
+- `updateActivityLed()` drives GPIO 20: reflects `buttons[lastActiveFSIndex].ledState`
+- `lastActiveFSIndex` (int8_t, -1 = none) in `PedalState` — updated in main loop when a footswitch registers a new press
+
+---
+
 ## Modulation Engine Behavior
 
 - **RAMPER:** exponential curve, CC 0→127 on press. On release (momentary), ramps back down to 0 gradually using the DOWN pot speed — does not snap. Latching holds until next press, then ramps back down.
@@ -101,17 +123,13 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 - **STEPPER:** same as RAMPER but in discrete steps for a quantized/robotic feel. On release/next press, steps back down using DOWN pot speed.
 - **STEPPER Inverted:** resting position is 127. Same gradual return logic applies in reverse.
 - **RANDOM STEPPER:** steps to random CC values continuously; does not stop at 127. Return behavior follows the same proportional speed rule.
-- **LFO:** continuous 0–127–0 sweep. Wave types: sine, triangle, square. UP pot controls rise speed, DOWN pot controls descent. Momentary: gradualy return to 0 on release. Latching: continues until next press, then gradualy returns to 0.
+- **LFO:** continuous 0–127–0 sweep. Wave types: sine, triangle, square. UP pot controls rise speed, DOWN pot controls descent. Momentary: gradually return to 0 on release. Latching: continues until next press, then gradually returns to 0.
 - **UP/DOWN pots:** control modulation speed for the currently selected footswitch only.
 
 ### Proportional Return Speed
 
-For all modulation types, the return speed scales with how far the ramp progressed:
-
 - Return speed = DOWN pot speed × (current CC value / 127)
-- Example: ramp reached CC 64 (50%) → return speed is 50% of the DOWN pot setting
-- Example: ramp reached CC 96 (75%) → return speed is 75% of the DOWN pot setting
-- This ensures return duration feels consistent regardless of when the footswitch was released.
+- Ensures return duration feels consistent regardless of when the footswitch was released.
 
 ---
 
@@ -122,7 +140,7 @@ For all modulation types, the return speed scales with how far the ramp progress
 - **Hold FS + turn encoder (modulation modes):** selects MIDI CC number.
 - **Hold FS + turn encoder (basic modes):** selects PC/CC/Note number.
 - **Hold FS + turn pots:** adjusts UP and DOWN modulation speed for that footswitch.
-- **LOCK switch:** disables encoder and pot input to prevent accidental changes.
+- **LOCK switch:** disables encoder and pot input; stops WiFi AP. Preset loading still works when locked; saving does not.
 
 ---
 
@@ -138,7 +156,9 @@ For all modulation types, the return speed scales with how far the ramp progress
 
 ## Memory
 
-- All footswitch modes and values stored in internal non-volatile memory (NVS/EEPROM).
+- Settings live in 6 preset slots in NVS (namespace `"presets"`).
+- **No auto-save.** Changes are not persisted until the user saves the preset via long-press or web UI.
+- `markStateDirty()` is kept as a call-site-compatible wrapper that sets `presetDirty = true`.
 - No factory reset functionality needed or planned.
 
 ---
@@ -160,15 +180,63 @@ For all modulation types, the return speed scales with how far the ramp progress
 
 - AP SSID: `MIDI Morpher`, password: `midimorpher`
 - UI served at `http://192.168.4.1` — dark-themed SPA embedded as PROGMEM string in `src/wifi/webUI.h`
-- REST API in `src/wifi/webServer.h`:
-  - `GET /api/state` — returns full JSON state (channel, wifiEnabled, all 6 buttons with mode/CC/channel/rampMs)
-  - `POST /api/channel` — set global MIDI channel `{"channel": 0}`
-  - `POST /api/button/:id` — update a footswitch `{"modeIndex":4,"midiNumber":11,"fsChannel":255,"rampUpMs":1000,"rampDownMs":1000}`
-  - `POST /api/wifi` — enable/disable AP `{"enabled": false}`
+- **WiFi is always on** at boot. It turns off only when the LOCK switch is engaged, and restarts when LOCK is disengaged. There is no user-toggleable WiFi setting.
 - WiFi LED: GPIO 22, HIGH while AP running
-- LOCK switch turns off AP; AP restarts when LOCK is disengaged (if WiFi enabled)
-- Recovery: hold FS1 + FS2 for 3 seconds to re-enable WiFi after it was disabled via UI
+
+### REST API (`src/wifi/webServer.h`)
+
+| Method | Path | Body | Action |
+|--------|------|------|--------|
+| GET | `/api/state` | — | Full state JSON: channel, latching, activePreset, presetDirty, buttons[6] |
+| GET | `/api/presets` | — | All 6 PresetData slots + activePreset index |
+| POST | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15) |
+| POST | `/api/latching` | `{"latching":true}` | Set modulator latching mode |
+| POST | `/api/button/:id` | `{modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs}` | Update footswitch config |
+| POST | `/api/button/:id/press` | — | Simulate footswitch press (`simulatePress(true,…)`) |
+| POST | `/api/button/:id/release` | — | Simulate footswitch release (`simulatePress(false,…)`) |
+| POST | `/api/pot` | `{"id":0,"value":64}` | Send CC 20 (id=0) or CC 21 (id=1) directly |
+| POST | `/api/preset/load/:id` | — | `applyPreset(id, pedal)` — apply preset live |
+| POST | `/api/preset/save/:id` | — | `saveCurrentPreset(pedal)` — write to NVS; blocked when locked |
+
 - `fsChannel` of 255 (0xFF) means "follow global channel"
+- `handleButtonPress` also sets `_webPedal->lastActiveFSIndex = idx` to update the activity LED
+
+### Web UI features
+
+- Global MIDI channel dropdown
+- Latching / Momentary toggle
+- Preset bar (P1–P6 buttons + Save Preset button); active preset highlighted; `● Unsaved` badge when dirty
+- POT1 / POT2 virtual sliders (send CC 20 / CC 21)
+- 6 footswitch cards, each with:
+  - Trigger button (hold for momentary modes; click-toggle for latching modes)
+  - Mode dropdown (all 26)
+  - MIDI number input
+  - Channel dropdown (Global or Ch 1–16)
+  - Ramp Up / Ramp Down sliders (visible for modulation modes only)
+
+---
+
+## Key Source Files
+
+| File | Purpose |
+|------|---------|
+| `src/config.h` | All pin assignments and firmware constants |
+| `src/sharedTypes.h` | `ModulationType` enum |
+| `src/pedalState.h` | `PedalState` struct (global state container) |
+| `src/statePersistance.h` | Preset NVS storage: `PresetData`, `loadAllPresets`, `saveCurrentPreset`, `applyPreset`, `markStateDirty` |
+| `src/presets.h` | `handlePresetButton`, `updatePresetLEDs`, `updateActivityLed` |
+| `src/footswitches/footswitchObject.h` | `FSButton`, mode table, `applyModeFlags`, `applyModeIndex`, `simulatePress` |
+| `src/midiCCModulator.h` | Modulation engine (ramp, LFO, stepper, random) |
+| `src/controls/encoder.h` | Encoder ISR and turn handler |
+| `src/controls/encoderButton.h` | Encoder button tap/long-press handler |
+| `src/controls/pots.h` | Pot read, ramp speed or CC send |
+| `src/controls/toggles.h` | MS2 and LOCK toggle handlers |
+| `src/visual/display.h` | OLED rendering (home screen, all param screens, preset load/save screens) |
+| `src/visual/neopx.h` | NeoPixel RGB modulation indicator |
+| `src/analogInOut/digipot.h` | AD5292 SPI driver |
+| `src/analogInOut/expInput.h` | Expression pedal input |
+| `src/wifi/webServer.h` | WiFi AP, route registration, all REST handlers |
+| `src/wifi/webUI.h` | Embedded HTML/CSS/JS SPA (PROGMEM) |
 
 ---
 
@@ -199,7 +267,9 @@ Full dependency manifest: `libraries.json` at project root.
 1. **Plan before coding.** For every feature request, present a plan (files to touch, approach, what won't change) and wait for approval before writing any code.
 2. **One feature at a time.** Only implement what was explicitly requested. Do not refactor, reorganize, or "improve" unrelated code.
 3. **Minimal changes.** Prefer adding small, isolated code over restructuring existing logic. If you can solve something with fewer lines, do that.
-4. **Do not change working code.** If a feature is already implemented and working, leave it alone unless the task explicitly involves it or it's current implementation is flawed.
+4. **Do not change working code.** If a feature is already implemented and working, leave it alone unless the task explicitly involves it or its current implementation is flawed.
 5. **ESP32/Arduino constraints.** Keep memory usage in mind (heap, stack). Avoid dynamic allocation in hot paths. Use `millis()` for timing, never `delay()` in main loop.
 6. **No placeholder/stub implementations.** Every function must be real and complete. Do not leave TODOs or empty stubs.
 7. **Ask before assuming.** If hardware pin assignments, I2C/SPI config, or library choices are not specified, ask before proceeding.
+8. **LED GPIO rule.** `FSButton::_setLED()` only updates `ledState` — never drives GPIO directly. All footswitch LED GPIOs are driven by `updatePresetLEDs()` in the main loop. Do not bypass this.
+9. **Save rule.** Settings are not auto-saved. Never add auto-save logic. All NVS writes go through `saveCurrentPreset()` or `saveAllPresets()`.

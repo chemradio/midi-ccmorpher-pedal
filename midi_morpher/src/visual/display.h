@@ -93,11 +93,17 @@ void displayHomeScreen(PedalState &pedal) {
   display.setTextSize(1);
 
   // ── Status bar ─────────────────────────────────────────────────────────────
+  // Layout (128px @ 6px/char): Ch:NN  P:N*  Latch  LOCK
   display.setCursor(0, 0);
   display.print(F("Ch:"));
   display.print(pedal.midiChannel + 1);
 
-  display.setCursor(50, 0);
+  display.setCursor(32, 0);
+  display.print(F("P:"));
+  display.print(activePreset + 1);
+  if(presetDirty) display.print('*');
+
+  display.setCursor(62, 0);
   display.print(pedal.modulator.latching ? F("Latch") : F("Mom"));
 
   if(pedal.settingsLocked) {
@@ -385,5 +391,41 @@ void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, long ram
     displayPotCC(potName, midiScaled);
   else
     displayPotRampSpeed(potName, rampMs);
+}
+
+void displayPresetLoad(uint8_t idx) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(F("Preset"));
+  display.setTextSize(3);
+  display.setCursor(0, 14);
+  display.print(idx + 1);
+  display.setTextSize(1);
+  display.setCursor(0, 52);
+  display.print(F("Loaded"));
+  display.display();
+}
+
+void displayPresetSaved(uint8_t idx) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(true);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(F("Preset"));
+  display.setTextSize(3);
+  display.setCursor(0, 14);
+  display.print(idx + 1);
+  display.setTextSize(1);
+  display.setCursor(0, 52);
+  display.print(F("SAVED"));
+  display.display();
 }
 

@@ -134,11 +134,11 @@ struct FSButton {
   uint8_t ledPin;
   const char *name;
 
-  bool ledState    = false;
+  bool ledState    = false;  // logical LED state (driven externally by main loop)
   bool lastState   = HIGH;
   unsigned long lastDebounce = 0;
-  unsigned long rampUpMs     = DEFAULT_RAMP_SPEED; // per-footswitch UP ramp time
-  unsigned long rampDownMs   = DEFAULT_RAMP_SPEED; // per-footswitch DOWN ramp time
+  unsigned long rampUpMs     = DEFAULT_RAMP_SPEED;
+  unsigned long rampDownMs   = DEFAULT_RAMP_SPEED;
   bool isPressed   = false;
   bool isLatching  = false;
   bool isActivated = false;
@@ -148,7 +148,7 @@ struct FSButton {
   uint8_t midiNumber = 0;
   uint8_t modeIndex  = 0;
   bool isModSwitch   = false;
-  uint8_t fsChannel  = 0xFF; // 0xFF = follow global MIDI channel; 0–15 = per-FS override
+  uint8_t fsChannel  = 0xFF;
 
   FootswitchMode mode = FootswitchMode::MomentaryPC;
   ModeInfo modMode = { FootswitchMode::MomentaryPC, false, true, false, false, false, false,
@@ -163,50 +163,35 @@ struct FSButton {
     digitalWrite(ledPin, LOW);
   }
 
+  // Updates logical state only — GPIO is driven by updatePresetLEDs() in main loop.
   void _setLED(bool state) {
     ledState = state;
-    digitalWrite(ledPin, state ? HIGH : LOW);
   }
 
-  // Returns the channel this footswitch should use — per-FS override or global fallback.
   uint8_t effectiveChannel(uint8_t globalChannel) const {
     return (fsChannel == 0xFF) ? globalChannel : fsChannel;
   }
 
-  void handleFootswitch(uint8_t midiChannel, MidiCCModulator &modulator, void (*displayCallback)(FSButton &) = nullptr) {
-    const uint8_t ch = effectiveChannel(midiChannel);
-    if((millis() - lastDebounce) < DEBOUNCE_DELAY) return;
-
-    bool reading = digitalRead(pin);
-    bool pressed = (reading == LOW);
-    if(reading == lastState) return;
-
-    lastDebounce = millis();
-    lastState    = reading;
-    isPressed    = pressed;
-
-    // ── Modulation ───────────────────────────────────────────────────────
+  // ── Inner MIDI action — shared by handleFootswitch and simulatePress ───────
+  void _applyPressState(bool pressed, uint8_t ch, MidiCCModulator &modulator,
+                        void (*displayCallback)(FSButton &)) {
     if(isModSwitch) {
       modulator.modType        = getModulationType(mode);
       modulator.latching       = isLatching;
       modulator.rampUpTimeMs   = rampUpMs;
       modulator.rampDownTimeMs = rampDownMs;
-      modulator.midiChannel    = ch;  // use per-FS channel for all CC output
+      modulator.midiChannel    = ch;
       pressed ? modulator.press() : modulator.release();
       _setLED(modulator.isActivated);
       if(displayCallback) displayCallback(*this);
       return;
     }
-
-    // ── Program Change ───────────────────────────────────────────────────
     if(isPC) {
       _setLED(pressed);
       if(pressed) sendMIDI(ch, true, midiNumber);
       if(displayCallback) displayCallback(*this);
       return;
     }
-
-    // ── Note ─────────────────────────────────────────────────────────────
     if(isNote) {
       isActivated = pressed;
       _setLED(pressed);
@@ -214,8 +199,6 @@ struct FSButton {
       if(displayCallback) displayCallback(*this);
       return;
     }
-
-    // ── Scene / Snapshot ─────────────────────────────────────────────────
     if(isScene) {
       _setLED(pressed);
       if(pressed) {
@@ -228,8 +211,6 @@ struct FSButton {
       if(displayCallback) displayCallback(*this);
       return;
     }
-
-    // ── CC latching ───────────────────────────────────────────────────────
     if(isLatching) {
       if(!pressed) return;
       isActivated = !isActivated;
@@ -238,12 +219,30 @@ struct FSButton {
       if(displayCallback) displayCallback(*this);
       return;
     }
-
-    // ── CC momentary ─────────────────────────────────────────────────────
+    // CC momentary
     isActivated = pressed;
     _setLED(pressed);
     sendMIDI(ch, false, midiNumber, pressed ? 127 : 0);
     if(displayCallback) displayCallback(*this);
+  }
+
+  void handleFootswitch(uint8_t midiChannel, MidiCCModulator &modulator,
+                        void (*displayCallback)(FSButton &) = nullptr) {
+    const uint8_t ch = effectiveChannel(midiChannel);
+    if((millis() - lastDebounce) < DEBOUNCE_DELAY) return;
+    bool reading = digitalRead(pin);
+    bool pressed = (reading == LOW);
+    if(reading == lastState) return;
+    lastDebounce = millis();
+    lastState    = reading;
+    isPressed    = pressed;
+    _applyPressState(pressed, ch, modulator, displayCallback);
+  }
+
+  // Virtual press from web UI — no debounce, no display callback.
+  void simulatePress(bool pressed, uint8_t midiChannel, MidiCCModulator &modulator) {
+    isPressed = pressed;
+    _applyPressState(pressed, effectiveChannel(midiChannel), modulator, nullptr);
   }
 
   const char *toggleFootswitchMode(MidiCCModulator &modulator) {
@@ -266,9 +265,39 @@ struct FSButton {
     modulator.rampShape = m.shape;
     modulator.reset();
 
-    // Always start with LED off — active state begins at rest.
     isActivated = false;
     _setLED(false);
     return m.name;
   }
 };
+
+// ── Free mode-application helpers (defined after FSButton) ───────────────────
+
+// Apply mode flags to a button without touching the modulator.
+// Used for preset loading and NVS restore.
+inline void applyModeFlags(FSButton &btn, uint8_t idx) {
+  if(idx >= NUM_MODES) return;
+  const ModeInfo &m = modes[idx];
+  btn.modeIndex   = idx;
+  btn.mode        = m.mode;
+  btn.isModSwitch = m.isModSwitch;
+  btn.isLatching  = m.isLatching;
+  btn.isPC        = m.isPC;
+  btn.isNote      = m.isNote;
+  btn.isScene     = m.isScene;
+  btn.modMode     = m;
+  btn.isActivated = false;
+  btn.ledState    = false;
+}
+
+// Apply mode and optionally reset the modulator (used by web server and encoder button).
+inline void applyModeIndex(FSButton &btn, uint8_t idx, MidiCCModulator *mod = nullptr) {
+  applyModeFlags(btn, idx);
+  if(mod) {
+    const ModeInfo &m = modes[idx];
+    if(m.isInverted) mod->setRestingHigh();
+    else              mod->setRestingLow();
+    mod->rampShape = m.shape;
+    mod->reset();
+  }
+}

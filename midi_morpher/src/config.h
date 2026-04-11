@@ -75,6 +75,12 @@
 #define RAMP_DURATIONS_MIN_MS     0   // ms — pot full left  = instant
 #define RAMP_DURATIONS_MAX_MS  5000   // ms — pot full right = 5 s
 
+// ── Presets ───────────────────────────────────────────────────────────────────
+#define PRESET_BTN_PIN      19    // Momentary preset select / save button
+#define ACTIVITY_LED_PIN    20    // Lights while the last-pressed footswitch is active
+#define NUM_PRESETS          6
+#define PRESET_SAVE_HOLD_MS 1500  // ms — hold to save current state to active preset
+
 // ── Display layout ────────────────────────────────────────────────────────────
 // Only the 4 onboard footswitches fit on the 64 px tall OLED home screen.
 // Increase this if you ever swap to a taller display.

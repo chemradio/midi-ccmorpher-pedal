@@ -1,19 +1,11 @@
 #pragma once
 #include <Preferences.h>
 
+// ── NVS handle ────────────────────────────────────────────────────────────────
 inline Preferences prefs;
-inline bool stateDirty = false;
-inline unsigned long lastDirtyTime = 0;
-inline constexpr unsigned long SAVE_DELAY = 5000;
 
-inline void markStateDirty()
-{
-    stateDirty = true;
-    lastDirtyTime = millis();
-}
-
-struct FSButtonPersisted
-{
+// ── Persisted button record ────────────────────────────────────────────────────
+struct FSButtonPersisted {
     uint8_t  modeIndex;
     uint8_t  midiNumber;
     uint32_t rampUpMs;
@@ -21,71 +13,101 @@ struct FSButtonPersisted
     uint8_t  fsChannel;  // 0xFF = follow global; 0–15 = per-FS override
 };
 
-struct PedalPersisted
-{
+// ── Preset data ───────────────────────────────────────────────────────────────
+struct PresetData {
     uint8_t midiChannel;
     FSButtonPersisted buttons[6];
 };
 
-inline void saveState(const PedalState &state)
-{
-    PedalPersisted p;
+inline PresetData presets[NUM_PRESETS];
+inline uint8_t   activePreset = 0;
+inline bool      presetDirty  = false;
+
+// ── Dirty flag — replaces auto-save; callers unchanged ────────────────────────
+inline void markStateDirty() {
+    presetDirty = true;
+}
+
+// ── NVS helpers ───────────────────────────────────────────────────────────────
+
+inline void saveAllPresets() {
+    prefs.begin("presets", false);
+    prefs.putBytes("prs", presets, sizeof(presets));
+    prefs.putUChar("act", activePreset);
+    prefs.end();
+}
+
+// Save current live state into the active preset slot and flush to NVS.
+// Defined after PedalState is available (included before this header in .ino).
+inline void saveCurrentPreset(const PedalState &state) {
+    PresetData &p = presets[activePreset];
     p.midiChannel = state.midiChannel;
-    for (int i = 0; i < 6; i++)
-    {
-        p.buttons[i].modeIndex  = state.buttons[i].modeIndex;
-        p.buttons[i].midiNumber = state.buttons[i].midiNumber;
-        p.buttons[i].rampUpMs   = state.buttons[i].rampUpMs;
-        p.buttons[i].rampDownMs = state.buttons[i].rampDownMs;
-        p.buttons[i].fsChannel  = state.buttons[i].fsChannel;
+    for(int i = 0; i < 6; i++) {
+        p.buttons[i] = {
+            state.buttons[i].modeIndex,
+            state.buttons[i].midiNumber,
+            (uint32_t)state.buttons[i].rampUpMs,
+            (uint32_t)state.buttons[i].rampDownMs,
+            state.buttons[i].fsChannel
+        };
     }
-    prefs.begin("pedal", false);
-    prefs.putBytes("cfg", &p, sizeof(p));
-    prefs.end();
+    saveAllPresets();
+    presetDirty = false;
 }
 
-inline void loadState(PedalState &state)
-{
-    PedalPersisted p;
-    prefs.begin("pedal", true);
+// Apply a stored preset to the live pedal state.
+// applyModeFlags() is available because footswitchObject.h is included first.
+inline void applyPreset(uint8_t idx, PedalState &state) {
+    if(idx >= NUM_PRESETS) idx = 0;
+    const PresetData &p = presets[idx];
+    state.setMidiChannel(constrain(p.midiChannel, 0, 15));
+    for(int i = 0; i < 6; i++) {
+        FSButton &btn    = state.buttons[i];
+        btn.midiNumber   = p.buttons[i].midiNumber;
+        btn.rampUpMs     = p.buttons[i].rampUpMs;
+        btn.rampDownMs   = p.buttons[i].rampDownMs;
+        btn.fsChannel    = p.buttons[i].fsChannel;
+        uint8_t mi       = p.buttons[i].modeIndex < NUM_MODES ? p.buttons[i].modeIndex : 0;
+        applyModeFlags(btn, mi);
+    }
+    // Reset modulator to a clean resting state.
+    state.modulator.restingHigh = false;
+    state.modulator.reset();
+    activePreset = idx;
+    presetDirty  = false;
+}
 
-    if (prefs.getBytesLength("cfg") == sizeof(p))
-    {
-        prefs.getBytes("cfg", &p, sizeof(p));
+// Load all presets from NVS on boot.
+// Migrates from old "pedal" namespace (same struct layout) into preset 0 if found.
+inline void loadAllPresets(PedalState &state) {
+    prefs.begin("presets", true);
+    size_t sz     = prefs.getBytesLength("prs");
+    bool   loaded = (sz == sizeof(presets));
+    if(loaded) {
+        prefs.getBytes("prs", presets, sizeof(presets));
+        activePreset = constrain(prefs.getUChar("act", 0), 0, NUM_PRESETS - 1);
+    }
+    prefs.end();
 
-        state.setMidiChannel(constrain(p.midiChannel, 0, 15));
-
-        for (int i = 0; i < 6; i++)
-        {
-            uint8_t idx = p.buttons[i].modeIndex < NUM_MODES ? p.buttons[i].modeIndex : 0;
-            const ModeInfo &m = modes[idx];
-            FSButton &btn = state.buttons[i];
-
-            btn.modeIndex  = idx;
-            btn.midiNumber = p.buttons[i].midiNumber;
-            btn.rampUpMs   = p.buttons[i].rampUpMs;
-            btn.rampDownMs = p.buttons[i].rampDownMs;
-            btn.fsChannel  = p.buttons[i].fsChannel;
-
-            // Apply all mode-derived flags from the modes table
-            btn.mode        = m.mode;
-            btn.isLatching  = m.isLatching;
-            btn.isPC        = m.isPC;
-            btn.isNote      = m.isNote;
-            btn.isScene     = m.isScene;
-            btn.isModSwitch = m.isModSwitch;
-            btn.modMode     = m;
+    if(!loaded) {
+        // Factory defaults — all presets identical.
+        for(int p = 0; p < NUM_PRESETS; p++) {
+            presets[p].midiChannel = 0;
+            for(int i = 0; i < 6; i++) {
+                presets[p].buttons[i] = {0, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF};
+            }
         }
+        // Migrate old "pedal" namespace into preset 0 if it exists.
+        // PresetData and the old PedalPersisted struct share identical layout (67 bytes).
+        prefs.begin("pedal", true);
+        if(prefs.getBytesLength("cfg") == sizeof(PresetData)) {
+            prefs.getBytes("cfg", &presets[0], sizeof(PresetData));
+        }
+        prefs.end();
+
+        activePreset = 0;
+        saveAllPresets();
     }
 
-    prefs.end();
-}
-
-inline void checkAndSaveState(const PedalState &state)
-{
-    if (stateDirty && (millis() - lastDirtyTime) >= SAVE_DELAY)
-    {
-        saveState(state);
-        stateDirty = false;
-    }
+    applyPreset(activePreset, state);
 }
