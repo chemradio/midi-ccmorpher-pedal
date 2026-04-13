@@ -1,4 +1,5 @@
 #pragma once
+#include <DNSServer.h>
 #include <WebServer.h>
 #include <WiFi.h>
 #include "../clock/midiClock.h"
@@ -13,30 +14,33 @@ static constexpr char WIFI_AP_PASS[] = "midimorpher";
 
 // ── Module state ───────────────────────────────────────────────────────────────
 inline WebServer   webServer(80);
+inline DNSServer   dnsServer;
 inline PedalState *_webPedal  = nullptr;
 inline bool        _apRunning = false;
 inline bool        _wasLocked = false;
 
-// ── WiFi LED ───────────────────────────────────────────────────────────────────
-inline void setWifiLed(bool on) {
-    digitalWrite(WIFI_LED_PIN, on ? HIGH : LOW);
-}
+// AP gateway / captive-portal target address.
+static const IPAddress AP_IP(192, 168, 4, 1);
 
 // ── AP control ─────────────────────────────────────────────────────────────────
 inline void startAP() {
     WiFi.mode(WIFI_AP);
+    WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS);
+    // Catch-all DNS — every hostname resolves to the pedal, so any URL the
+    // phone/laptop probes for captive-portal detection hits our web server.
+    dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+    dnsServer.start(53, "*", AP_IP);
     webServer.begin();
     _apRunning = true;
-    setWifiLed(true);
 }
 
 inline void stopAP() {
+    dnsServer.stop();
     webServer.stop();
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_OFF);
     _apRunning = false;
-    setWifiLed(false);
 }
 
 // ── JSON helpers ───────────────────────────────────────────────────────────────
@@ -104,8 +108,6 @@ inline String buildStateJson() {
     j += activePreset;
     j += F(",\"presetDirty\":");
     j += presetDirty ? F("true") : F("false");
-    j += F(",\"latching\":");
-    j += p.modulator.latching ? F("true") : F("false");
     j += F(",\"bpm\":");
     j += (int)midiClock.bpm;
     j += F(",\"externalSync\":");
@@ -179,6 +181,15 @@ inline void handleRoot() {
     webServer.send_P(200, "text/html", WEB_UI_HTML);
 }
 
+// Captive-portal catch-all. Any URL other than the registered ones — including
+// OS probes like /generate_204, /hotspot-detect.html, /ncsi.txt — gets a 302
+// redirect to the root, which triggers the "Sign in to network" prompt on the
+// phone/laptop and takes the user straight to the UI.
+inline void handleCaptivePortal() {
+    webServer.sendHeader(F("Location"), F("http://192.168.4.1/"), true);
+    webServer.send(302, F("text/plain"), F(""));
+}
+
 inline void handleGetState() {
     addCORS();
     webServer.send(200, F("application/json"), buildStateJson());
@@ -219,7 +230,10 @@ inline void handlePostButton(int idx) {
     uint32_t up = jsonUint(body, "rampUpMs");
     uint32_t dn = jsonUint(body, "rampDownMs");
     if(mi >= 0 && mi < NUM_MODES)           applyModeIndex(btn, (uint8_t)mi, &_webPedal->modulator);
-    if(mn >= 0 && mn <= 127)                btn.midiNumber = (uint8_t)mn;
+    // Clamp midiNumber against mode-appropriate max. Scene modes cap at
+    // sceneMaxVal (7 for Helix/QC/Fractal, 4 for Kemper); everything else 0–127.
+    int mnMax = btn.isScene ? (int)btn.modMode.sceneMaxVal : 127;
+    if(mn >= 0 && mn <= mnMax)              btn.midiNumber = (uint8_t)mn;
     if(ch == 255 || (ch >= 0 && ch <= 15))  btn.fsChannel  = (uint8_t)ch;
     if(_validRamp(up))                      btn.rampUpMs   = up;
     if(_validRamp(dn))                      btn.rampDownMs = dn;
@@ -256,15 +270,6 @@ inline void handlePostPot() {
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
-inline void handlePostLatching() {
-    addCORS();
-    if(!_webPedal) { webServer.send(500); return; }
-    bool latching = false;
-    if(!jsonBool(webServer.arg("plain"), "latching", latching)) { webServer.send(400); return; }
-    _webPedal->modulator.setLatch(latching);
-    webServer.send(200, F("application/json"), F("{\"ok\":true}"));
-}
-
 inline void handlePresetLoad(int idx) {
     addCORS();
     if(!_webPedal || idx < 0 || idx >= NUM_PRESETS) { webServer.send(400); return; }
@@ -288,9 +293,6 @@ inline void handlePresetSave(int idx) {
 inline void initWebServer(PedalState &pedal) {
     _webPedal = &pedal;
 
-    pinMode(WIFI_LED_PIN, OUTPUT);
-    setWifiLed(false);
-
     webServer.on("/",              HTTP_GET,  handleRoot);
     webServer.on("/api/state",     HTTP_GET,  handleGetState);
     webServer.on("/api/presets",   HTTP_GET,  handleGetPresets);
@@ -299,8 +301,9 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on("/api/channel",   HTTP_OPTIONS, handleOPTIONS);
     webServer.on("/api/pot",       HTTP_POST, handlePostPot);
     webServer.on("/api/pot",       HTTP_OPTIONS, handleOPTIONS);
-    webServer.on("/api/latching",  HTTP_POST, handlePostLatching);
-    webServer.on("/api/latching",  HTTP_OPTIONS, handleOPTIONS);
+
+    // Captive-portal catch-all — any unknown path redirects to the UI root.
+    webServer.onNotFound(handleCaptivePortal);
 
     for(int i = 0; i < 6; i++) {
         char path[26];
@@ -345,5 +348,8 @@ inline void handleWebServer(PedalState &pedal) {
         }
     }
 
-    if(_apRunning) webServer.handleClient();
+    if(_apRunning) {
+        dnsServer.processNextRequest();
+        webServer.handleClient();
+    }
 }

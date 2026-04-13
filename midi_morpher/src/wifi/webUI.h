@@ -57,7 +57,6 @@ main{max-width:1100px;margin:0 auto;padding:20px}
 }
 .gbar select:focus{border-color:var(--acc)}
 .sep{width:1px;height:22px;background:var(--bdr);flex-shrink:0}
-.latch-row{display:flex;align-items:center;gap:8px;font-size:.75rem;color:var(--dim)}
 
 /* Toggle */
 .tog{position:relative;width:40px;height:22px;cursor:pointer;flex-shrink:0}
@@ -146,7 +145,12 @@ hr.div{border:none;border-top:1px solid var(--bdr);margin:12px 0}
 
 /* Range sliders */
 .ramp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.rlbl{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:4px}
+.rlbl{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+.rlbl .sync-txt{margin-left:auto;font-size:.58rem;color:var(--dim);text-transform:none;letter-spacing:0;font-weight:400}
+.rlbl .tog{width:26px;height:14px}
+.rlbl .tog-t{border-radius:14px}
+.rlbl .tog-t::after{top:2px;left:2px;width:10px;height:10px}
+.rlbl .tog input:checked~.tog-t::after{transform:translateX(12px)}
 .srow{display:flex;align-items:center;gap:7px}
 input[type=range]{
   -webkit-appearance:none;flex:1;height:3px;background:var(--bdr);border-radius:2px;outline:none;cursor:pointer;
@@ -176,7 +180,7 @@ footer{text-align:center;padding:28px;font-size:.68rem;color:#333;letter-spacing
 </header>
 
 <main>
-  <!-- Global channel + BPM + latching toggle -->
+  <!-- Global channel + BPM -->
   <div class="gbar">
     <label>MIDI Channel</label>
     <select id="gch"></select>
@@ -184,14 +188,6 @@ footer{text-align:center;padding:28px;font-size:.68rem;color:#333;letter-spacing
     <label>BPM</label>
     <span id="bpmVal" style="font-size:.83rem;color:var(--acc);font-variant-numeric:tabular-nums;min-width:36px">--</span>
     <span id="bpmExt" style="font-size:.68rem;color:var(--dim);letter-spacing:.05em"></span>
-    <div class="sep"></div>
-    <div class="latch-row">
-      <span>Latching</span>
-      <label class="tog">
-        <input type="checkbox" id="latchTog">
-        <span class="tog-t"></span>
-      </label>
-    </div>
   </div>
 
   <!-- Preset selector bar -->
@@ -239,7 +235,11 @@ const MODES=[
 const MOD=new Set([4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]);
 // Indices of latching modes (click-toggle trigger, not hold)
 const LATCHING=new Set([2,5,7,9,11,13,15,17,19,21]);
-const HINT={0:"PC#",3:"Note",22:"0-7",23:"0-7",24:"0-7",25:"CC 50-54",26:"tap"};
+const HINT={0:"PC#",3:"Note",22:"1-8",23:"1-8",24:"1-8",25:"1-5",26:"tap"};
+// Max display value per mode (1-indexed for UI). Scene modes have tight bounds;
+// everything else tops out at 128. Tap Tempo has no MIDI number.
+const MAX_VAL={22:8,23:8,24:8,25:5};
+function maxForMode(mi){return MAX_VAL[mi]||128}
 
 // Note-value labels — order must match noteValueNames[] in midiClock.h
 const NOTE_VALUES=[
@@ -294,11 +294,6 @@ function render(s){
   // BPM readout
   document.getElementById('bpmVal').textContent=s.bpm||'--';
   document.getElementById('bpmExt').textContent=s.externalSync?'EXT':'';
-
-  // Latching toggle
-  const lt=document.getElementById('latchTog');
-  lt.checked=!!s.latching;
-  lt.onchange=()=>post('/api/latching',{latching:lt.checked});
 
   // Preset buttons
   const pb=document.getElementById('pbtns');
@@ -363,7 +358,7 @@ function mkCard(b,i){
 </div>
 <div class="fld">
   <div class="lbl">MIDI # <span class="hint" id="h${i}"></span></div>
-  <input type="number" id="n${i}" min="1" max="128" value="${b.midiNumber+1}">
+  <input type="number" id="n${i}" min="1" max="${maxForMode(b.modeIndex)}" value="${Math.min(b.midiNumber+1,maxForMode(b.modeIndex))}" ${b.modeIndex===26?'disabled':''}>
 </div>
 <div class="fld">
   <div class="lbl">Channel</div>
@@ -374,11 +369,11 @@ function mkCard(b,i){
   <div class="ramp-grid">
     <div>
       <div class="rlbl">Ramp Up
-        <label class="tog" style="width:28px;height:16px;margin-left:4px;vertical-align:middle">
+        <span class="sync-txt">sync</span>
+        <label class="tog">
           <input type="checkbox" id="us${i}" ${b.rampUpSync?'checked':''}>
-          <span class="tog-t" style="border-radius:16px"></span>
+          <span class="tog-t"></span>
         </label>
-        <span style="font-size:.58rem;color:var(--dim)">sync</span>
       </div>
       <div class="srow">
         <input type="range" id="u${i}" min="0" max="5000" step="50" value="${b.rampUpSync?0:b.rampUpMs}" ${b.rampUpSync?'style="display:none"':''}>
@@ -388,11 +383,11 @@ function mkCard(b,i){
     </div>
     <div>
       <div class="rlbl">Ramp Down
-        <label class="tog" style="width:28px;height:16px;margin-left:4px;vertical-align:middle">
+        <span class="sync-txt">sync</span>
+        <label class="tog">
           <input type="checkbox" id="ds${i}" ${b.rampDownSync?'checked':''}>
-          <span class="tog-t" style="border-radius:16px"></span>
+          <span class="tog-t"></span>
         </label>
-        <span style="font-size:.58rem;color:var(--dim)">sync</span>
       </div>
       <div class="srow">
         <input type="range" id="dn${i}" min="0" max="5000" step="50" value="${b.rampDownSync?0:b.rampDownMs}" ${b.rampDownSync?'style="display:none"':''}>
@@ -416,6 +411,12 @@ function mkCard(b,i){
     const mi=+ms.value;
     setHint(i,mi);
     d.querySelector('#r'+i).classList.toggle('hidden',!MOD.has(mi));
+    const nInp=d.querySelector('#n'+i);
+    const mx=maxForMode(mi);
+    nInp.max=mx;
+    nInp.disabled=(mi===26);
+    if(+nInp.value>mx) nInp.value=mx;
+    if(+nInp.value<1) nInp.value=1;
     sched(i);
   };
 
@@ -432,7 +433,15 @@ function mkCard(b,i){
     cs.appendChild(o);
   }
 
-  d.querySelector('#n'+i).oninput=()=>sched(i);
+  const nInp=d.querySelector('#n'+i);
+  nInp.oninput=()=>sched(i);
+  nInp.onblur=()=>{
+    const mx=+nInp.max||128;
+    let v=+nInp.value;
+    if(isNaN(v)||v<1)v=1;
+    if(v>mx)v=mx;
+    if(+nInp.value!==v){nInp.value=v;sched(i);}
+  };
   cs.onchange=()=>sched(i);
 
   // Ramp Up — populate note select + wire slider/select/sync toggle
@@ -523,6 +532,7 @@ function sched(i){
 }
 
 async function applyBtn(i){
+  const mi=+document.getElementById('m'+i).value;
   const uSync=document.getElementById('us'+i).checked;
   const dSync=document.getElementById('ds'+i).checked;
   const uVal=uSync
@@ -531,9 +541,13 @@ async function applyBtn(i){
   const dVal=dSync
     ? CLOCK_SYNC_FLAG+(+document.getElementById('dnn'+i).value)
     : +document.getElementById('dn'+i).value;
+  const mx=maxForMode(mi);
+  let n=+document.getElementById('n'+i).value;
+  if(isNaN(n)||n<1)n=1;
+  if(n>mx)n=mx;
   await post('/api/button/'+i,{
-    modeIndex:+document.getElementById('m'+i).value,
-    midiNumber:(+document.getElementById('n'+i).value)-1,
+    modeIndex:mi,
+    midiNumber:n-1,
     fsChannel:+document.getElementById('c'+i).value,
     rampUpMs:uVal,
     rampDownMs:dVal

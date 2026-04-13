@@ -99,11 +99,11 @@ inline constexpr ModeInfo modes[] = {
   { FootswitchMode::LfoSqMomentary,     false, false, false, true,  false, false, "LFO Sq",        ModulationType::LFO,          SHAPE_SQUARE, 0,  0, false },
   { FootswitchMode::LfoSqLatching,      true,  false, false, true,  false, false, "LFO Sq L",      ModulationType::LFO,          SHAPE_SQUARE, 0,  0, false },
 
-  // ── Stepper — exponential curve, same as ramper per spec ─────────────────
-  { FootswitchMode::StepperMomentary,   false, false, false, true,  false, false, "Step",          ModulationType::STEPPER,      SHAPE_EXP,    0,  0, false },
-  { FootswitchMode::StepperLatching,    true,  false, false, true,  false, false, "Step Latch",    ModulationType::STEPPER,      SHAPE_EXP,    0,  0, false },
-  { FootswitchMode::StepperInvMomentary,false, false, false, true,  true,  false, "Step Inv",      ModulationType::STEPPER,      SHAPE_EXP,    0,  0, false },
-  { FootswitchMode::StepperInvLatching, true,  false, false, true,  true,  false, "Step Inv L",    ModulationType::STEPPER,      SHAPE_EXP,    0,  0, false },
+  // ── Stepper — always linear ──────────────────────────────────────────────
+  { FootswitchMode::StepperMomentary,   false, false, false, true,  false, false, "Step",          ModulationType::STEPPER,      SHAPE_LINEAR, 0,  0, false },
+  { FootswitchMode::StepperLatching,    true,  false, false, true,  false, false, "Step Latch",    ModulationType::STEPPER,      SHAPE_LINEAR, 0,  0, false },
+  { FootswitchMode::StepperInvMomentary,false, false, false, true,  true,  false, "Step Inv",      ModulationType::STEPPER,      SHAPE_LINEAR, 0,  0, false },
+  { FootswitchMode::StepperInvLatching, true,  false, false, true,  true,  false, "Step Inv L",    ModulationType::STEPPER,      SHAPE_LINEAR, 0,  0, false },
 
   // ── Random Stepper ───────────────────────────────────────────────────────
   { FootswitchMode::RandomMomentary,    false, false, false, true,  false, false, "Random",        ModulationType::RANDOM,       SHAPE_LINEAR, 0,  0, false },
@@ -194,6 +194,13 @@ struct FSButton {
     if(isModSwitch) {
       modulator.modType        = getModulationType(mode);
       modulator.latching       = isLatching;
+      // Sync shape + resting position from this button's mode. The modulator
+      // is shared across all 6 footswitches, so whichever FS is being pressed
+      // must own the shape — otherwise LFO Tri inherits SINE from a previously
+      // configured LFO Sine on another FS.
+      modulator.rampShape      = modMode.shape;
+      if(modMode.isInverted)   modulator.restingHigh = true;
+      else                     modulator.restingHigh = false;
       // Resolve clock-sync values to ms at current BPM; plain ms passes through.
       modulator.rampUpTimeMs   = (rampUpMs  & CLOCK_SYNC_FLAG)
                                    ? midiClock.syncToMs(rampUpMs)

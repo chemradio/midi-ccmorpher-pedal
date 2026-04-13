@@ -31,6 +31,19 @@ inline void handleEncoder(PedalState &pedal,
   int delta      = encoderPos - lastEncoderPos;
   lastEncoderPos = encoderPos;
 
+  // ── Acceleration ────────────────────────────────────────────────────────────
+  // Multiply delta by a factor based on time since last tick. Only applied to
+  // wide-range fields (midiNumber for CC/PC/Note — 0–127). Scene modes, channel
+  // select, and per-FS channel have tiny ranges and would feel jumpy.
+  static unsigned long _lastEncTime = 0;
+  unsigned long now = millis();
+  unsigned long dt  = now - _lastEncTime;
+  _lastEncTime = now;
+  int accelMult = 1;
+  if(dt < 15)      accelMult = 8;
+  else if(dt < 30) accelMult = 4;
+  else if(dt < 60) accelMult = 2;
+
   // ── Per-FS channel select (entered via long-press of encoder button) ────────
   if(pedal.inChannelSelect) {
     FSButton &btn = pedal.buttons[pedal.channelSelectIdx];
@@ -53,7 +66,8 @@ inline void handleEncoder(PedalState &pedal,
   if(activeButtonIndex >= 0) {
     FSButton &btn = pedal.buttons[activeButtonIndex];
     uint8_t maxVal = btn.isScene ? btn.modMode.sceneMaxVal : 127;
-    btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta, 0, (int)maxVal);
+    int step = btn.isScene ? delta : (delta * accelMult);
+    btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + step, 0, (int)maxVal);
     displayFSCallback(btn);
   } else {
     uint8_t ch = (uint8_t)constrain((int)pedal.midiChannel + delta, 0, 15);

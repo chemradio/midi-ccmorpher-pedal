@@ -20,9 +20,6 @@
 #define EXTFS2_PIN   8
 #define EXTFS2_LED   3
 
-// ── WiFi status LED ───────────────────────────────────────────────────────────
-#define WIFI_LED_PIN 22
-
 // ── Encoder ───────────────────────────────────────────────────────────────────
 #define ENC_A        9
 #define ENC_B       10
