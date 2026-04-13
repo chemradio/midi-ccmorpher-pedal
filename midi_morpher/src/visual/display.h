@@ -1,5 +1,6 @@
 // display.h - OLED display functions
 #pragma once
+#include "../clock/midiClock.h"
 #include "../config.h"
 #include "../footswitches/footswitchObject.h"
 #include "../pedalState.h"
@@ -93,7 +94,7 @@ void displayHomeScreen(PedalState &pedal) {
   display.setTextSize(1);
 
   // ── Status bar ─────────────────────────────────────────────────────────────
-  // Layout (128px @ 6px/char): Ch:NN  P:N*  Latch  LOCK
+  // Layout (128px @ 6px/char): Ch:NN  P:N*  BPM[E]  LOCK
   display.setCursor(0, 0);
   display.print(F("Ch:"));
   display.print(pedal.midiChannel + 1);
@@ -104,7 +105,8 @@ void displayHomeScreen(PedalState &pedal) {
   if(presetDirty) display.print('*');
 
   display.setCursor(62, 0);
-  display.print(pedal.modulator.latching ? F("Latch") : F("Mom"));
+  display.print((int)midiClock.bpm);
+  if(midiClock.externalSync) display.print(F("E"));
 
   if(pedal.settingsLocked) {
     display.setCursor(104, 0);
@@ -359,7 +361,7 @@ void encoderButtonFSModeChange(FSButton &button) {
   display.display();
 }
 
-void displayPotRampSpeed(String potName, long rampMs) {
+void displayPotRampSpeed(String potName, uint32_t rampRaw) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -367,9 +369,15 @@ void displayPotRampSpeed(String potName, long rampMs) {
   display.setCursor(0, 0);
   display.println(potName);
   display.println("");
-  float seconds = rampMs / 1000.0f;
-  display.print(seconds, 2);
-  display.println("s");
+  if(rampRaw & CLOCK_SYNC_FLAG) {
+    uint8_t idx = rampRaw & 0xFF;
+    if(idx >= NUM_NOTE_VALUES) idx = NUM_NOTE_VALUES - 1;
+    display.print(noteValueNames[idx]);
+  } else {
+    float seconds = rampRaw / 1000.0f;
+    display.print(seconds, 2);
+    display.println(F("s"));
+  }
   display.display();
 }
 
@@ -386,11 +394,29 @@ void displayPotCC(String potName, uint8_t midiScaled) {
   display.display();
 }
 
-void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, long rampMs = 0) {
+void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, uint32_t rampRaw = 0) {
   if(isMidiCC)
     displayPotCC(potName, midiScaled);
   else
-    displayPotRampSpeed(potName, rampMs);
+    displayPotRampSpeed(potName, rampRaw);
+}
+
+void displayTapTempo(float bpm) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(F("Tap Tempo"));
+  display.setTextSize(3);
+  display.setCursor(0, 18);
+  display.print((int)bpm);
+  display.setTextSize(1);
+  display.setCursor(0, 52);
+  display.print(F("BPM"));
+  display.display();
 }
 
 void displayPresetLoad(uint8_t idx) {

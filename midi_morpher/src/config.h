@@ -85,3 +85,19 @@
 // Only the 4 onboard footswitches fit on the 64 px tall OLED home screen.
 // Increase this if you ever swap to a taller display.
 static constexpr uint8_t DISPLAY_FS_ROWS = 4;
+
+// ── MIDI Clock ────────────────────────────────────────────────────────────────
+// CLOCK_SYNC_FLAG is OR'd into rampUpMs / rampDownMs (bit 31) to signal that
+// the low byte is a note-value index rather than milliseconds.
+// Valid ms values are 0–5000, so bit 31 is always clear for plain ms.
+#define CLOCK_SYNC_FLAG       0x80000000UL
+#define NUM_NOTE_VALUES       17           // 1/32T … 2/1, incl. dotted & triplets
+#define DEFAULT_BPM           120.0f
+#define BPM_MIN               20.0f
+#define BPM_MAX               300.0f
+#define CLOCK_SYNC_TIMEOUT_MS 2000         // ms with no 0xF8 → revert to internal
+
+// ── Tempo LED ─────────────────────────────────────────────────────────────────
+// GPIOs 33–37 are reserved for octal PSRAM on the N16R8 module — never use.
+// GPIO 0 is the boot strap pin but is safe as an output after boot.
+#define TEMPO_LED_PIN 0

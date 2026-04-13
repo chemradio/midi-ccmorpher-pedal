@@ -1,6 +1,7 @@
 #pragma once
 #include <WebServer.h>
 #include <WiFi.h>
+#include "../clock/midiClock.h"
 #include "../footswitches/footswitchObject.h"
 #include "../pedalState.h"
 #include "../statePersistance.h"
@@ -56,6 +57,27 @@ inline int jsonInt(const String &body, const char *key) {
     return neg ? -v : v;
 }
 
+// Parse an unsigned 32-bit int. Returns 0xFFFFFFFF if the key is absent or
+// unparseable. Needed for rampUpMs/rampDownMs which may have bit 31 set
+// (CLOCK_SYNC_FLAG) and therefore overflow a plain signed int.
+inline uint32_t jsonUint(const String &body, const char *key) {
+    String k = String('"') + key + '"';
+    int pos  = body.indexOf(k);
+    if(pos < 0) return 0xFFFFFFFFUL;
+    pos = body.indexOf(':', pos + k.length());
+    if(pos < 0) return 0xFFFFFFFFUL;
+    pos++;
+    while(pos < (int)body.length() && body[pos] == ' ') pos++;
+    uint32_t val = 0;
+    bool gotDigits = false;
+    while(pos < (int)body.length() && isDigit(body[pos])) {
+        val = val * 10 + (uint32_t)(body[pos] - '0');
+        pos++;
+        gotDigits = true;
+    }
+    return gotDigits ? val : 0xFFFFFFFFUL;
+}
+
 inline bool jsonBool(const String &body, const char *key, bool &out) {
     String k = String('"') + key + '"';
     int pos  = body.indexOf(k);
@@ -75,7 +97,7 @@ inline String buildStateJson() {
     if(!_webPedal) return F("{}");
     const PedalState &p = *_webPedal;
     String j;
-    j.reserve(700);
+    j.reserve(1200);
     j  = F("{\"channel\":");
     j += p.midiChannel;
     j += F(",\"activePreset\":");
@@ -84,20 +106,30 @@ inline String buildStateJson() {
     j += presetDirty ? F("true") : F("false");
     j += F(",\"latching\":");
     j += p.modulator.latching ? F("true") : F("false");
+    j += F(",\"bpm\":");
+    j += (int)midiClock.bpm;
+    j += F(",\"externalSync\":");
+    j += midiClock.externalSync ? F("true") : F("false");
     j += F(",\"buttons\":[");
     for(int i = 0; i < (int)p.buttons.size(); i++) {
         const FSButton &b = p.buttons[i];
         if(i) j += ',';
-        j += F("{\"id\":");        j += i;
-        j += F(",\"name\":\"");    j += b.name;           j += '"';
-        j += F(",\"modeIndex\":"); j += b.modeIndex;
-        j += F(",\"modeName\":\""); j += modes[b.modeIndex].name; j += '"';
-        j += F(",\"midiNumber\":"); j += b.midiNumber;
-        j += F(",\"fsChannel\":"); j += b.fsChannel;
-        j += F(",\"rampUpMs\":"); j += b.rampUpMs;
-        j += F(",\"rampDownMs\":"); j += b.rampDownMs;
-        j += F(",\"isModSwitch\":"); j += b.isModSwitch ? F("true") : F("false");
-        j += F(",\"isLatching\":"); j += b.isLatching ? F("true") : F("false");
+        bool upSync = (b.rampUpMs   & CLOCK_SYNC_FLAG) != 0;
+        bool dnSync = (b.rampDownMs & CLOCK_SYNC_FLAG) != 0;
+        j += F("{\"id\":");              j += i;
+        j += F(",\"name\":\"");          j += b.name;                   j += '"';
+        j += F(",\"modeIndex\":");       j += b.modeIndex;
+        j += F(",\"modeName\":\"");      j += modes[b.modeIndex].name;  j += '"';
+        j += F(",\"midiNumber\":");      j += b.midiNumber;
+        j += F(",\"fsChannel\":");       j += b.fsChannel;
+        j += F(",\"rampUpMs\":");        j += upSync ? 0 : (uint32_t)b.rampUpMs;
+        j += F(",\"rampDownMs\":");      j += dnSync ? 0 : (uint32_t)b.rampDownMs;
+        j += F(",\"rampUpSync\":");      j += upSync ? F("true") : F("false");
+        j += F(",\"rampUpNoteIdx\":");   j += (uint8_t)(b.rampUpMs   & 0xFF);
+        j += F(",\"rampDownSync\":");    j += dnSync ? F("true") : F("false");
+        j += F(",\"rampDownNoteIdx\":"); j += (uint8_t)(b.rampDownMs & 0xFF);
+        j += F(",\"isModSwitch\":");     j += b.isModSwitch ? F("true") : F("false");
+        j += F(",\"isLatching\":");      j += b.isLatching  ? F("true") : F("false");
         j += '}';
     }
     j += F("]}");
@@ -167,6 +199,14 @@ inline void handlePostChannel() {
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
+// Ramp value accepts either plain ms (0–5000) or CLOCK_SYNC_FLAG | noteIdx.
+// Returns true if the value is a valid ramp.
+inline bool _validRamp(uint32_t v) {
+    if(v == 0xFFFFFFFFUL) return false;
+    if(v & CLOCK_SYNC_FLAG) return (v & 0xFF) < NUM_NOTE_VALUES;
+    return v <= 5000;
+}
+
 inline void handlePostButton(int idx) {
     addCORS();
     if(!_webPedal) { webServer.send(500); return; }
@@ -176,13 +216,13 @@ inline void handlePostButton(int idx) {
     int mi = jsonInt(body, "modeIndex");
     int mn = jsonInt(body, "midiNumber");
     int ch = jsonInt(body, "fsChannel");
-    int up = jsonInt(body, "rampUpMs");
-    int dn = jsonInt(body, "rampDownMs");
+    uint32_t up = jsonUint(body, "rampUpMs");
+    uint32_t dn = jsonUint(body, "rampDownMs");
     if(mi >= 0 && mi < NUM_MODES)           applyModeIndex(btn, (uint8_t)mi, &_webPedal->modulator);
     if(mn >= 0 && mn <= 127)                btn.midiNumber = (uint8_t)mn;
     if(ch == 255 || (ch >= 0 && ch <= 15))  btn.fsChannel  = (uint8_t)ch;
-    if(up >= 0 && up <= 5000)               btn.rampUpMs   = (uint32_t)up;
-    if(dn >= 0 && dn <= 5000)               btn.rampDownMs = (uint32_t)dn;
+    if(_validRamp(up))                      btn.rampUpMs   = up;
+    if(_validRamp(dn))                      btn.rampDownMs = dn;
     markStateDirty();
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }

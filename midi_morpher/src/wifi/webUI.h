@@ -176,10 +176,14 @@ footer{text-align:center;padding:28px;font-size:.68rem;color:#333;letter-spacing
 </header>
 
 <main>
-  <!-- Global channel + latching toggle -->
+  <!-- Global channel + BPM + latching toggle -->
   <div class="gbar">
     <label>MIDI Channel</label>
     <select id="gch"></select>
+    <div class="sep"></div>
+    <label>BPM</label>
+    <span id="bpmVal" style="font-size:.83rem;color:var(--acc);font-variant-numeric:tabular-nums;min-width:36px">--</span>
+    <span id="bpmExt" style="font-size:.68rem;color:var(--dim);letter-spacing:.05em"></span>
     <div class="sep"></div>
     <div class="latch-row">
       <span>Latching</span>
@@ -228,13 +232,22 @@ const MODES=[
   "LFO Sine","LFO Sine L","LFO Tri","LFO Tri L","LFO Sq","LFO Sq L",
   "Step","Step Latch","Step Inv","Step Inv L",
   "Random","Random L","Random Inv","Random Inv L",
-  "Helix Snap","QC Scene","Fractal Scene","Kemper Slot"
+  "Helix Snap","QC Scene","Fractal Scene","Kemper Slot",
+  "Tap Tempo"
 ];
 // Indices of modulation modes (show ramp sliders)
 const MOD=new Set([4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]);
 // Indices of latching modes (click-toggle trigger, not hold)
 const LATCHING=new Set([2,5,7,9,11,13,15,17,19,21]);
-const HINT={0:"PC#",3:"Note",22:"0-7",23:"0-7",24:"0-7",25:"CC 50-54"};
+const HINT={0:"PC#",3:"Note",22:"0-7",23:"0-7",24:"0-7",25:"CC 50-54",26:"tap"};
+
+// Note-value labels — order must match noteValueNames[] in midiClock.h
+const NOTE_VALUES=[
+  "1/32T","1/32","1/16T","1/32.","1/16","1/8T","1/16.","1/8",
+  "1/4T","1/8.","1/4","1/2T","1/4.","1/2","1/2.","1/1","2/1"
+];
+// Bit-31 flag — use addition (not |) because JS bitwise ops return signed 32-bit.
+const CLOCK_SYNC_FLAG=2147483648;
 
 let activePreset=0;
 let uiDirty=false;
@@ -277,6 +290,10 @@ function render(s){
     g.appendChild(o);
   }
   g.onchange=()=>post('/api/channel',{channel:+g.value});
+
+  // BPM readout
+  document.getElementById('bpmVal').textContent=s.bpm||'--';
+  document.getElementById('bpmExt').textContent=s.externalSync?'EXT':'';
 
   // Latching toggle
   const lt=document.getElementById('latchTog');
@@ -356,17 +373,31 @@ function mkCard(b,i){
 <div class="ramp-wrap${isMod?'':' hidden'}" id="r${i}">
   <div class="ramp-grid">
     <div>
-      <div class="rlbl">Ramp Up</div>
+      <div class="rlbl">Ramp Up
+        <label class="tog" style="width:28px;height:16px;margin-left:4px;vertical-align:middle">
+          <input type="checkbox" id="us${i}" ${b.rampUpSync?'checked':''}>
+          <span class="tog-t" style="border-radius:16px"></span>
+        </label>
+        <span style="font-size:.58rem;color:var(--dim)">sync</span>
+      </div>
       <div class="srow">
-        <input type="range" id="u${i}" min="0" max="5000" step="50" value="${b.rampUpMs}">
-        <span class="sval" id="uv${i}">${fmt(b.rampUpMs)}</span>
+        <input type="range" id="u${i}" min="0" max="5000" step="50" value="${b.rampUpSync?0:b.rampUpMs}" ${b.rampUpSync?'style="display:none"':''}>
+        <select id="un${i}" ${b.rampUpSync?'':'style="display:none"'}></select>
+        <span class="sval" id="uv${i}"></span>
       </div>
     </div>
     <div>
-      <div class="rlbl">Ramp Down</div>
+      <div class="rlbl">Ramp Down
+        <label class="tog" style="width:28px;height:16px;margin-left:4px;vertical-align:middle">
+          <input type="checkbox" id="ds${i}" ${b.rampDownSync?'checked':''}>
+          <span class="tog-t" style="border-radius:16px"></span>
+        </label>
+        <span style="font-size:.58rem;color:var(--dim)">sync</span>
+      </div>
       <div class="srow">
-        <input type="range" id="dn${i}" min="0" max="5000" step="50" value="${b.rampDownMs}">
-        <span class="sval" id="dv${i}">${fmt(b.rampDownMs)}</span>
+        <input type="range" id="dn${i}" min="0" max="5000" step="50" value="${b.rampDownSync?0:b.rampDownMs}" ${b.rampDownSync?'style="display:none"':''}>
+        <select id="dnn${i}" ${b.rampDownSync?'':'style="display:none"'}></select>
+        <span class="sval" id="dv${i}"></span>
       </div>
     </div>
   </div>
@@ -403,11 +434,51 @@ function mkCard(b,i){
 
   d.querySelector('#n'+i).oninput=()=>sched(i);
   cs.onchange=()=>sched(i);
+
+  // Ramp Up — populate note select + wire slider/select/sync toggle
+  const uNoteSel=d.querySelector('#un'+i);
+  NOTE_VALUES.forEach((n,ni)=>{
+    const o=document.createElement('option');
+    o.value=ni;o.textContent=n;
+    if(b.rampUpSync&&ni===b.rampUpNoteIdx)o.selected=true;
+    uNoteSel.appendChild(o);
+  });
+  d.querySelector('#uv'+i).textContent=b.rampUpSync?NOTE_VALUES[b.rampUpNoteIdx||0]:fmt(b.rampUpMs);
   d.querySelector('#u'+i).oninput=e=>{
     d.querySelector('#uv'+i).textContent=fmt(+e.target.value);sched(i);
   };
+  uNoteSel.onchange=()=>{
+    d.querySelector('#uv'+i).textContent=NOTE_VALUES[+uNoteSel.value];sched(i);
+  };
+  d.querySelector('#us'+i).onchange=e=>{
+    const on=e.target.checked;
+    d.querySelector('#u'+i).style.display=on?'none':'';
+    uNoteSel.style.display=on?'':'none';
+    d.querySelector('#uv'+i).textContent=on?NOTE_VALUES[+uNoteSel.value]:fmt(+d.querySelector('#u'+i).value);
+    sched(i);
+  };
+
+  // Ramp Down — same structure
+  const dNoteSel=d.querySelector('#dnn'+i);
+  NOTE_VALUES.forEach((n,ni)=>{
+    const o=document.createElement('option');
+    o.value=ni;o.textContent=n;
+    if(b.rampDownSync&&ni===b.rampDownNoteIdx)o.selected=true;
+    dNoteSel.appendChild(o);
+  });
+  d.querySelector('#dv'+i).textContent=b.rampDownSync?NOTE_VALUES[b.rampDownNoteIdx||0]:fmt(b.rampDownMs);
   d.querySelector('#dn'+i).oninput=e=>{
     d.querySelector('#dv'+i).textContent=fmt(+e.target.value);sched(i);
+  };
+  dNoteSel.onchange=()=>{
+    d.querySelector('#dv'+i).textContent=NOTE_VALUES[+dNoteSel.value];sched(i);
+  };
+  d.querySelector('#ds'+i).onchange=e=>{
+    const on=e.target.checked;
+    d.querySelector('#dn'+i).style.display=on?'none':'';
+    dNoteSel.style.display=on?'':'none';
+    d.querySelector('#dv'+i).textContent=on?NOTE_VALUES[+dNoteSel.value]:fmt(+d.querySelector('#dn'+i).value);
+    sched(i);
   };
 
   // Trigger button — latching: click-toggle; momentary: hold
@@ -452,12 +523,20 @@ function sched(i){
 }
 
 async function applyBtn(i){
+  const uSync=document.getElementById('us'+i).checked;
+  const dSync=document.getElementById('ds'+i).checked;
+  const uVal=uSync
+    ? CLOCK_SYNC_FLAG+(+document.getElementById('un'+i).value)
+    : +document.getElementById('u'+i).value;
+  const dVal=dSync
+    ? CLOCK_SYNC_FLAG+(+document.getElementById('dnn'+i).value)
+    : +document.getElementById('dn'+i).value;
   await post('/api/button/'+i,{
     modeIndex:+document.getElementById('m'+i).value,
     midiNumber:+document.getElementById('n'+i).value,
     fsChannel:+document.getElementById('c'+i).value,
-    rampUpMs:+document.getElementById('u'+i).value,
-    rampDownMs:+document.getElementById('dn'+i).value
+    rampUpMs:uVal,
+    rampDownMs:dVal
   });
 }
 

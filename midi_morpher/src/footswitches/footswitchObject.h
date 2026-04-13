@@ -1,5 +1,6 @@
 #pragma once
 #include "../config.h"
+#include "../clock/midiClock.h"
 #include "../midiCCModulator.h"
 #include "../midiOut.h"
 #include "../sharedTypes.h"
@@ -45,6 +46,9 @@ enum class FootswitchMode {
   QuadCortexScene,
   FractalScene,
   KemperSlot,
+
+  // Clock control
+  TapTempo,
 };
 
 // ── ModeInfo ─────────────────────────────────────────────────────────────────
@@ -114,6 +118,10 @@ inline constexpr ModeInfo modes[] = {
   { FootswitchMode::FractalScene,       false, false, false, false, false, true,  "Fractal Scene", ModulationType::NOMODULATION, SHAPE_LINEAR, 34, 7, false },
   // Kemper: encoder picks CC number (CC50–CC54), always sends value 1
   { FootswitchMode::KemperSlot,         false, false, false, false, false, true,  "Kemper Slot",   ModulationType::NOMODULATION, SHAPE_LINEAR, 50, 4, true  },
+
+  // ── Tap Tempo ─────────────────────────────────────────────────────────────
+  // No MIDI output; press updates the internal clock BPM.
+  { FootswitchMode::TapTempo,           false, false, false, false, false, false, "Tap Tempo",     ModulationType::NOMODULATION, SHAPE_LINEAR, 0,  0, false },
 };
 
 inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]);
@@ -175,11 +183,24 @@ struct FSButton {
   // ── Inner MIDI action — shared by handleFootswitch and simulatePress ───────
   void _applyPressState(bool pressed, uint8_t ch, MidiCCModulator &modulator,
                         void (*displayCallback)(FSButton &)) {
+    // Tap Tempo: update the clock BPM on press. No MIDI output.
+    // Display is handled in the main loop (needs midiClock.bpm after update).
+    if(mode == FootswitchMode::TapTempo) {
+      if(pressed) midiClock.receiveTap();
+      _setLED(pressed);
+      return;
+    }
+
     if(isModSwitch) {
       modulator.modType        = getModulationType(mode);
       modulator.latching       = isLatching;
-      modulator.rampUpTimeMs   = rampUpMs;
-      modulator.rampDownTimeMs = rampDownMs;
+      // Resolve clock-sync values to ms at current BPM; plain ms passes through.
+      modulator.rampUpTimeMs   = (rampUpMs  & CLOCK_SYNC_FLAG)
+                                   ? midiClock.syncToMs(rampUpMs)
+                                   : (unsigned long)rampUpMs;
+      modulator.rampDownTimeMs = (rampDownMs & CLOCK_SYNC_FLAG)
+                                   ? midiClock.syncToMs(rampDownMs)
+                                   : (unsigned long)rampDownMs;
       modulator.midiChannel    = ch;
       pressed ? modulator.press() : modulator.release();
       _setLED(modulator.isActivated);

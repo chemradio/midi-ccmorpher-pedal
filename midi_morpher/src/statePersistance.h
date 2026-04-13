@@ -17,6 +17,7 @@ struct FSButtonPersisted {
 struct PresetData {
     uint8_t midiChannel;
     FSButtonPersisted buttons[6];
+    float   bpm;   // per-preset BPM for the internal clock (DEFAULT_BPM on first boot)
 };
 
 inline PresetData presets[NUM_PRESETS];
@@ -42,6 +43,7 @@ inline void saveAllPresets() {
 inline void saveCurrentPreset(const PedalState &state) {
     PresetData &p = presets[activePreset];
     p.midiChannel = state.midiChannel;
+    p.bpm         = midiClock.bpm;
     for(int i = 0; i < 6; i++) {
         p.buttons[i] = {
             state.buttons[i].modeIndex,
@@ -61,6 +63,7 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
     if(idx >= NUM_PRESETS) idx = 0;
     const PresetData &p = presets[idx];
     state.setMidiChannel(constrain(p.midiChannel, 0, 15));
+    midiClock.setBpm(p.bpm > 0 ? p.bpm : DEFAULT_BPM);
     for(int i = 0; i < 6; i++) {
         FSButton &btn    = state.buttons[i];
         btn.midiNumber   = p.buttons[i].midiNumber;
@@ -78,36 +81,56 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
 }
 
 // Load all presets from NVS on boot.
-// Migrates from old "pedal" namespace (same struct layout) into preset 0 if found.
+// Handles three cases:
+//   1. Current format (sizeof presets): load directly.
+//   2. Legacy format without the bpm field: copy, set bpm = DEFAULT_BPM, upgrade NVS.
+//   3. Unknown / first boot: factory defaults, optionally migrate old "pedal" namespace.
 inline void loadAllPresets(PedalState &state) {
+    // Matches the old PresetData layout (before bpm was added).
+    struct LegacyPresetData { uint8_t midiChannel; FSButtonPersisted buttons[6]; };
+
     prefs.begin("presets", true);
-    size_t sz     = prefs.getBytesLength("prs");
-    bool   loaded = (sz == sizeof(presets));
+    size_t sz       = prefs.getBytesLength("prs");
+    bool   loaded   = (sz == sizeof(presets));
+    bool   isLegacy = (!loaded && sz == (size_t)NUM_PRESETS * sizeof(LegacyPresetData));
+
     if(loaded) {
         prefs.getBytes("prs", presets, sizeof(presets));
         activePreset = constrain(prefs.getUChar("act", 0), 0, NUM_PRESETS - 1);
+    } else if(isLegacy) {
+        LegacyPresetData old[NUM_PRESETS];
+        prefs.getBytes("prs", old, sz);
+        activePreset = constrain(prefs.getUChar("act", 0), 0, NUM_PRESETS - 1);
+        for(int p = 0; p < NUM_PRESETS; p++) {
+            presets[p].midiChannel = old[p].midiChannel;
+            presets[p].bpm         = DEFAULT_BPM;
+            for(int i = 0; i < 6; i++) presets[p].buttons[i] = old[p].buttons[i];
+        }
     }
     prefs.end();
 
-    if(!loaded) {
+    if(!loaded && !isLegacy) {
         // Factory defaults — all presets identical.
         for(int p = 0; p < NUM_PRESETS; p++) {
             presets[p].midiChannel = 0;
-            for(int i = 0; i < 6; i++) {
+            presets[p].bpm         = DEFAULT_BPM;
+            for(int i = 0; i < 6; i++)
                 presets[p].buttons[i] = {0, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF};
-            }
         }
-        // Migrate old "pedal" namespace into preset 0 if it exists.
-        // PresetData and the old PedalPersisted struct share identical layout (67 bytes).
+        // Migrate old single-preset "pedal" namespace into preset 0 if it exists.
         prefs.begin("pedal", true);
-        if(prefs.getBytesLength("cfg") == sizeof(PresetData)) {
-            prefs.getBytes("cfg", &presets[0], sizeof(PresetData));
+        if(prefs.getBytesLength("cfg") == sizeof(LegacyPresetData)) {
+            LegacyPresetData old;
+            prefs.getBytes("cfg", &old, sizeof(old));
+            presets[0].midiChannel = old.midiChannel;
+            presets[0].bpm         = DEFAULT_BPM;
+            for(int i = 0; i < 6; i++) presets[0].buttons[i] = old.buttons[i];
         }
         prefs.end();
-
         activePreset = 0;
-        saveAllPresets();
     }
+
+    if(!loaded) saveAllPresets();   // write upgraded / default data back
 
     applyPreset(activePreset, state);
 }
