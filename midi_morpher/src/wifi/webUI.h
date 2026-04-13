@@ -363,7 +363,7 @@ function mkCard(b,i){
 </div>
 <div class="fld">
   <div class="lbl">MIDI # <span class="hint" id="h${i}"></span></div>
-  <input type="number" id="n${i}" min="0" max="127" value="${b.midiNumber}">
+  <input type="number" id="n${i}" min="1" max="128" value="${b.midiNumber+1}">
 </div>
 <div class="fld">
   <div class="lbl">Channel</div>
@@ -533,7 +533,7 @@ async function applyBtn(i){
     : +document.getElementById('dn'+i).value;
   await post('/api/button/'+i,{
     modeIndex:+document.getElementById('m'+i).value,
-    midiNumber:+document.getElementById('n'+i).value,
+    midiNumber:(+document.getElementById('n'+i).value)-1,
     fsChannel:+document.getElementById('c'+i).value,
     rampUpMs:uVal,
     rampDownMs:dVal

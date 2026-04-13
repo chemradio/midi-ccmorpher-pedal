@@ -77,8 +77,8 @@ static String _buttonNumStr(const FSButton &btn) {
   }
   if(btn.isScene) {
     if(btn.modMode.scenePickCC)
-      return "CC:" + String(btn.modMode.sceneCC + btn.midiNumber);
-    return "V:" + String(btn.midiNumber);
+      return "CC:" + String(btn.modMode.sceneCC + btn.midiNumber + 1);
+    return "V:" + String(btn.midiNumber + 1);
   }
   if(btn.isPC)
     return "PC:" + String(btn.midiNumber + 1);
@@ -183,19 +183,19 @@ static void _displayNumber(const FSButton &button, int y) {
   if(button.isScene) {
     if(button.modMode.scenePickCC) {
       display.print("CC: ");
-      display.print(button.modMode.sceneCC + button.midiNumber);
+      display.print(button.modMode.sceneCC + button.midiNumber + 1);
     } else {
       display.print("CC:");
-      display.print(button.modMode.sceneCC);
+      display.print(button.modMode.sceneCC + 1);
       display.print(" Val:");
-      display.print(button.midiNumber);
+      display.print(button.midiNumber + 1);
     }
   } else if(button.isPC) {
     display.print("PC: ");
     display.print(button.midiNumber + 1);
   } else if(button.isNote) {
     display.print("Note: ");
-    display.print(button.midiNumber);
+    _printNoteName(button.midiNumber);
   } else {
     display.print("CC: ");
     display.print(button.midiNumber + 1);
@@ -300,10 +300,10 @@ void displayEncoderFSTurn(FSButton &button) {
     if(button.isScene) {
       if(button.modMode.scenePickCC) {
         display.print("Slot CC:");
-        displayVal = button.modMode.sceneCC + button.midiNumber;
+        displayVal = button.modMode.sceneCC + button.midiNumber + 1;
       } else {
         display.print("Scene:");
-        displayVal = button.midiNumber; // 0-indexed, matches device expectation
+        displayVal = button.midiNumber + 1;
       }
     } else if(button.isPC) {
       display.print("PC:");

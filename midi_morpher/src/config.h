@@ -76,8 +76,10 @@
 #define RAMP_DURATIONS_MAX_MS  5000   // ms — pot full right = 5 s
 
 // ── Presets ───────────────────────────────────────────────────────────────────
-#define PRESET_BTN_PIN      19    // Momentary preset select / save button
-#define ACTIVITY_LED_PIN    20    // Lights while the last-pressed footswitch is active
+// GPIO 19/20 are the ESP32-S3 USB D-/D+ lines and cannot be used as GPIO when
+// USB is active — moved to GPIO 44 / 45.
+#define PRESET_BTN_PIN      44    // Momentary preset select / save button (U0RXD, UART0 unused)
+#define ACTIVITY_LED_PIN    45    // Lights while the last-pressed footswitch is active (strap; keep LOW at reset)
 #define NUM_PRESETS          6
 #define PRESET_SAVE_HOLD_MS 1500  // ms — hold to save current state to active preset
 
@@ -98,6 +100,7 @@ static constexpr uint8_t DISPLAY_FS_ROWS = 4;
 #define CLOCK_SYNC_TIMEOUT_MS 2000         // ms with no 0xF8 → revert to internal
 
 // ── Tempo LED ─────────────────────────────────────────────────────────────────
-// GPIOs 33–37 are reserved for octal PSRAM on the N16R8 module — never use.
-// GPIO 0 is the boot strap pin but is safe as an output after boot.
-#define TEMPO_LED_PIN 0
+// GPIOs 33–37 are reserved for octal PSRAM on N16R8 — never use.
+// GPIO 46 is a strapping pin but defaults LOW at reset, which is compatible
+// with a standard LED wired anode→pin, cathode→resistor→GND.
+#define TEMPO_LED_PIN 46

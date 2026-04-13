@@ -202,6 +202,7 @@ struct FSButton {
                                    ? midiClock.syncToMs(rampDownMs)
                                    : (unsigned long)rampDownMs;
       modulator.midiChannel    = ch;
+      modulator.midiCCNumber   = midiNumber;
       pressed ? modulator.press() : modulator.release();
       _setLED(modulator.isActivated);
       if(displayCallback) displayCallback(*this);
