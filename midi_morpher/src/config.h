@@ -6,19 +6,23 @@
 
 // ── Footswitches (onboard) ────────────────────────────────────────────────────
 #define FS1_PIN      4
-#define FS1_LED      5
 #define FS2_PIN      6
-#define FS2_LED      7
 #define FS3_PIN     14
-#define FS3_LED     15
 #define FS4_PIN     16
-#define FS4_LED     21
 
 // ── Footswitches (external, via jack) ────────────────────────────────────────
 #define EXTFS1_PIN  17
-#define EXTFS1_LED  18
 #define EXTFS2_PIN   8
-#define EXTFS2_LED   3
+
+// ── Preset LEDs ──────────────────────────────────────────────────────────────
+// Physically mounted next to each footswitch, but logically they indicate the
+// currently active preset slot (P1–P6), not footswitch state.
+#define PRESET1_LED  5
+#define PRESET2_LED  7
+#define PRESET3_LED 15
+#define PRESET4_LED 21
+#define PRESET5_LED 18
+#define PRESET6_LED  3
 
 // ── Encoder ───────────────────────────────────────────────────────────────────
 #define ENC_A        9
@@ -95,6 +99,11 @@ static constexpr uint8_t DISPLAY_FS_ROWS = 4;
 #define BPM_MIN               20.0f
 #define BPM_MAX               300.0f
 #define CLOCK_SYNC_TIMEOUT_MS 2000         // ms with no 0xF8 → revert to internal
+
+// ── BLE MIDI ──────────────────────────────────────────────────────────────────
+// Standard BLE MIDI service — Apple spec, accepted by iOS/macOS/Windows/
+// Linux/Android. Advertised name is what the central sees when scanning.
+#define BLE_DEVICE_NAME "MIDI Morpher"
 
 // ── Tempo LED ─────────────────────────────────────────────────────────────────
 // GPIOs 33–37 are reserved for octal PSRAM on N16R8 — never use.

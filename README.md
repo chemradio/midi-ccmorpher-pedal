@@ -7,20 +7,24 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 ## Features at a Glance
 
 - 4 onboard footswitches + 2 external via jack — all 6 independently configurable
-- 26 footswitch modes: basic MIDI + 5 modulation types + scene/snapshot for Helix, QC, Fractal, Kemper
+- 27 footswitch modes: basic MIDI + 5 modulation types + scene/snapshot for Helix, QC, Fractal, Kemper + Tap Tempo
 - **6 presets** — store and recall complete configurations; footswitch LEDs indicate the active preset
 - Per-footswitch MIDI channel override
 - Modulation speed controlled by two onboard pots (UP and DOWN independently)
 - Proportional return speed — feels consistent regardless of when you release
-- SSD1306 OLED display with live feedback (shows active preset + unsaved-changes indicator)
+- **MIDI Clock** — internal tap tempo or slave to incoming `0xF8`; ramp/LFO speeds can be expressed as note values (1/32T … 2/1) and resolve to milliseconds at current BPM
+- **Tempo LED** — pulses on the beat
+- SSD1306 OLED display with live feedback (shows active preset + unsaved-changes indicator + live BPM)
 - Onboard RGB NeoPixel reflects modulation value in real time
 - **Activity LED** — shows the active state of the most recently pressed footswitch
 - Analog expression output via AD5292 digital potentiometer
 - Expression pedal input — mirrors value to expression out and sends as MIDI CC20
 - mini-TRS MIDI Out + In (MIDI Thru), USB-C MIDI
 - **Wireless web UI** — full configuration from any phone or laptop; includes footswitch trigger buttons and pot sliders
+- **Captive portal** — phones/laptops auto-open the UI when joining the network
 - WiFi always on (turns off only when LOCK switch is engaged)
 - LOCK switch — prevents accidental encoder/pot changes and disables WiFi
+- **Encoder acceleration** — fast turns multiply steps by up to 8× for quick CC/PC/Note scanning
 - All settings stored in non-volatile memory inside each preset slot
 
 ---
@@ -94,10 +98,7 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 | 16 | FS4 |
 | 17 | ExtFS1 |
 | 18 | ExtFS1 LED * |
-| 19 | PRESET button |
-| 20 | Activity LED |
 | 21 | FS4 LED * |
-| 22 | WiFi status LED |
 | 36 | MIDI RX |
 | 38 | Digipot CS (SYNC) |
 | 39 | Digipot SCK |
@@ -105,11 +106,15 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 | 41 | SDA (OLED) |
 | 42 | SCL (OLED) |
 | 43 | MIDI TX |
+| 44 | PRESET button |
+| 45 | Activity LED |
+| 46 | Tempo LED |
 | 47 | LOCK switch |
 | 48 | NeoPixel (onboard RGB) |
-| 3 | ExtFS2 LED * |
 
 *\* Footswitch LEDs are repurposed as preset indicators — see [Preset LEDs](#preset-leds) below.*
+
+**Pins to avoid on ESP32-S3-N16R8:** GPIOs 19/20 are native USB D-/D+ (unusable while USB is active — continuous USB-MIDI traffic causes phantom reads). GPIOs 33–37 are reserved for octal PSRAM. GPIOs 45 and 46 are strapping pins but default LOW at reset, so they are safe for output LEDs wired cathode→resistor→GND.
 
 ---
 
@@ -209,14 +214,14 @@ Sends a smooth ramp from 0 to 127 (exponential curve) on press. On release, ramp
 
 #### STEPPER
 
-Same as RAMPER but moves in discrete quantized steps for a robotic/quantized feel.
+Linear-quantized movement from 0 to 127 in discrete steps for a robotic feel.
 
-- Momentary and Latching variants work the same as RAMPER.
+- Momentary and Latching variants.
 - Inverted variant available.
 
 #### RANDOM STEPPER
 
-Steps to random CC values continuously. Does not stop at 127 — keeps randomizing until released/unlatched.
+Linear timing, but steps land on random CC values continuously. Does not stop at 127 — keeps randomizing until released/unlatched.
 
 - Momentary and Latching variants.
 - Inverted variant available.
@@ -227,7 +232,7 @@ Continuous oscillation between 0 and 127. Three wave shapes available.
 
 | Mode | Wave |
 |------|------|
-| LFO Sine | Smooth sine wave |
+| LFO Sine | Raised-cosine sine wave |
 | LFO Tri | Linear triangle wave |
 | LFO Sq | Square wave (0 ↔ 127) |
 
@@ -235,6 +240,10 @@ Continuous oscillation between 0 and 127. Three wave shapes available.
 - **Latching:** LFO runs after press, continues on release, returns to 0 on next press.
 
 POT1 controls rise time (half-cycle up), POT2 controls fall time (half-cycle down).
+
+#### Tap Tempo
+
+A 27th mode with no MIDI output — pressing the footswitch updates the pedal's internal BPM via tap averaging. The OLED briefly shows the new BPM. Use this to set the global clock that drives clock-synced ramps.
 
 ### Proportional Return Speed
 
@@ -258,13 +267,12 @@ Connect from any phone, tablet, or laptop — no app required.
 
 ### What You Can Configure via Web UI
 
-- Global MIDI channel (1–16)
-- Global Latching / Momentary mode toggle
+- Global MIDI channel (1–16) + live BPM readout (with EXT badge when slaved to incoming MIDI clock)
 - **Presets** — switch between all 6 presets; save the current settings to the active preset
-- Per-footswitch mode (all 26 modes)
-- Per-footswitch MIDI CC / PC / Note number
+- Per-footswitch mode (all 27 modes)
+- Per-footswitch MIDI CC / PC / Note number — **1-indexed** UI, mode-aware bounds (1–128 for CC/PC/Note, 1–8 for scene modes, 1–5 for Kemper slot), disabled for Tap Tempo
 - Per-footswitch MIDI channel override (or Global)
-- Per-footswitch ramp UP and DOWN speed (sliders appear only for modulation modes)
+- Per-footswitch ramp UP and DOWN speed — either a millisecond slider or a note-value dropdown (1/32T … 2/1), toggled by an inline `sync` checkbox. Visible for modulation modes only.
 - **Footswitch trigger buttons** — activate footswitches directly from the browser (hold for momentary, click-toggle for latching)
 - **POT1 / POT2 sliders** — send CC 20 / CC 21 directly from the web UI
 
@@ -272,9 +280,9 @@ Connect from any phone, tablet, or laptop — no app required.
 
 Any setting change marks the active preset as unsaved. A `● Unsaved` badge appears in the web UI header. Click **Save Preset** to write the current state to the active preset slot in non-volatile memory.
 
-### WiFi LED
+### Captive Portal
 
-GPIO 22 drives a WiFi status LED. It is HIGH while the access point is running and LOW when the LOCK switch is engaged.
+When you connect to the `MIDI Morpher` network, the pedal's DNS server catches every query and its HTTP server 302-redirects any unknown URL (including OS probes like `/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`) to `http://192.168.4.1/`. Phones and laptops respond by popping up a "Sign in to network" prompt that opens the UI directly — no need to type the address.
 
 ### WiFi and LOCK
 
@@ -284,11 +292,10 @@ WiFi turns off automatically when the LOCK switch is engaged and restarts when i
 
 | Method | Path | Body | Action |
 |--------|------|------|--------|
-| GET | `/api/state` | — | Full state JSON (channel, latching, activePreset, presetDirty, all 6 buttons) |
+| GET | `/api/state` | — | Full state JSON (channel, activePreset, presetDirty, bpm, externalSync, all 6 buttons) |
 | GET | `/api/presets` | — | All 6 preset slots + active index |
 | POST | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15) |
-| POST | `/api/latching` | `{"latching":true}` | Set global latching mode |
-| POST | `/api/button/:id` | `{"modeIndex":4,"midiNumber":11,"fsChannel":255,"rampUpMs":1000,"rampDownMs":1000}` | Update footswitch config |
+| POST | `/api/button/:id` | `{"modeIndex":4,"midiNumber":11,"fsChannel":255,"rampUpMs":1000,"rampDownMs":1000}` | Update footswitch config. Server clamps `midiNumber` against mode range (`sceneMaxVal` for scene modes, 127 otherwise). Ramp values with bit 31 set encode a note-value index (see MIDI Clock below). |
 | POST | `/api/button/:id/press` | — | Simulate footswitch press |
 | POST | `/api/button/:id/release` | — | Simulate footswitch release |
 | POST | `/api/pot` | `{"id":0,"value":64}` | Send CC 20 (id=0) or CC 21 (id=1) |

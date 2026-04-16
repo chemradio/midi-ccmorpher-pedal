@@ -27,6 +27,12 @@
                 "version": ">=1.12.0",
                 "install": "Arduino Library Manager → search 'Adafruit NeoPixel'",
                 "used_by": ["src/visual/neopx.h"]
+            },
+            {
+                "name": "NimBLE-Arduino",
+                "version": ">=2.0.0",
+                "install": "Arduino Library Manager → search 'NimBLE-Arduino'",
+                "used_by": ["src/ble/bleMidi.h"]
             }
         ],
         "bundled_with_esp32_core": [

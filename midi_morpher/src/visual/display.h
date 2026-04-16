@@ -75,6 +75,10 @@ static String _buttonNumStr(const FSButton &btn) {
     static const char *noteNames[] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
     return String(noteNames[btn.midiNumber % 12]) + String((int)(btn.midiNumber / 12) - 1);
   }
+  if(btn.isSystem) {
+    uint8_t idx = btn.midiNumber < NUM_SYS_CMDS ? btn.midiNumber : 0;
+    return String(systemCommands[idx].name);
+  }
   if(btn.isScene) {
     if(btn.modMode.scenePickCC)
       return "CC:" + String(btn.modMode.sceneCC + btn.midiNumber + 1);
@@ -180,8 +184,23 @@ static int _displayModeName(const char *modeName, int y) {
 static void _displayNumber(const FSButton &button, int y) {
   display.setTextSize(1);
   display.setCursor(0, y);
+  if(button.isSystem) {
+    uint8_t idx = button.midiNumber < NUM_SYS_CMDS ? button.midiNumber : 0;
+    display.print(systemCommands[idx].name);
+    return;
+  }
   if(button.isScene) {
-    if(button.modMode.scenePickCC) {
+    if(button.isSceneScroll) {
+      if(button.modMode.scenePickCC) {
+        display.print("CC: ");
+        display.print(button.modMode.sceneCC + button.scrollLastSent + 1);
+      } else {
+        display.print("CC:");
+        display.print(button.modMode.sceneCC + 1);
+        display.print(" Val:");
+        display.print(button.scrollLastSent + 1);
+      }
+    } else if(button.modMode.scenePickCC) {
       display.print("CC: ");
       display.print(button.modMode.sceneCC + button.midiNumber + 1);
     } else {
@@ -289,7 +308,16 @@ void displayEncoderFSTurn(FSButton &button) {
   display.setCursor(0, 12);
   display.setTextSize(1);
 
-  if(button.isNote) {
+  if(button.isSystem) {
+    // System/Transport: show the selected command name as big text
+    display.print("Cmd:");
+    uint8_t idx = button.midiNumber < NUM_SYS_CMDS ? button.midiNumber : 0;
+    const char *name = systemCommands[idx].name;
+    bool big = strlen(name) <= 6;
+    display.setTextSize(big ? 3 : 2);
+    display.setCursor(0, 24);
+    display.print(name);
+  } else if(button.isNote) {
     // Note mode: show note name (C4, D#3 …) instead of raw number
     display.print("Note:");
     display.setTextSize(3);
@@ -298,7 +326,10 @@ void displayEncoderFSTurn(FSButton &button) {
   } else {
     uint8_t displayVal;
     if(button.isScene) {
-      if(button.modMode.scenePickCC) {
+      if(button.isSceneScroll) {
+        display.print("Max:");
+        displayVal = button.midiNumber + 1;
+      } else if(button.modMode.scenePickCC) {
         display.print("Slot CC:");
         displayVal = button.modMode.sceneCC + button.midiNumber + 1;
       } else {

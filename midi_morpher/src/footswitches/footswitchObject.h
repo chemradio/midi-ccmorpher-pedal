@@ -41,14 +41,21 @@ enum class FootswitchMode {
   RandomInvMomentary,
   RandomInvLatching,
 
-  // Scene / Snapshot
+  // Scene / Snapshot — each scene is followed by its scroll variant
   HelixSnapshot,
+  HelixSnapshotScroll,
   QuadCortexScene,
+  QuadCortexSceneScroll,
   FractalScene,
+  FractalSceneScroll,
   KemperSlot,
+  KemperSlotScroll,
 
   // Clock control
   TapTempo,
+
+  // System / Transport MIDI commands — encoder selects from systemCommands[]
+  System,
 };
 
 // ── ModeInfo ─────────────────────────────────────────────────────────────────
@@ -67,7 +74,43 @@ struct ModeInfo {
   uint8_t sceneCC;     // base CC number for scene/snapshot modes
   uint8_t sceneMaxVal; // encoder ceiling (7 for 0–7, 4 for Kemper slots 0–4)
   bool scenePickCC;    // true = encoder selects CC number (Kemper), false = encoder selects value
+  bool isSceneScroll;  // true = each press advances through 0..midiNumber then wraps
+  bool isSystem;       // true = System/Transport mode; midiNumber indexes systemCommands[]
 };
+
+// ── System / Transport command table ────────────────────────────────────────
+// midiNumber in System mode is an index into this table. Order = priority
+// (most-used first). Max encoder value = NUM_SYS_CMDS - 1.
+
+enum SysCmdKind : uint8_t { SYS_REALTIME, SYS_MMC, SYS_SPP };
+
+struct SysCmdInfo {
+  const char *name;
+  SysCmdKind  kind;
+  uint8_t     data;  // realtime byte, MMC sub-id, or SPP pos (always 0 here)
+};
+
+inline constexpr SysCmdInfo systemCommands[] = {
+  { "Play",      SYS_REALTIME, 0xFA },  // MIDI Start
+  { "Stop",      SYS_REALTIME, 0xFC },  // MIDI Stop
+  { "Continue",  SYS_REALTIME, 0xFB },  // MIDI Continue
+  { "Record",    SYS_MMC,      0x06 },  // MMC Record Strobe
+  { "Pause",     SYS_MMC,      0x09 },  // MMC Pause
+  { "Rewind",    SYS_MMC,      0x05 },  // MMC Rewind
+  { "FFwd",      SYS_MMC,      0x04 },  // MMC Fast Forward
+  { "GotoStart", SYS_SPP,      0x00 },  // Song Position 0
+};
+inline constexpr uint8_t NUM_SYS_CMDS = sizeof(systemCommands) / sizeof(systemCommands[0]);
+
+inline void sendSystemCommand(uint8_t idx) {
+  if(idx >= NUM_SYS_CMDS) return;
+  const SysCmdInfo &c = systemCommands[idx];
+  switch(c.kind) {
+    case SYS_REALTIME: sendSystemRealtime(c.data); break;
+    case SYS_MMC:      sendMMC(c.data);            break;
+    case SYS_SPP:      sendSPP((uint16_t)c.data);  break;
+  }
+}
 
 // ── Mode table ───────────────────────────────────────────────────────────────
 // Single source of truth for all 26 modes.
@@ -112,16 +155,27 @@ inline constexpr ModeInfo modes[] = {
   { FootswitchMode::RandomInvLatching,  true,  false, false, true,  true,  false, "Random Inv L",  ModulationType::RANDOM,       SHAPE_LINEAR, 0,  0, false },
 
   // ── Scene / Snapshot ─────────────────────────────────────────────────────
-  // sceneCC = base CC, sceneMaxVal = encoder ceiling, scenePickCC = encoder selects CC# (Kemper)
-  { FootswitchMode::HelixSnapshot,      false, false, false, false, false, true,  "Helix Snap",    ModulationType::NOMODULATION, SHAPE_LINEAR, 69, 7, false },
-  { FootswitchMode::QuadCortexScene,    false, false, false, false, false, true,  "QC Scene",      ModulationType::NOMODULATION, SHAPE_LINEAR, 43, 7, false },
-  { FootswitchMode::FractalScene,       false, false, false, false, false, true,  "Fractal Scene", ModulationType::NOMODULATION, SHAPE_LINEAR, 34, 7, false },
-  // Kemper: encoder picks CC number (CC50–CC54), always sends value 1
-  { FootswitchMode::KemperSlot,         false, false, false, false, false, true,  "Kemper Slot",   ModulationType::NOMODULATION, SHAPE_LINEAR, 50, 4, true  },
+  // Each scene mode is followed by its scroll variant. Scroll modes store the
+  // user-selected max in midiNumber; each press advances scrollPos 0..max and
+  // wraps. sceneCC/sceneMaxVal shared with the non-scroll variant.
+  { FootswitchMode::HelixSnapshot,         false, false, false, false, false, true,  "Helix Snap",    ModulationType::NOMODULATION, SHAPE_LINEAR, 69, 7, false, false },
+  { FootswitchMode::HelixSnapshotScroll,   false, false, false, false, false, true,  "Helix Scrl",    ModulationType::NOMODULATION, SHAPE_LINEAR, 69, 7, false, true  },
+  { FootswitchMode::QuadCortexScene,       false, false, false, false, false, true,  "QC Scene",      ModulationType::NOMODULATION, SHAPE_LINEAR, 43, 7, false, false },
+  { FootswitchMode::QuadCortexSceneScroll, false, false, false, false, false, true,  "QC Scrl",       ModulationType::NOMODULATION, SHAPE_LINEAR, 43, 7, false, true  },
+  { FootswitchMode::FractalScene,          false, false, false, false, false, true,  "Fractal Scene", ModulationType::NOMODULATION, SHAPE_LINEAR, 34, 7, false, false },
+  { FootswitchMode::FractalSceneScroll,    false, false, false, false, false, true,  "Fract Scrl",    ModulationType::NOMODULATION, SHAPE_LINEAR, 34, 7, false, true  },
+  // Kemper: encoder picks CC number (CC50–CC54), always sends value 1.
+  // Scroll variant cycles through CC50..CC(50+midiNumber) on each press.
+  { FootswitchMode::KemperSlot,            false, false, false, false, false, true,  "Kemper Slot",   ModulationType::NOMODULATION, SHAPE_LINEAR, 50, 4, true,  false },
+  { FootswitchMode::KemperSlotScroll,      false, false, false, false, false, true,  "Kemper Scrl",   ModulationType::NOMODULATION, SHAPE_LINEAR, 50, 4, true,  true  },
 
   // ── Tap Tempo ─────────────────────────────────────────────────────────────
   // No MIDI output; press updates the internal clock BPM.
-  { FootswitchMode::TapTempo,           false, false, false, false, false, false, "Tap Tempo",     ModulationType::NOMODULATION, SHAPE_LINEAR, 0,  0, false },
+  { FootswitchMode::TapTempo,              false, false, false, false, false, false, "Tap Tempo",     ModulationType::NOMODULATION, SHAPE_LINEAR, 0,  0, false, false, false },
+
+  // ── System / Transport ────────────────────────────────────────────────────
+  // Encoder selects a command from systemCommands[]. No MIDI channel used.
+  { FootswitchMode::System,                false, false, false, false, false, false, "System",        ModulationType::NOMODULATION, SHAPE_LINEAR, 0,  0, false, false, true  },
 };
 
 inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]);
@@ -153,14 +207,18 @@ struct FSButton {
   bool isPC        = true;
   bool isNote      = false;
   bool isScene     = false;
+  bool isSceneScroll = false;
+  bool isSystem    = false;
   uint8_t midiNumber = 0;
   uint8_t modeIndex  = 0;
+  uint8_t scrollPos       = 0;  // next scene value to send in scroll mode
+  uint8_t scrollLastSent  = 0;  // most recent value sent (for display)
   bool isModSwitch   = false;
   uint8_t fsChannel  = 0xFF;
 
   FootswitchMode mode = FootswitchMode::MomentaryPC;
   ModeInfo modMode = { FootswitchMode::MomentaryPC, false, true, false, false, false, false,
-                       "PC", ModulationType::NOMODULATION, SHAPE_LINEAR, 0, 0, false };
+                       "PC", ModulationType::NOMODULATION, SHAPE_LINEAR, 0, 0, false, false, false };
 
   FSButton(uint8_t p, uint8_t lp, const char *n, uint8_t mN)
       : pin(p), ledPin(lp), name(n), midiNumber(mN) {}
@@ -188,6 +246,14 @@ struct FSButton {
     if(mode == FootswitchMode::TapTempo) {
       if(pressed) midiClock.receiveTap();
       _setLED(pressed);
+      return;
+    }
+
+    // System / Transport: dispatch the selected command. No MIDI channel.
+    if(isSystem) {
+      _setLED(pressed);
+      if(pressed) sendSystemCommand(midiNumber);
+      if(displayCallback) displayCallback(*this);
       return;
     }
 
@@ -231,7 +297,19 @@ struct FSButton {
     if(isScene) {
       _setLED(pressed);
       if(pressed) {
-        if(modMode.scenePickCC) {
+        if(isSceneScroll) {
+          // Clamp in case midiNumber (max) shrunk below the current scrollPos.
+          if(scrollPos > midiNumber) scrollPos = 0;
+          if(modMode.scenePickCC) {
+            // Kemper scroll: step through CC50..CC(50+max), value always 1.
+            sendMIDI(ch, false, modMode.sceneCC + scrollPos, 1);
+          } else {
+            // Helix/QC/Fractal scroll: fixed CC, step the value.
+            sendMIDI(ch, false, modMode.sceneCC, scrollPos);
+          }
+          scrollLastSent = scrollPos;
+          scrollPos = (scrollPos >= midiNumber) ? 0 : scrollPos + 1;
+        } else if(modMode.scenePickCC) {
           sendMIDI(ch, false, modMode.sceneCC + midiNumber, 1);
         } else {
           sendMIDI(ch, false, modMode.sceneCC, midiNumber);
@@ -284,6 +362,10 @@ struct FSButton {
     isPC        = m.isPC;
     isNote      = m.isNote;
     isScene     = m.isScene;
+    isSceneScroll = m.isSceneScroll;
+    isSystem    = m.isSystem;
+    scrollPos      = 0;
+    scrollLastSent = 0;
     modMode     = m;
 
     if(m.isInverted) {
@@ -307,16 +389,20 @@ struct FSButton {
 inline void applyModeFlags(FSButton &btn, uint8_t idx) {
   if(idx >= NUM_MODES) return;
   const ModeInfo &m = modes[idx];
-  btn.modeIndex   = idx;
-  btn.mode        = m.mode;
-  btn.isModSwitch = m.isModSwitch;
-  btn.isLatching  = m.isLatching;
-  btn.isPC        = m.isPC;
-  btn.isNote      = m.isNote;
-  btn.isScene     = m.isScene;
-  btn.modMode     = m;
-  btn.isActivated = false;
-  btn.ledState    = false;
+  btn.modeIndex      = idx;
+  btn.mode           = m.mode;
+  btn.isModSwitch    = m.isModSwitch;
+  btn.isLatching     = m.isLatching;
+  btn.isPC           = m.isPC;
+  btn.isNote         = m.isNote;
+  btn.isScene        = m.isScene;
+  btn.isSceneScroll  = m.isSceneScroll;
+  btn.isSystem       = m.isSystem;
+  btn.scrollPos      = 0;
+  btn.scrollLastSent = 0;
+  btn.modMode        = m;
+  btn.isActivated    = false;
+  btn.ledState       = false;
 }
 
 // Apply mode and optionally reset the modulator (used by web server and encoder button).

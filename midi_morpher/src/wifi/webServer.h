@@ -231,8 +231,11 @@ inline void handlePostButton(int idx) {
     uint32_t dn = jsonUint(body, "rampDownMs");
     if(mi >= 0 && mi < NUM_MODES)           applyModeIndex(btn, (uint8_t)mi, &_webPedal->modulator);
     // Clamp midiNumber against mode-appropriate max. Scene modes cap at
-    // sceneMaxVal (7 for Helix/QC/Fractal, 4 for Kemper); everything else 0–127.
-    int mnMax = btn.isScene ? (int)btn.modMode.sceneMaxVal : 127;
+    // sceneMaxVal (7 for Helix/QC/Fractal, 4 for Kemper); system commands cap
+    // at NUM_SYS_CMDS-1; everything else 0–127.
+    int mnMax = btn.isScene  ? (int)btn.modMode.sceneMaxVal
+              : btn.isSystem ? (int)(NUM_SYS_CMDS - 1)
+              : 127;
     if(mn >= 0 && mn <= mnMax)              btn.midiNumber = (uint8_t)mn;
     if(ch == 255 || (ch >= 0 && ch <= 15))  btn.fsChannel  = (uint8_t)ch;
     if(_validRamp(up))                      btn.rampUpMs   = up;
@@ -286,6 +289,7 @@ inline void handlePresetSave(int idx) {
     }
     activePreset = (uint8_t)idx;
     saveCurrentPreset(*_webPedal);
+    triggerPresetSaveBlink();
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 

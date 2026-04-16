@@ -65,8 +65,18 @@ inline void handleEncoder(PedalState &pedal,
 
   if(activeButtonIndex >= 0) {
     FSButton &btn = pedal.buttons[activeButtonIndex];
-    uint8_t maxVal = btn.isScene ? btn.modMode.sceneMaxVal : 127;
-    int step = btn.isScene ? delta : (delta * accelMult);
+    uint8_t maxVal;
+    int     step;
+    if(btn.isScene) {
+      maxVal = btn.modMode.sceneMaxVal;
+      step   = delta;
+    } else if(btn.isSystem) {
+      maxVal = NUM_SYS_CMDS - 1;
+      step   = delta;
+    } else {
+      maxVal = 127;
+      step   = delta * accelMult;
+    }
     btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + step, 0, (int)maxVal);
     displayFSCallback(btn);
   } else {

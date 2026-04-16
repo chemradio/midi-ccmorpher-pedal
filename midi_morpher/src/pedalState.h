@@ -20,12 +20,12 @@ struct PedalState
     MidiCCModulator modulator;
 
     std::array<FSButton, 6> buttons = {
-        FSButton(FS1_PIN,    FS1_LED,    "FS 1",    0),
-        FSButton(FS2_PIN,    FS2_LED,    "FS 2",    0),
-        FSButton(FS3_PIN,    FS3_LED,    "FS 3",    0),
-        FSButton(FS4_PIN,    FS4_LED,    "FS 4",    0),
-        FSButton(EXTFS1_PIN, EXTFS1_LED, "Ext FS 1", 0),
-        FSButton(EXTFS2_PIN, EXTFS2_LED, "Ext FS 2", 0)};
+        FSButton(FS1_PIN,    PRESET1_LED, "FS 1",    0),
+        FSButton(FS2_PIN,    PRESET2_LED, "FS 2",    0),
+        FSButton(FS3_PIN,    PRESET3_LED, "FS 3",    0),
+        FSButton(FS4_PIN,    PRESET4_LED, "FS 4",    0),
+        FSButton(EXTFS1_PIN, PRESET5_LED, "Ext FS 1", 0),
+        FSButton(EXTFS2_PIN, PRESET6_LED, "Ext FS 2", 0)};
 
     void setMidiChannel(uint8_t mc)
     {

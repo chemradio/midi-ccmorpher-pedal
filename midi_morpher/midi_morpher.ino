@@ -1,4 +1,5 @@
 #include "src/analogInOut/digipot.h"
+#include "src/ble/bleMidi.h"
 #include "src/clock/midiClock.h"
 #include "src/config.h"
 #include "src/controls/encoder.h"
@@ -18,6 +19,11 @@
 // initialize global state
 USBMIDI midi;
 PedalState pedal;
+
+// Trampoline declared extern in bleMidi.h — defined here so bleMidi.h doesn't
+// need to include midiClock.h (which would create a cycle via midiOut.h).
+void bleMidiOnClockTick() { midiClock.receiveClock(); }
+
 midiEventPacket_t midi_packet_in = {0, 0, 0, 0};
 int8_t cin_to_midix_size[16] = {-1, -1, 2, 3, 3, 1, 2, 3, 3, 3, 3, 3, 2, 2, 3, 1};
 
@@ -57,6 +63,7 @@ void setup() {
   loadAllPresets(pedal);
 
   initWebServer(pedal);
+  initBleMidi();
   initNeoPixel();
   showStartupScreen();
   delay(2000);
@@ -122,14 +129,59 @@ void loop() {
 
   handleWebServer(pedal);
 
-  // DIN MIDI THRU — mirrors DIN input to DIN output.
-  // 0xF8 (MIDI timing clock) also drives the external clock sync.
+  // BLE MIDI IN — drain parsed bytes and forward to DIN + USB + clock.
+  bleMidiPoll();
+
+  // DIN MIDI THRU — mirrors DIN input to DIN output and USB.
+  // DIN out is a raw byte copy. USB MIDI requires proper packets, so channel-
+  // voice bytes are assembled into complete messages (running-status aware)
+  // before being emitted via writePacket(). System realtime bytes pass through
+  // as single-byte CIN 0x0F packets (their legitimate USB-MIDI form).
+  static uint8_t dinRunStatus = 0;
+  static uint8_t dinMsgBuf[3] = {0, 0, 0};
+  static uint8_t dinMsgLen    = 0;
+  static uint8_t dinMsgNeed   = 0;
   while(Serial2.available()) {
     byte data = Serial2.read();
-    if(data == 0xF8) midiClock.receiveClock();
     Serial1.write(data);
     Serial1.flush();
-    midi.write(data);
+
+    if(data == 0xF8) midiClock.receiveClock();
+
+    // System realtime (0xF8–0xFF): single-byte, forwardable verbatim.
+    if(data >= 0xF8) {
+      midiEventPacket_t pkt = {0x0F, data, 0, 0};
+      midi.writePacket(&pkt);
+      continue;
+    }
+
+    if(data & 0x80) {
+      // System common (0xF0–0xF7): clear running status, don't forward to USB.
+      if(data >= 0xF0) { dinRunStatus = 0; dinMsgLen = 0; continue; }
+      // Channel voice status byte.
+      dinRunStatus = data;
+      dinMsgBuf[0] = data;
+      dinMsgLen    = 1;
+      uint8_t hi   = data & 0xF0;
+      dinMsgNeed   = (hi == 0xC0 || hi == 0xD0) ? 2 : 3;
+    } else {
+      // Data byte.
+      if(dinRunStatus == 0) continue;
+      if(dinMsgLen == 0) {
+        dinMsgBuf[0] = dinRunStatus;
+        dinMsgLen    = 1;
+        uint8_t hi   = dinRunStatus & 0xF0;
+        dinMsgNeed   = (hi == 0xC0 || hi == 0xD0) ? 2 : 3;
+      }
+      dinMsgBuf[dinMsgLen++] = data;
+    }
+
+    if(dinMsgLen >= dinMsgNeed) {
+      uint8_t cin = (dinMsgBuf[0] & 0xF0) >> 4;
+      midiEventPacket_t pkt = { cin, dinMsgBuf[0], dinMsgBuf[1], dinMsgBuf[2] };
+      midi.writePacket(&pkt);
+      dinMsgLen = 0;  // ready for next (possibly running-status) message
+    }
   }
 
   // USB MIDI IN — mirror to DIN output.

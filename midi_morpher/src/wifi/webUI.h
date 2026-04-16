@@ -228,17 +228,24 @@ const MODES=[
   "LFO Sine","LFO Sine L","LFO Tri","LFO Tri L","LFO Sq","LFO Sq L",
   "Step","Step Latch","Step Inv","Step Inv L",
   "Random","Random L","Random Inv","Random Inv L",
-  "Helix Snap","QC Scene","Fractal Scene","Kemper Slot",
-  "Tap Tempo"
+  "Helix Snap","Helix Scrl","QC Scene","QC Scrl",
+  "Fractal Scene","Fractal Scrl","Kemper Slot","Kemper Scrl",
+  "Tap Tempo",
+  "System"
 ];
 // Indices of modulation modes (show ramp sliders)
 const MOD=new Set([4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21]);
 // Indices of latching modes (click-toggle trigger, not hold)
 const LATCHING=new Set([2,5,7,9,11,13,15,17,19,21]);
-const HINT={0:"PC#",3:"Note",22:"1-8",23:"1-8",24:"1-8",25:"1-5",26:"tap"};
+const HINT={0:"PC#",3:"Note",22:"1-8",23:"max",24:"1-8",25:"max",26:"1-8",27:"max",28:"1-5",29:"max",30:"tap"};
 // Max display value per mode (1-indexed for UI). Scene modes have tight bounds;
-// everything else tops out at 128. Tap Tempo has no MIDI number.
-const MAX_VAL={22:8,23:8,24:8,25:5};
+// everything else tops out at 128. Tap Tempo has no MIDI number. System selects
+// from SYS_CMDS (1..N).
+const MAX_VAL={22:8,23:8,24:8,25:8,26:8,27:8,28:5,29:5,31:8};
+const TAP_TEMPO_IDX=30;
+const SYSTEM_IDX=31;
+// Parallel to systemCommands[] in footswitchObject.h — order must match.
+const SYS_CMDS=["Play","Stop","Continue","Record","Pause","Rewind","FFwd","GotoStart"];
 function maxForMode(mi){return MAX_VAL[mi]||128}
 
 // Note-value labels — order must match noteValueNames[] in midiClock.h
@@ -357,8 +364,9 @@ function mkCard(b,i){
   <select id="m${i}"></select>
 </div>
 <div class="fld">
-  <div class="lbl">MIDI # <span class="hint" id="h${i}"></span></div>
-  <input type="number" id="n${i}" min="1" max="${maxForMode(b.modeIndex)}" value="${Math.min(b.midiNumber+1,maxForMode(b.modeIndex))}" ${b.modeIndex===26?'disabled':''}>
+  <div class="lbl"><span id="lb${i}">MIDI #</span> <span class="hint" id="h${i}"></span></div>
+  <input type="number" id="n${i}" min="1" max="${maxForMode(b.modeIndex)}" value="${Math.min(b.midiNumber+1,maxForMode(b.modeIndex))}" ${b.modeIndex===TAP_TEMPO_IDX?'disabled':''} ${b.modeIndex===SYSTEM_IDX?'style="display:none"':''}>
+  <select id="ns${i}" ${b.modeIndex===SYSTEM_IDX?'':'style="display:none"'}></select>
 </div>
 <div class="fld">
   <div class="lbl">Channel</div>
@@ -406,15 +414,30 @@ function mkCard(b,i){
     if(mi===b.modeIndex)o.selected=true;
     ms.appendChild(o);
   });
-  setHint(i,b.modeIndex);
+  // System command dropdown — populated once, shown only in System mode
+  const sysSel=d.querySelector('#ns'+i);
+  SYS_CMDS.forEach((name,ci)=>{
+    const o=document.createElement('option');
+    o.value=ci;o.textContent=name;
+    if(b.modeIndex===SYSTEM_IDX&&ci===b.midiNumber)o.selected=true;
+    sysSel.appendChild(o);
+  });
+  sysSel.onchange=()=>sched(i);
+
+  setHint(i,b.modeIndex,d);
+  setFieldLabel(i,b.modeIndex,d);
   ms.onchange=()=>{
     const mi=+ms.value;
     setHint(i,mi);
+    setFieldLabel(i,mi);
     d.querySelector('#r'+i).classList.toggle('hidden',!MOD.has(mi));
     const nInp=d.querySelector('#n'+i);
+    const isSys=(mi===SYSTEM_IDX);
+    nInp.style.display=isSys?'none':'';
+    sysSel.style.display=isSys?'':'none';
     const mx=maxForMode(mi);
     nInp.max=mx;
-    nInp.disabled=(mi===26);
+    nInp.disabled=(mi===TAP_TEMPO_IDX);
     if(+nInp.value>mx) nInp.value=mx;
     if(+nInp.value<1) nInp.value=1;
     sched(i);
@@ -434,13 +457,14 @@ function mkCard(b,i){
   }
 
   const nInp=d.querySelector('#n'+i);
-  nInp.oninput=()=>sched(i);
+  nInp.oninput=()=>{ setHint(i,+ms.value); sched(i); };
   nInp.onblur=()=>{
     const mx=+nInp.max||128;
     let v=+nInp.value;
     if(isNaN(v)||v<1)v=1;
     if(v>mx)v=mx;
     if(+nInp.value!==v){nInp.value=v;sched(i);}
+    setHint(i,+ms.value);
   };
   cs.onchange=()=>sched(i);
 
@@ -541,13 +565,19 @@ async function applyBtn(i){
   const dVal=dSync
     ? CLOCK_SYNC_FLAG+(+document.getElementById('dnn'+i).value)
     : +document.getElementById('dn'+i).value;
-  const mx=maxForMode(mi);
-  let n=+document.getElementById('n'+i).value;
-  if(isNaN(n)||n<1)n=1;
-  if(n>mx)n=mx;
+  let midiN;
+  if(mi===SYSTEM_IDX){
+    midiN=+document.getElementById('ns'+i).value;
+  } else {
+    const mx=maxForMode(mi);
+    let n=+document.getElementById('n'+i).value;
+    if(isNaN(n)||n<1)n=1;
+    if(n>mx)n=mx;
+    midiN=n-1;
+  }
   await post('/api/button/'+i,{
     modeIndex:mi,
-    midiNumber:n-1,
+    midiNumber:midiN,
     fsChannel:+document.getElementById('c'+i).value,
     rampUpMs:uVal,
     rampDownMs:dVal
@@ -558,9 +588,20 @@ async function post(url,data){
   await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
 }
 
-function setHint(i,mi){
-  const el=document.getElementById('h'+i);
-  if(el)el.textContent='('+(HINT[mi]||(MOD.has(mi)?'CC#':'CC#'))+')';
+function setHint(i,mi,root){
+  const scope=root||document;
+  const el=scope.querySelector('#h'+i);
+  if(!el)return;
+  // System mode shows command names directly via the dropdown — no hint needed.
+  if(mi===SYSTEM_IDX){ el.textContent=''; return; }
+  el.textContent='('+(HINT[mi]||'CC#')+')';
+}
+
+function setFieldLabel(i,mi,root){
+  const scope=root||document;
+  const el=scope.querySelector('#lb'+i);
+  if(!el)return;
+  el.textContent=(mi===SYSTEM_IDX)?'Command':'MIDI #';
 }
 
 function fmt(ms){return(ms/1000).toFixed(1)+'s'}

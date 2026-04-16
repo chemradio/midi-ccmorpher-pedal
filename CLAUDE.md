@@ -14,10 +14,11 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 - **Display:** SSD1306 OLED (I2C, 128×64)
 - **Digital pot:** AD5292-BRUZ-20 (SPI, 1024 positions) — drives analog expression output
 - **Controls:** 4 onboard footswitches (FS1–FS4), 2 external footswitches via jack (ExtFS1, ExtFS2), rotary encoder with push button, 2 pots (UP speed, DOWN speed), MS2 latching toggle, LOCK switch, PRESET momentary button
-- **LEDs:** 6 footswitch LEDs (repurposed as preset indicators), 1 activity LED, 1 WiFi status LED, 1 NeoPixel RGB
+- **LEDs:** 6 footswitch LEDs (repurposed as preset indicators), 1 activity LED, 1 tempo LED, 1 NeoPixel RGB
 - **External:** expression pedal in/out jacks
-- **I/O:** mini-TRS MIDI out + in (MIDI Thru), USB-C MIDI out/thru, expression pedal out
+- **I/O:** mini-TRS MIDI out + in (MIDI Thru), USB-C MIDI out/thru, BLE MIDI in/out, expression pedal out
 - **WiFi:** built-in AP mode — SSID "MIDI Morpher", password "midimorpher", UI at 192.168.4.1. Always on except when LOCK switch is engaged.
+- **BLE MIDI:** standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`), advertised as `MIDI Morpher`. Always on — not affected by the LOCK switch. Coexists with the WiFi AP via radio time-slicing.
 
 ### Pin Assignments
 
@@ -41,10 +42,7 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 | 16 | FS4 |
 | 17 | ExtFS1 |
 | 18 | ExtFS1 LED (preset indicator) |
-| 19 | PRESET button (momentary, INPUT_PULLUP) |
-| 20 | Activity LED |
 | 21 | FS4 LED (preset indicator) |
-| 22 | WiFi status LED |
 | 36 | MIDI RX |
 | 38 | Digipot CS (SYNC) |
 | 39 | Digipot SCK |
@@ -52,8 +50,16 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 | 41 | SDA (OLED) |
 | 42 | SCL (OLED) |
 | 43 | MIDI TX |
+| 44 | PRESET button (momentary, INPUT_PULLUP) |
+| 45 | Activity LED (strap, LOW at reset) |
+| 46 | Tempo LED (strap, LOW at reset) |
 | 47 | LOCK switch |
 | 48 | NeoPixel (onboard RGB) |
+
+**Pin notes:**
+- GPIOs 19/20 are dedicated to native USB D-/D+ and cannot be used as GPIO when USB is active. PRESET/Activity moved off these pins; continuous USB-MIDI traffic previously caused phantom button bounces.
+- GPIOs 33–37 are reserved for octal PSRAM on the N16R8 module — never use.
+- GPIOs 45, 46 are strapping pins but default LOW at reset, compatible with standard LEDs wired cathode→resistor→GND.
 
 ### AD5292-BRUZ-20 SPI Details
 
@@ -94,6 +100,7 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 24. Quad Cortex Scenes (CC43, values 0–7)
 25. Fractal Scenes (CC34, values 0–7)
 26. Kemper Slots (CC50–CC54, value 1 — encoder picks CC number)
+27. Tap Tempo (no MIDI output — press updates internal `midiClock.bpm` via `receiveTap()`)
 
 ---
 
@@ -118,13 +125,17 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 
 ## Modulation Engine Behavior
 
-- **RAMPER:** exponential curve, CC 0→127 on press. On release (momentary), ramps back down to 0 gradually using the DOWN pot speed — does not snap. Latching holds until next press, then ramps back down.
+- **RAMPER:** exponential curve (`SHAPE_EXP`), CC 0→127 on press. On release (momentary), ramps back down to 0 gradually using the DOWN pot speed — does not snap. Latching holds until next press, then ramps back down.
 - **RAMPER Inverted:** resting position is 127, not 0. Same gradual return logic applies in reverse.
-- **STEPPER:** same as RAMPER but in discrete steps for a quantized/robotic feel. On release/next press, steps back down using DOWN pot speed.
+- **STEPPER:** linear curve (`SHAPE_LINEAR`), moves in discrete quantized steps. Return uses the DOWN pot speed.
 - **STEPPER Inverted:** resting position is 127. Same gradual return logic applies in reverse.
-- **RANDOM STEPPER:** steps to random CC values continuously; does not stop at 127. Return behavior follows the same proportional speed rule.
-- **LFO:** continuous 0–127–0 sweep. Wave types: sine, triangle, square. UP pot controls rise speed, DOWN pot controls descent. Momentary: gradually return to 0 on release. Latching: continues until next press, then gradually returns to 0.
+- **RANDOM STEPPER:** linear curve. Steps to random CC values continuously; does not stop at 127. Return behavior follows the same proportional speed rule.
+- **LFO:** continuous 0–127–0 sweep. Wave types: sine (`SHAPE_SINE`, raised-cosine), triangle (`SHAPE_LINEAR`), square (`SHAPE_SQUARE`). UP pot controls rise speed, DOWN pot controls descent. Momentary: gradually return to 0 on release. Latching: continues until next press, then gradually returns to 0.
 - **UP/DOWN pots:** control modulation speed for the currently selected footswitch only.
+
+### Shared modulator — per-press sync
+
+There is one `MidiCCModulator` shared by all 6 footswitches (`PedalState::modulator`). On every press, `FSButton::_applyPressState` must sync `modType`, `latching`, `rampShape`, `restingHigh`, ramp times, channel, and CC number from the button's `modMode`. Without this, `rampShape` and `restingHigh` would only update on mode-cycle/preset-load, causing e.g. LFO Tri on FS2 to inherit `SHAPE_SINE` from a previously configured LFO Sine on FS1.
 
 ### Proportional Return Speed
 
@@ -141,6 +152,17 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 - **Hold FS + turn encoder (basic modes):** selects PC/CC/Note number.
 - **Hold FS + turn pots:** adjusts UP and DOWN modulation speed for that footswitch.
 - **LOCK switch:** disables encoder and pot input; stops WiFi AP. Preset loading still works when locked; saving does not.
+
+### Encoder acceleration
+
+`handleEncoder` multiplies `delta` by a time-based factor for CC/PC/Note selection (range 0–127):
+
+- dt < 15 ms → ×8
+- dt < 30 ms → ×4
+- dt < 60 ms → ×2
+- else → ×1
+
+Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel select intentionally skip acceleration because their ranges are too small to accelerate cleanly.
 
 ---
 
@@ -173,6 +195,19 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 ## MIDI Thru
 
 - mini-TRS MIDI input acts as MIDI Thru — passes incoming MIDI through to output for daisy-chaining.
+- In the main loop, while reading DIN-MIDI bytes and before forwarding, `0xF8` bytes are tapped into `midiClock.receiveClock()`. USB-MIDI packets with `CIN == 0x0F` and first byte `0xF8` are also forwarded to the clock.
+
+---
+
+## MIDI Clock (`src/clock/midiClock.h`)
+
+- 24 ppqn standard. Internal BPM default `DEFAULT_BPM = 120`, range `BPM_MIN–BPM_MAX` (20–300).
+- **External sync:** incoming `0xF8` bytes set `externalSync = true` and drive BPM from the interval between ticks. If no `0xF8` is received for `CLOCK_SYNC_TIMEOUT_MS = 2000 ms`, `externalSync` flips back to false and internal BPM resumes.
+- **Tap tempo:** `FootswitchMode::TapTempo` calls `midiClock.receiveTap()` on press and the main loop shows the `displayTapTempo(midiClock.bpm)` screen.
+- **Tempo LED:** GPIO 46 pulsed on the beat by `midiClock.tick()`.
+- **Clock-synced ramps:** `rampUpMs` / `rampDownMs` are `uint32_t`. Bit 31 = `CLOCK_SYNC_FLAG`. When set, the low byte is a note-value index into `noteValueNames[]` (17 values: 1/32T … 2/1, incl. dotted & triplets). `midiClock.syncToMs(raw)` resolves it to ms at current BPM. Plain ms values (0–5000) always have bit 31 clear.
+- **Where resolved:** `_applyPressState` resolves sync values to `modulator.rampUpTimeMs` / `rampDownTimeMs` on press. The main loop re-resolves the active button's ramp times each tick so live BPM changes affect in-flight modulation.
+- **Wire loop:** `midiClock.tick()` is called every loop iteration from `midi_morpher.ino`.
 
 ---
 
@@ -181,16 +216,15 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 - AP SSID: `MIDI Morpher`, password: `midimorpher`
 - UI served at `http://192.168.4.1` — dark-themed SPA embedded as PROGMEM string in `src/wifi/webUI.h`
 - **WiFi is always on** at boot. It turns off only when the LOCK switch is engaged, and restarts when LOCK is disengaged. There is no user-toggleable WiFi setting.
-- WiFi LED: GPIO 22, HIGH while AP running
+- **Captive portal:** `DNSServer` catches all DNS queries and redirects to `192.168.4.1`. `webServer.onNotFound(handleCaptivePortal)` returns a 302 to `/` for any unregistered URL, including OS probes like `/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`. Phones/laptops then show a "Sign in to network" prompt that opens the UI automatically.
 
 ### REST API (`src/wifi/webServer.h`)
 
 | Method | Path | Body | Action |
 |--------|------|------|--------|
-| GET | `/api/state` | — | Full state JSON: channel, latching, activePreset, presetDirty, buttons[6] |
+| GET | `/api/state` | — | Full state JSON: channel, activePreset, presetDirty, bpm, externalSync, buttons[6] |
 | GET | `/api/presets` | — | All 6 PresetData slots + activePreset index |
 | POST | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15) |
-| POST | `/api/latching` | `{"latching":true}` | Set modulator latching mode |
 | POST | `/api/button/:id` | `{modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs}` | Update footswitch config |
 | POST | `/api/button/:id/press` | — | Simulate footswitch press (`simulatePress(true,…)`) |
 | POST | `/api/button/:id/release` | — | Simulate footswitch release (`simulatePress(false,…)`) |
@@ -200,19 +234,22 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 
 - `fsChannel` of 255 (0xFF) means "follow global channel"
 - `handleButtonPress` also sets `_webPedal->lastActiveFSIndex = idx` to update the activity LED
+- `rampUpMs` / `rampDownMs` are `uint32_t`: plain ms (0–5000) or `CLOCK_SYNC_FLAG | noteIdx` (bit 31 set). Parsed via `jsonUint`.
+- **Server-side guardrail:** `handlePostButton` clamps `midiNumber` to `btn.modMode.sceneMaxVal` for scene modes (7 or 4), 127 otherwise.
 
 ### Web UI features
 
-- Global MIDI channel dropdown
-- Latching / Momentary toggle
+- Global MIDI channel dropdown, live BPM readout with EXT indicator when slaved to incoming MIDI clock
 - Preset bar (P1–P6 buttons + Save Preset button); active preset highlighted; `● Unsaved` badge when dirty
 - POT1 / POT2 virtual sliders (send CC 20 / CC 21)
 - 6 footswitch cards, each with:
   - Trigger button (hold for momentary modes; click-toggle for latching modes)
-  - Mode dropdown (all 26)
-  - MIDI number input
+  - Mode dropdown (all 27 — 26 MIDI modes + Tap Tempo)
+  - MIDI number input — **1-indexed** (1–128 for CC/PC/Note, 1–8 / 1–5 for scenes); converted to 0-based on POST
+  - Mode-aware input `max` attribute + blur clamp + pre-POST clamp to prevent out-of-range values
+  - Input is disabled when mode is Tap Tempo
   - Channel dropdown (Global or Ch 1–16)
-  - Ramp Up / Ramp Down sliders (visible for modulation modes only)
+  - Ramp Up / Ramp Down: slider (ms) or note-value dropdown, toggled by inline "sync" checkbox. Flexbox label layout places `sync` text and compact toggle right of the "Ramp Up/Down" caption. Visible for modulation modes only.
 
 ---
 
@@ -235,8 +272,10 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 | `src/visual/neopx.h` | NeoPixel RGB modulation indicator |
 | `src/analogInOut/digipot.h` | AD5292 SPI driver |
 | `src/analogInOut/expInput.h` | Expression pedal input |
-| `src/wifi/webServer.h` | WiFi AP, route registration, all REST handlers |
+| `src/wifi/webServer.h` | WiFi AP, DNS catch-all, captive-portal redirect, route registration, all REST handlers |
 | `src/wifi/webUI.h` | Embedded HTML/CSS/JS SPA (PROGMEM) |
+| `src/clock/midiClock.h` | MIDI Clock (24 ppqn), internal BPM, external sync, tap tempo, `syncToMs()`, tempo LED |
+| `src/ble/bleMidi.h` | BLE MIDI transport (NimBLE-Arduino): GATT server, TX encoding, RX ring buffer + `bleMidiPoll()` forwarder |
 
 ---
 
@@ -249,6 +288,7 @@ External libraries (install via Arduino Library Manager):
 | Adafruit GFX Library | 1.11.0 |
 | Adafruit SSD1306 | 2.5.0 |
 | Adafruit NeoPixel | 1.12.0 |
+| NimBLE-Arduino | 2.0.0 |
 
 Built-in with ESP32 Arduino core (no install needed): `SPI.h`, `Wire.h`, `Preferences.h`, `USB.h`, `USBMIDI.h`, `WebServer.h`, `WiFi.h`.
 
