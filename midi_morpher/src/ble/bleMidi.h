@@ -94,21 +94,58 @@ inline void bleMidiSendSysEx(const uint8_t *data, uint8_t n) {
 }
 
 // ── RX callback — parses BLE-MIDI, pushes raw MIDI bytes to the ring ────────
-// Called in the NimBLE task. Keeps logic minimal; main loop does the forward.
+// Called in the NimBLE task context. Uses a state machine to correctly
+// distinguish BLE-MIDI timestamp bytes from MIDI status bytes, handles
+// running status within a packet, and passes SysEx through intact.
 inline void bleMidiParseIncoming(const uint8_t *data, size_t len) {
   if(len < 3) return;                       // header + ts + ≥1 MIDI byte
-  // data[0] = header, data[1] = first timestamp. Skip both.
-  size_t i = 2;
+
+  static bool inSysEx = false;              // persists across BLE packets (SysEx can span)
+  uint8_t runSt   = 0;                      // running status (per-packet)
+  uint8_t dataRem = 0;                      // data bytes still needed for current msg
+  bool    wantTs  = true;                    // expecting a timestamp byte next
+
+  size_t i = 1;                              // skip header (data[0])
   while(i < len) {
     uint8_t b = data[i++];
-    if(b & 0x80) {
-      // Realtime passes through unchanged.
-      if(b >= 0xF8) { bleMidiRxPush(b); continue; }
-      // If the *next* byte also has its status bit set (and isn't realtime),
-      // the current byte was a timestamp delimiter — drop it.
-      if(i < len && (data[i] & 0x80) && data[i] < 0xF8) continue;
+
+    // System realtime (0xF8–0xFF): pass through in any state.
+    if(b >= 0xF8) { bleMidiRxPush(b); continue; }
+
+    // ── Inside SysEx ──────────────────────────────────────────────────────────
+    if(inSysEx) {
+      if(b == 0xF7)               { bleMidiRxPush(b); inSysEx = false; wantTs = true; continue; }
+      if((b & 0x80) && i < len
+         && data[i] == 0xF7)        continue;          // timestamp before F7 — skip
+      if(!(b & 0x80))               bleMidiRxPush(b);  // SysEx data byte
+      continue;
     }
-    bleMidiRxPush(b);
+
+    // ── Timestamp consumption ─────────────────────────────────────────────────
+    if(wantTs) {
+      if(b & 0x80) { wantTs = false; continue; }       // skip timestamp
+      continue;                                         // bit-7-clear when expecting ts → malformed
+    }
+
+    // ── MIDI status or data ───────────────────────────────────────────────────
+    if(b & 0x80) {
+      if(b == 0xF0)  { bleMidiRxPush(b); inSysEx = true; runSt = 0; continue; }
+      if(b >= 0xF0)  { bleMidiRxPush(b); runSt = 0; dataRem = 0; wantTs = true; continue; }
+      // Channel voice status byte
+      runSt = b;
+      bleMidiRxPush(b);
+      uint8_t hi = b & 0xF0;
+      dataRem = (hi == 0xC0 || hi == 0xD0) ? 1 : 2;
+    } else {
+      // Data byte (may be running-status)
+      if(runSt == 0) continue;                          // orphaned — skip
+      bleMidiRxPush(b);
+      if(dataRem == 0) {                                // running-status: re-derive count
+        uint8_t hi = runSt & 0xF0;
+        dataRem = (hi == 0xC0 || hi == 0xD0) ? 1 : 2;
+      }
+      if(--dataRem == 0) wantTs = true;                 // message complete
+    }
   }
 }
 
@@ -123,8 +160,11 @@ public:
 
 class BleMidiServerCallbacks : public NimBLEServerCallbacks {
 public:
-  void onConnect(NimBLEServer *, NimBLEConnInfo &) override {
+  void onConnect(NimBLEServer *srv, NimBLEConnInfo &info) override {
     bleMidiConnected = true;
+    // Request 7.5–15 ms connection interval for low-latency MIDI.
+    // (min 6×1.25=7.5ms, max 12×1.25=15ms, latency 0, timeout 2s)
+    srv->updateConnParams(info.getConnHandle(), 6, 12, 0, 200);
   }
   void onDisconnect(NimBLEServer *, NimBLEConnInfo &, int) override {
     bleMidiConnected = false;
@@ -135,7 +175,7 @@ public:
 // ── Init ──────────────────────────────────────────────────────────────────────
 inline void initBleMidi() {
   NimBLEDevice::init(BLE_DEVICE_NAME);
-  NimBLEDevice::setPower(ESP_PWR_LVL_P9);
+  NimBLEDevice::setPower(9);              // +9 dBm (NimBLE 2.x takes dBm, not enum)
 
   bleMidiServer = NimBLEDevice::createServer();
   bleMidiServer->setCallbacks(new BleMidiServerCallbacks());

@@ -15,6 +15,13 @@ struct PedalState
     int8_t channelSelectIdx = -1;     // which button is being edited
     int8_t lastActiveFSIndex = -1;    // which footswitch was last pressed (for activity LED)
 
+    // Two-level mode select (category → variant)
+    bool    inModeSelect     = false;
+    uint8_t modeSelectLevel  = 0;     // 0 = category, 1 = variant
+    uint8_t modeSelectCatIdx = 0;
+    uint8_t modeSelectVarIdx = 0;
+    int8_t  modeSelectFSIdx  = -1;
+
     unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
     MidiCCModulator modulator;

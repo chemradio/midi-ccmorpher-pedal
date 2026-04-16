@@ -180,6 +180,34 @@ inline constexpr ModeInfo modes[] = {
 
 inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]);
 
+// ── Mode categories (for two-level encoder selection) ────────────────────────
+
+struct ModeCategory {
+  const char *name;
+  uint8_t firstIdx;  // first index into modes[]
+  uint8_t count;     // number of modes in this category
+};
+
+inline constexpr ModeCategory modeCategories[] = {
+  { "Basic",   0,  4 },
+  { "Ramper",  4,  4 },
+  { "LFO",    8,  6 },
+  { "Stepper", 14, 4 },
+  { "Random",  18, 4 },
+  { "Scenes",  22, 8 },
+  { "Utility", 30, 2 },
+};
+inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]);
+
+inline uint8_t categoryForModeIndex(uint8_t modeIdx) {
+  for(uint8_t i = 0; i < NUM_CATEGORIES; i++) {
+    if(modeIdx >= modeCategories[i].firstIdx &&
+       modeIdx < modeCategories[i].firstIdx + modeCategories[i].count)
+      return i;
+  }
+  return 0;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 inline ModulationType getModulationType(FootswitchMode mode) {

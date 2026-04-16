@@ -19,7 +19,8 @@ inline void handleEncoderButton(PedalState &pedal,
                                  void (*displayModeChange)(FSButton &),
                                  MidiCCModulator &modulator,
                                  void (*displayLockedMessage)(String),
-                                 void (*displayFSChannel)(FSButton &)) {
+                                 void (*displayFSChannel)(FSButton &),
+                                 void (*displayModeSelect)(const char *, uint8_t, uint8_t, bool)) {
   bool reading = digitalRead(encBtn.pin);
   unsigned long now = millis();
 
@@ -30,7 +31,6 @@ inline void handleEncoderButton(PedalState &pedal,
     encBtn.lastDebounce = now;
 
     if(pedal.inChannelSelect) {
-      // Exit channel-select: show the normal FS press screen
       pedal.inChannelSelect = false;
       markStateDirty();
       displayModeChange(pedal.buttons[pedal.channelSelectIdx]);
@@ -38,14 +38,41 @@ inline void handleEncoderButton(PedalState &pedal,
     }
 
     if(!encBtnHandled) {
-      // Short tap → cycle footswitch mode
-      if(pedal.settingsLocked) { displayLockedMessage("encBtn"); return; }
-      int8_t activeIdx = pedal.getActiveButtonIndex();
-      if(activeIdx >= 0) {
-        FSButton &btn = pedal.buttons[activeIdx];
-        btn.toggleFootswitchMode(modulator);
-        markStateDirty();
-        displayModeChange(btn);
+      if(pedal.inModeSelect) {
+        // ── Mode-select state machine ────────────────────────────────────────
+        if(pedal.modeSelectLevel == 0) {
+          // Drill into variant select
+          pedal.modeSelectLevel = 1;
+          const ModeCategory &cat = modeCategories[pedal.modeSelectCatIdx];
+          FSButton &btn = pedal.buttons[pedal.modeSelectFSIdx];
+          // If current mode is already in this category, start at that variant
+          if(btn.modeIndex >= cat.firstIdx && btn.modeIndex < cat.firstIdx + cat.count)
+            pedal.modeSelectVarIdx = btn.modeIndex - cat.firstIdx;
+          else
+            pedal.modeSelectVarIdx = 0;
+          displayModeSelect(btn.name, pedal.modeSelectCatIdx, pedal.modeSelectVarIdx, true);
+        } else {
+          // Confirm — apply the selected mode
+          const ModeCategory &cat = modeCategories[pedal.modeSelectCatIdx];
+          uint8_t newModeIdx = cat.firstIdx + pedal.modeSelectVarIdx;
+          FSButton &btn = pedal.buttons[pedal.modeSelectFSIdx];
+          applyModeIndex(btn, newModeIdx, &modulator);
+          markStateDirty();
+          pedal.inModeSelect = false;
+          displayModeChange(btn);
+        }
+      } else {
+        // ── Enter mode select ────────────────────────────────────────────────
+        if(pedal.settingsLocked) { displayLockedMessage("encBtn"); return; }
+        int8_t activeIdx = pedal.getActiveButtonIndex();
+        if(activeIdx >= 0) {
+          pedal.inModeSelect     = true;
+          pedal.modeSelectLevel  = 0;
+          pedal.modeSelectFSIdx  = activeIdx;
+          FSButton &btn = pedal.buttons[activeIdx];
+          pedal.modeSelectCatIdx = categoryForModeIndex(btn.modeIndex);
+          displayModeSelect(btn.name, pedal.modeSelectCatIdx, 0, false);
+        }
       }
     }
     return;
@@ -62,7 +89,9 @@ inline void handleEncoderButton(PedalState &pedal,
   }
 
   // ── Held — poll for long-press threshold ───────────────────────────────────
-  if(reading == LOW && encBtnPressing && !encBtnHandled && !pedal.inChannelSelect) {
+  // Skip if already in channel-select or mode-select.
+  if(reading == LOW && encBtnPressing && !encBtnHandled
+     && !pedal.inChannelSelect && !pedal.inModeSelect) {
     int8_t activeIdx = pedal.getActiveButtonIndex();
     if(activeIdx >= 0 && (now - encBtnPressStart) >= CHANNEL_SELECT_HOLD_MS) {
       if(pedal.settingsLocked) { displayLockedMessage("encBtn"); encBtnHandled = true; return; }

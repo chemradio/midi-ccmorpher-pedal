@@ -293,6 +293,38 @@ inline void handlePresetSave(int idx) {
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
+inline void handlePostBpm() {
+    addCORS();
+    int b = jsonInt(webServer.arg("plain"), "bpm");
+    if(b < (int)BPM_MIN || b > (int)BPM_MAX) {
+        webServer.send(400, F("application/json"), F("{\"error\":\"bad bpm\"}"));
+        return;
+    }
+    midiClock.setBpm((float)b);
+    midiClock.externalSync = false;   // manual BPM overrides external sync
+    webServer.send(200, F("application/json"), F("{\"ok\":true}"));
+}
+
+inline String buildPollJson() {
+    String j;
+    j.reserve(120);
+    j  = F("{\"bpm\":");
+    j += (int)midiClock.bpm;
+    j += F(",\"externalSync\":");
+    j += midiClock.externalSync ? F("true") : F("false");
+    j += F(",\"activePreset\":");
+    j += activePreset;
+    j += F(",\"presetDirty\":");
+    j += presetDirty ? F("true") : F("false");
+    j += '}';
+    return j;
+}
+
+inline void handleGetPoll() {
+    addCORS();
+    webServer.send(200, F("application/json"), buildPollJson());
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 inline void initWebServer(PedalState &pedal) {
     _webPedal = &pedal;
@@ -303,6 +335,10 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on("/api/presets",   HTTP_OPTIONS, handleOPTIONS);
     webServer.on("/api/channel",   HTTP_POST, handlePostChannel);
     webServer.on("/api/channel",   HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/bpm",       HTTP_POST, handlePostBpm);
+    webServer.on("/api/bpm",       HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/poll",      HTTP_GET,  handleGetPoll);
+    webServer.on("/api/poll",      HTTP_OPTIONS, handleOPTIONS);
     webServer.on("/api/pot",       HTTP_POST, handlePostPot);
     webServer.on("/api/pot",       HTTP_OPTIONS, handleOPTIONS);
 

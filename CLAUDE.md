@@ -228,6 +228,8 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 | POST | `/api/button/:id` | `{modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs}` | Update footswitch config |
 | POST | `/api/button/:id/press` | — | Simulate footswitch press (`simulatePress(true,…)`) |
 | POST | `/api/button/:id/release` | — | Simulate footswitch release (`simulatePress(false,…)`) |
+| POST | `/api/bpm` | `{"bpm":120}` | Set internal BPM (20–300); clears external sync |
+| GET | `/api/poll` | — | Lightweight poll: `{bpm, externalSync, activePreset, presetDirty}` |
 | POST | `/api/pot` | `{"id":0,"value":64}` | Send CC 20 (id=0) or CC 21 (id=1) directly |
 | POST | `/api/preset/load/:id` | — | `applyPreset(id, pedal)` — apply preset live |
 | POST | `/api/preset/save/:id` | — | `saveCurrentPreset(pedal)` — write to NVS; blocked when locked |
@@ -239,17 +241,18 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 
 ### Web UI features
 
-- Global MIDI channel dropdown, live BPM readout with EXT indicator when slaved to incoming MIDI clock
-- Preset bar (P1–P6 buttons + Save Preset button); active preset highlighted; `● Unsaved` badge when dirty
+- Global MIDI channel dropdown, **editable BPM** (number input + nudge buttons) with EXT indicator when slaved to incoming MIDI clock; BPM input disabled during external sync
+- **Auto-polling** (2 s interval via `GET /api/poll`): keeps BPM, external sync, preset dirty, and active preset in sync with hardware changes
+- Preset bar (P1–P6 buttons + Save button); active preset highlighted; `● Unsaved` badge when dirty
 - POT1 / POT2 virtual sliders (send CC 20 / CC 21)
 - 6 footswitch cards, each with:
-  - Trigger button (hold for momentary modes; click-toggle for latching modes)
-  - Mode dropdown (all 27 — 26 MIDI modes + Tap Tempo)
+  - Full-width trigger button at bottom (hold for momentary modes; click-toggle for latching; mouseleave auto-releases momentary)
+  - Mode dropdown with `<optgroup>` categories (Basic, Ramper, LFO, Stepper, Random, Scenes, Utility)
   - MIDI number input — **1-indexed** (1–128 for CC/PC/Note, 1–8 / 1–5 for scenes); converted to 0-based on POST
   - Mode-aware input `max` attribute + blur clamp + pre-POST clamp to prevent out-of-range values
   - Input is disabled when mode is Tap Tempo
   - Channel dropdown (Global or Ch 1–16)
-  - Ramp Up / Ramp Down: slider (ms) or note-value dropdown, toggled by inline "sync" checkbox. Flexbox label layout places `sync` text and compact toggle right of the "Ramp Up/Down" caption. Visible for modulation modes only.
+  - Ramp Up / Ramp Down: slider (ms) or note-value dropdown, toggled by inline "sync" checkbox. Visible for modulation modes only.
 
 ---
 

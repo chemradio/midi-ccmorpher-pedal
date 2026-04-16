@@ -157,6 +157,7 @@ void resetDisplayTimeout(PedalState &pedal) {
      now - lastInteraction > displayTimeout) {
     lastInteraction = now;
     displayMode = DISPLAY_DEFAULT;
+    pedal.inModeSelect = false;   // cancel mode select on timeout
     displayHomeScreen(pedal);
   }
 }
@@ -367,6 +368,54 @@ void displayMidiChannel(uint8_t channel) {
   display.setTextSize(3);
   display.setCursor(0, 14);
   display.print(channel + 1); // display as 1–16
+
+  display.display();
+}
+
+// Two-level mode selector: category (level 0) or variant within category (level 1).
+void displayModeSelectScreen(const char *fsName, uint8_t catIdx, uint8_t varIdx, bool variantLevel) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(fsName);
+
+  if(!variantLevel) {
+    // ── Category select ──────────────────────────────────────────────────────
+    display.setCursor(0, 14);
+    display.print(F("Category:"));
+
+    const char *catName = modeCategories[catIdx].name;
+    display.setTextSize(2);
+    display.setCursor(0, 30);
+    display.print(catName);
+
+    display.setTextSize(1);
+    display.setCursor(0, 56);
+    display.print(F("Scroll / Press=OK"));
+  } else {
+    // ── Variant select ───────────────────────────────────────────────────────
+    display.print(F("  "));
+    display.print(modeCategories[catIdx].name);
+
+    display.setCursor(0, 14);
+    display.print(F("Mode:"));
+
+    uint8_t modeIdx = modeCategories[catIdx].firstIdx + varIdx;
+    const char *modeName = modes[modeIdx].name;
+    bool big = strlen(modeName) <= 10;
+    display.setTextSize(big ? 2 : 1);
+    display.setCursor(0, 30);
+    display.print(modeName);
+
+    display.setTextSize(1);
+    display.setCursor(0, 56);
+    display.print(F("Scroll / Press=Set"));
+  }
 
   display.display();
 }
