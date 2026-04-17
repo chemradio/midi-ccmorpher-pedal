@@ -1,4 +1,4 @@
-#include "src/analogInOut/digipot.h"
+#include "src/analogInOut/expInput.h"
 #include "src/ble/bleMidi.h"
 #include "src/clock/midiClock.h"
 #include "src/config.h"
@@ -44,7 +44,7 @@ void setup() {
     while(1) delay(1000);
   }
 
-  digipotSetup();
+  initExpInput();
   initToggles(pedal);
   pedal.initButtons();
   initEncoder();
@@ -124,7 +124,7 @@ void loop() {
   updateActivityLed(pedal);
 
   updateNeoPixel(pedal.modulator.currentValue, analogPots);
-  setDigipotFromMidi(pedal.modulator.currentValue);
+  handleExpInput(pedal);
   resetDisplayTimeout(pedal);
 
   handleWebServer(pedal);
