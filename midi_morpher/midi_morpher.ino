@@ -5,7 +5,7 @@
 #include "src/controls/encoder.h"
 #include "src/controls/encoderButton.h"
 #include "src/controls/pots.h"
-#include "src/controls/toggles.h"
+#include "src/menu/mainMenu.h"
 #include "src/midiOut.h"
 #include "src/pedalState.h"
 #include "src/statePersistance.h"
@@ -45,7 +45,6 @@ void setup() {
   }
 
   initExpInput();
-  initToggles(pedal);
   pedal.initButtons();
   initEncoder();
   initEncoderButton();
@@ -59,8 +58,10 @@ void setup() {
   pinMode(TEMPO_LED_PIN, OUTPUT);
   digitalWrite(TEMPO_LED_PIN, LOW);
 
-  // Load all presets from NVS and apply the active one
+  // Load presets + global settings, then apply global settings to live state
   loadAllPresets(pedal);
+  loadGlobalSettings(pedal);
+  applyGlobalSettings(pedal);
 
   initWebServer(pedal);
   initBleMidi();
@@ -74,6 +75,7 @@ void setup() {
 }
 
 void loop() {
+  midiClock.ledEnabled = pedal.globalSettings.tempoLedEnabled;
   midiClock.tick();
   pedal.modulator.update();
 
@@ -102,13 +104,6 @@ void loop() {
     }
   }
 
-  for(auto &tgl : toggles) {
-    bool toggleChanged = handleToggleChange(tgl, pedal, displayLockedMessage, displayLockChange);
-    if(toggleChanged) {
-      displayHomeScreen(pedal);
-    }
-  }
-
   for(auto &pot : analogPots) {
     handleAnalogPot(pot, pedal, displayPotValue, displayLockedMessage);
   }
@@ -123,52 +118,42 @@ void loop() {
   updatePresetLEDs(pedal);
   updateActivityLed(pedal);
 
-  updateNeoPixel(pedal.modulator.currentValue, analogPots);
+  updateNeoPixel(pedal.modulator.currentValue, analogPots, pedal.globalSettings.neoPixelEnabled);
   handleExpInput(pedal);
   resetDisplayTimeout(pedal);
 
   handleWebServer(pedal);
 
-  // BLE MIDI IN — drain parsed bytes and forward to DIN + USB + clock.
-  bleMidiPoll();
+  // BLE MIDI IN — drain parsed bytes, forward per routing flags.
+  bleMidiPoll(pedal.globalSettings.routingFlags);
 
-  // DIN MIDI THRU — mirrors DIN input to DIN output, USB, and BLE.
-  // DIN out is a raw byte copy. USB MIDI requires proper packets, so channel-
-  // voice bytes are assembled into complete messages (running-status aware)
-  // before being emitted via writePacket(). System realtime bytes pass through
-  // as single-byte CIN 0x0F packets (their legitimate USB-MIDI form).
-  // BLE receives fully assembled messages via bleMidiSendBytes().
+  // DIN MIDI THRU — DIN→DIN always on; DIN→USB and DIN→BLE gated by routing flags.
   static uint8_t dinRunStatus = 0;
   static uint8_t dinMsgBuf[3] = {0, 0, 0};
   static uint8_t dinMsgLen    = 0;
   static uint8_t dinMsgNeed   = 0;
+  const uint8_t  rf           = pedal.globalSettings.routingFlags;
   while(Serial2.available()) {
     byte data = Serial2.read();
-    Serial1.write(data);
+    Serial1.write(data);  // DIN→DIN always
     Serial1.flush();
 
     if(data == 0xF8) midiClock.receiveClock();
 
-    // System realtime (0xF8–0xFF): single-byte, forwardable verbatim.
     if(data >= 0xF8) {
-      midiEventPacket_t pkt = {0x0F, data, 0, 0};
-      midi.writePacket(&pkt);
-      uint8_t rt = data;
-      bleMidiSendBytes(&rt, 1);
+      if(rf & ROUTE_DIN_USB) { midiEventPacket_t pkt = {0x0F, data, 0, 0}; midi.writePacket(&pkt); }
+      if(rf & ROUTE_DIN_BLE) { uint8_t rt = data; bleMidiSendBytes(&rt, 1); }
       continue;
     }
 
     if(data & 0x80) {
-      // System common (0xF0–0xF7): clear running status, don't forward to USB/BLE.
       if(data >= 0xF0) { dinRunStatus = 0; dinMsgLen = 0; continue; }
-      // Channel voice status byte.
       dinRunStatus = data;
       dinMsgBuf[0] = data;
       dinMsgLen    = 1;
       uint8_t hi   = data & 0xF0;
       dinMsgNeed   = (hi == 0xC0 || hi == 0xD0) ? 2 : 3;
     } else {
-      // Data byte.
       if(dinRunStatus == 0) continue;
       if(dinMsgLen == 0) {
         dinMsgBuf[0] = dinRunStatus;
@@ -180,17 +165,17 @@ void loop() {
     }
 
     if(dinMsgLen >= dinMsgNeed) {
-      uint8_t cin = (dinMsgBuf[0] & 0xF0) >> 4;
-      midiEventPacket_t pkt = { cin, dinMsgBuf[0], dinMsgBuf[1], dinMsgBuf[2] };
-      midi.writePacket(&pkt);
-      bleMidiSendBytes(dinMsgBuf, dinMsgNeed);
-      dinMsgLen = 0;  // ready for next (possibly running-status) message
+      if(rf & ROUTE_DIN_USB) {
+        uint8_t cin = (dinMsgBuf[0] & 0xF0) >> 4;
+        midiEventPacket_t pkt = { cin, dinMsgBuf[0], dinMsgBuf[1], dinMsgBuf[2] };
+        midi.writePacket(&pkt);
+      }
+      if(rf & ROUTE_DIN_BLE) bleMidiSendBytes(dinMsgBuf, dinMsgNeed);
+      dinMsgLen = 0;
     }
   }
 
-  // USB MIDI IN — mirror to DIN output and BLE.
-  // CIN 0x0F = single-byte system realtime; if the first byte is 0xF8 feed
-  // it to the clock engine.
+  // USB MIDI IN — USB→DIN and USB→BLE gated by routing flags.
   if(midi.readPacket(&midi_packet_in)) {
     midi_code_index_number_t code_index_num = MIDI_EP_HEADER_CIN_GET(midi_packet_in.header);
     int8_t midix_size = cin_to_midix_size[code_index_num];
@@ -199,11 +184,11 @@ void loop() {
     }
     if(code_index_num >= 0x2) {
       uint8_t *midiBytes = ((uint8_t *)&midi_packet_in) + 1;
-      for(int i = 0; i < midix_size; i++) {
-        Serial1.write(midiBytes[i]);
+      if(rf & ROUTE_USB_DIN) {
+        for(int i = 0; i < midix_size; i++) Serial1.write(midiBytes[i]);
+        Serial1.flush();
       }
-      Serial1.flush();
-      if(midix_size > 0 && midix_size <= 3) {
+      if(midix_size > 0 && midix_size <= 3 && (rf & ROUTE_USB_BLE)) {
         bleMidiSendBytes(midiBytes, (uint8_t)midix_size);
       }
     }

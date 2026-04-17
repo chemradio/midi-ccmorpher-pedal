@@ -17,6 +17,7 @@
 #include <USBMIDI.h>
 
 #include "../config.h"
+#include "../globalSettings.h"
 
 extern USBMIDI midi;
 extern "C" bool tud_mounted(void);
@@ -195,25 +196,24 @@ inline void initBleMidi() {
 }
 
 // ── Main-loop drain — forwards received bytes to DIN + USB + clock ──────────
-// Mirrors the DIN→USB forwarder in midi_morpher.ino: channel-voice messages
-// are reassembled (running-status aware) into USB-MIDI packets; system
-// realtime passes through as CIN 0x0F.
-inline void bleMidiPoll() {
+// routingFlags gates BLE→DIN (ROUTE_BLE_DIN) and BLE→USB (ROUTE_BLE_USB).
+inline void bleMidiPoll(uint8_t routingFlags) {
   static uint8_t runStatus = 0;
   static uint8_t msgBuf[3] = {0, 0, 0};
   static uint8_t msgLen    = 0;
   static uint8_t msgNeed   = 0;
 
+  const bool toDin = (routingFlags & ROUTE_BLE_DIN) != 0;
+  const bool toUsb = (routingFlags & ROUTE_BLE_USB) != 0;
+
   uint8_t b;
   while(bleMidiRxPop(b)) {
-    // DIN out — raw byte copy.
-    Serial1.write(b);
+    if(toDin) Serial1.write(b);
 
     if(b == 0xF8) bleMidiOnClockTick();
 
-    // System realtime — single-byte USB packet, doesn't break running status.
     if(b >= 0xF8) {
-      if(tud_mounted()) {
+      if(toUsb && tud_mounted()) {
         midiEventPacket_t pkt = {0x0F, b, 0, 0};
         midi.writePacket(&pkt);
       }
@@ -221,7 +221,6 @@ inline void bleMidiPoll() {
     }
 
     if(b & 0x80) {
-      // System common: don't forward to USB, reset running status.
       if(b >= 0xF0) { runStatus = 0; msgLen = 0; continue; }
       runStatus = b;
       msgBuf[0] = b;
@@ -240,13 +239,13 @@ inline void bleMidiPoll() {
     }
 
     if(msgLen >= msgNeed) {
-      if(tud_mounted()) {
+      if(toUsb && tud_mounted()) {
         uint8_t cin = (msgBuf[0] & 0xF0) >> 4;
         midiEventPacket_t pkt = { cin, msgBuf[0], msgBuf[1], msgBuf[2] };
         midi.writePacket(&pkt);
       }
-      msgLen = 0;  // ready for next (running-status) message
+      msgLen = 0;
     }
   }
-  Serial1.flush();
+  if(toDin) Serial1.flush();
 }

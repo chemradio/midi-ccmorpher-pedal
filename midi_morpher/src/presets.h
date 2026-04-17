@@ -65,26 +65,54 @@ inline void handlePresetButton(PedalState &pedal) {
 // States applied to the active LED:
 //   - Fast blink burst  → recent save (confirmation)
 //   - Slow blink        → presetDirty (unsaved changes)
-//   - Solid on          → clean / saved
+//   - Full on / dim     → depends on ledMode (ON = full, CONSERVATIVE = dim after blink)
 inline void updatePresetLEDs(const PedalState &pedal) {
+    uint8_t mode = pedal.globalSettings.ledMode;
+
+    if(mode == LED_MODE_OFF) {
+        for(int i = 0; i < 6; i++) analogWrite(pedal.buttons[i].ledPin, 0);
+        return;
+    }
+
     unsigned long now = millis();
+
+    // Conservative: track preset changes and drive a full-brightness blink on load.
+    static uint8_t        conservativeLastPreset   = 0xFF;
+    static unsigned long  conservativeFullUntil    = 0;
+    if(activePreset != conservativeLastPreset) {
+        conservativeLastPreset = activePreset;
+        conservativeFullUntil  = now + CONSERVATIVE_BLINK_MS;
+    }
+
     bool activeOn = true;
     if(now < presetSaveBlinkUntil) {
         activeOn = ((now / (PRESET_SAVE_BLINK_MS / 2)) & 1) == 0;
     } else if(presetDirty) {
         activeOn = ((now / (PRESET_DIRTY_BLINK_MS / 2)) & 1) == 0;
     }
+
     for(int i = 0; i < 6; i++) {
-        bool on = (i == (int)activePreset) && activeOn;
-        digitalWrite(pedal.buttons[i].ledPin, on ? HIGH : LOW);
+        if(i != (int)activePreset || !activeOn) {
+            analogWrite(pedal.buttons[i].ledPin, 0);
+            continue;
+        }
+        // Active LED — decide brightness
+        bool inBlink = (now < conservativeFullUntil) || (now < presetSaveBlinkUntil);
+        uint8_t duty = (mode == LED_MODE_CONSERVATIVE && !inBlink)
+                       ? CONSERVATIVE_DIM_DUTY
+                       : 255;
+        analogWrite(pedal.buttons[i].ledPin, duty);
     }
 }
 
 // Drive the activity LED: reflects the logical ledState of the last-pressed footswitch.
 inline void updateActivityLed(const PedalState &pedal) {
-    bool active = false;
-    if(pedal.lastActiveFSIndex >= 0) {
-        active = pedal.buttons[pedal.lastActiveFSIndex].ledState;
+    if(pedal.globalSettings.ledMode == LED_MODE_OFF) {
+        digitalWrite(ACTIVITY_LED_PIN, LOW);
+        return;
     }
+    bool active = false;
+    if(pedal.lastActiveFSIndex >= 0)
+        active = pedal.buttons[pedal.lastActiveFSIndex].ledState;
     digitalWrite(ACTIVITY_LED_PIN, active ? HIGH : LOW);
 }

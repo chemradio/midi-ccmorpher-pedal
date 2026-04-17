@@ -3,6 +3,7 @@
 #include "../footswitches/footswitchObject.h"
 #include "../pedalState.h"
 #include "../statePersistance.h"
+#include "../menu/mainMenu.h"
 
 inline FSButton encBtn = {ENC_BTN, NO_LED_PIN, "Enc BTN", 0};
 
@@ -38,21 +39,24 @@ inline void handleEncoderButton(PedalState &pedal,
     }
 
     if(!encBtnHandled) {
+      // ── Main menu dispatch ─────────────────────────────────────────────────
+      if(pedal.menuState != MenuState::NONE) {
+        handleMenuPress(pedal);
+        return;
+      }
+
       if(pedal.inModeSelect) {
         // ── Mode-select state machine ────────────────────────────────────────
         if(pedal.modeSelectLevel == 0) {
-          // Drill into variant select
           pedal.modeSelectLevel = 1;
           const ModeCategory &cat = modeCategories[pedal.modeSelectCatIdx];
           FSButton &btn = pedal.buttons[pedal.modeSelectFSIdx];
-          // If current mode is already in this category, start at that variant
           if(btn.modeIndex >= cat.firstIdx && btn.modeIndex < cat.firstIdx + cat.count)
             pedal.modeSelectVarIdx = btn.modeIndex - cat.firstIdx;
           else
             pedal.modeSelectVarIdx = 0;
           displayModeSelect(btn.name, pedal.modeSelectCatIdx, pedal.modeSelectVarIdx, true);
         } else {
-          // Confirm — apply the selected mode
           const ModeCategory &cat = modeCategories[pedal.modeSelectCatIdx];
           uint8_t newModeIdx = cat.firstIdx + pedal.modeSelectVarIdx;
           FSButton &btn = pedal.buttons[pedal.modeSelectFSIdx];
@@ -62,16 +66,21 @@ inline void handleEncoderButton(PedalState &pedal,
           displayModeChange(btn);
         }
       } else {
-        // ── Enter mode select ────────────────────────────────────────────────
-        if(pedal.settingsLocked) { displayLockedMessage("encBtn"); return; }
         int8_t activeIdx = pedal.getActiveButtonIndex();
         if(activeIdx >= 0) {
+          // ── Enter mode select ──────────────────────────────────────────────
+          if(pedal.settingsLocked) { displayLockedMessage("encBtn"); return; }
           pedal.inModeSelect     = true;
           pedal.modeSelectLevel  = 0;
           pedal.modeSelectFSIdx  = activeIdx;
           FSButton &btn = pedal.buttons[activeIdx];
           pedal.modeSelectCatIdx = categoryForModeIndex(btn.modeIndex);
           displayModeSelect(btn.name, pedal.modeSelectCatIdx, 0, false);
+        } else if(!pedal.settingsLocked) {
+          // ── Enter main menu ────────────────────────────────────────────────
+          pedal.menuState   = MenuState::ROOT;
+          pedal.menuItemIdx = 0;
+          displayMenuRoot(pedal);
         }
       }
     }
@@ -85,16 +94,46 @@ inline void handleEncoderButton(PedalState &pedal,
     encBtnHandled    = false;
     encBtnPressStart = now;
     encBtn.lastDebounce = now;
+    if(pedal.settingsLocked && pedal.getActiveButtonIndex() < 0) {
+      displayUnlockProgress(0);
+    }
     return;
   }
 
-  // ── Held — poll for long-press threshold ───────────────────────────────────
-  // Skip if already in channel-select or mode-select.
-  if(reading == LOW && encBtnPressing && !encBtnHandled
-     && !pedal.inChannelSelect && !pedal.inModeSelect) {
+  // ── Held — poll for long-press thresholds ─────────────────────────────────
+  if(reading == LOW && encBtnPressing && !encBtnHandled) {
     int8_t activeIdx = pedal.getActiveButtonIndex();
-    if(activeIdx >= 0 && (now - encBtnPressStart) >= CHANNEL_SELECT_HOLD_MS) {
-      if(pedal.settingsLocked) { displayLockedMessage("encBtn"); encBtnHandled = true; return; }
+
+    // Unlock: locked + no FS held + 3 s
+    if(pedal.settingsLocked && activeIdx < 0) {
+      unsigned long held = now - encBtnPressStart;
+      if(held >= UNLOCK_HOLD_MS) {
+        pedal.settingsLocked = false;
+        encBtnHandled        = true;
+        displayLockChange(false);
+      } else {
+        static unsigned long lastProgressUpdate = 0;
+        if(now - lastProgressUpdate > 80) {
+          lastProgressUpdate = now;
+          displayUnlockProgress((uint8_t)(held * 100UL / UNLOCK_HOLD_MS));
+        }
+      }
+      return;
+    }
+
+    // Routing sub-menu exit: long-hold exits back to ROOT
+    if(pedal.menuState == MenuState::ROUTING
+       && (now - encBtnPressStart) >= CHANNEL_SELECT_HOLD_MS) {
+      handleMenuLongPress(pedal);
+      encBtnHandled = true;
+      return;
+    }
+
+    // Per-FS channel select: FS held + long hold
+    if(!pedal.inChannelSelect && !pedal.inModeSelect
+       && pedal.menuState == MenuState::NONE
+       && activeIdx >= 0
+       && (now - encBtnPressStart) >= CHANNEL_SELECT_HOLD_MS) {
       pedal.inChannelSelect  = true;
       pedal.channelSelectIdx = activeIdx;
       encBtnHandled          = true;

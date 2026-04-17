@@ -46,6 +46,8 @@ input[type=range]{-webkit-appearance:none;flex:1;height:3px;background:var(--b);
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--a);cursor:pointer;box-shadow:0 0 6px rgba(0,217,255,.35)}
 .sv2{font-size:.7rem;color:var(--a);min-width:32px;text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 .rw.hd{display:none}
+.gs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:700px){.gs{grid-template-columns:1fr 1fr}}@media(max-width:400px){.gs{grid-template-columns:1fr}}
 footer{text-align:center;padding:24px;font-size:.64rem;color:#333}
 </style></head><body>
 <header><div class="lo"><div class="li">MM</div><div class="lt">MIDI Morpher</div></div><div style="display:flex;align-items:center;gap:8px"><span id="badge" class="bg"></span></div></header>
@@ -53,8 +55,9 @@ footer{text-align:center;padding:24px;font-size:.64rem;color:#333}
 <div class="tb"><div class="tc"><div class="lb">MIDI Channel</div><select id="gch" class="sl"></select></div>
 <div class="tc"><div class="lb">Tempo</div><div class="br"><button class="bb" onclick="nudgeBpm(-1)">&minus;</button><input type="number" id="bpmVal" class="bi" min="20" max="300" value="120"><button class="bb" onclick="nudgeBpm(1)">&plus;</button><span style="font-size:.72rem;color:var(--d)">BPM</span><span id="bpmExt" class="eb">EXT</span></div></div></div>
 <div class="pb"><span class="pl">Preset</span><div id="pbtns"></div><button class="sb" onclick="savePreset()">Save</button></div>
-<div class="pB"><div class="pC"><div class="pk">POT 1 &mdash; CC 20</div><div class="pr"><input type="range" id="pot0" min="0" max="127" value="0" oninput="potMove(0,this.value)"><span class="pv" id="pv0">0</span></div></div>
-<div class="pC"><div class="pk">POT 2 &mdash; CC 21</div><div class="pr"><input type="range" id="pot1" min="0" max="127" value="0" oninput="potMove(1,this.value)"><span class="pv" id="pv1">0</span></div></div></div>
+<div class="pB"><div class="pC"><div class="pk">POT 1 &mdash; <span id="pL0">CC 20</span></div><div class="pr"><input type="range" id="pot0" min="0" max="127" value="0" oninput="potMove(0,this.value)"><span class="pv" id="pv0">0</span></div></div>
+<div class="pC"><div class="pk">POT 2 &mdash; <span id="pL1">CC 21</span></div><div class="pr"><input type="range" id="pot1" min="0" max="127" value="0" oninput="potMove(1,this.value)"><span class="pv" id="pv1">0</span></div></div></div>
+<div class="st">Settings</div><div class="gs"><div class="pC"><div class="pk">LED Mode</div><div class="fd"><select id="gLd" class="sl" onchange="gSave({ledMode:+this.value})"><option value="0">On</option><option value="1">Conservative</option><option value="2">Off</option></select></div></div><div class="pC"><div class="pk">Tempo LED</div><div class="fd" style="display:flex;align-items:center;padding:4px 0"><label class="tg"><input type="checkbox" id="gTL" onchange="gSave({tempoLed:this.checked})"><span class="tt"></span></label></div></div><div class="pC"><div class="pk">NeoPixel</div><div class="fd" style="display:flex;align-items:center;padding:4px 0"><label class="tg"><input type="checkbox" id="gNP" onchange="gSave({neoPixel:this.checked})"><span class="tt"></span></label></div></div><div class="pC"><div class="pk">Screen Off</div><div class="fd"><select id="gTo" class="sl" onchange="gSave({timeoutIdx:+this.value})"><option value="0">2s</option><option value="1">5s</option><option value="2">10s</option><option value="3">Always On</option></select></div></div><div class="pC"><div class="pk">Brightness</div><div class="sr" style="padding:4px 0"><input type="range" id="gBr" min="0" max="100" oninput="gBv.textContent=this.value+'%'" onchange="gSave({brightness:+this.value})"><span class="sv2" id="gBv">78%</span></div></div><div class="pC"><div class="pk">Pot 1 CC <span style="font-size:.6rem;color:#666">(0=Off)</span></div><div class="fd"><input type="number" id="gP1" min="0" max="128" onchange="gSave({pot1CC:+this.value})"></div></div><div class="pC"><div class="pk">Pot 2 CC <span style="font-size:.6rem;color:#666">(0=Off)</span></div><div class="fd"><input type="number" id="gP2" min="0" max="128" onchange="gSave({pot2CC:+this.value})"></div></div><div class="pC"><div class="pk">Exp In CC</div><div class="fd"><input type="number" id="gEC" min="1" max="128" onchange="gSave({expCC:+this.value})"></div></div></div>
 <div class="st">Footswitches</div><div class="gr" id="grid"></div>
 </main><footer>192.168.4.1 | MIDI Morpher</footer>
 <script>
@@ -76,7 +79,11 @@ function mC(){uD=false;bdg.className='bg sd';bdg.textContent='Saved';setTimeout(
 function nudgeBpm(d){var inp=document.getElementById('bpmVal');var v=(parseInt(inp.value)||120)+d;v=Math.max(20,Math.min(300,v));inp.value=v;sBpm(v);}
 function onBI(){clearTimeout(bT);bT=setTimeout(function(){var inp=document.getElementById('bpmVal');var v=parseInt(inp.value);if(isNaN(v))return;v=Math.max(20,Math.min(300,v));inp.value=v;sBpm(v);},600);}
 function sBpm(v){fetch('/api/bpm',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bpm:v})});}
-async function load(){try{var r=await fetch('/api/state');var s=await r.json();ren(s);}catch(e){document.getElementById('grid').innerHTML='<p style="color:#555;padding:20px">Could not load state.</p>';}}
+var gS={};
+async function loadGlobal(){try{var r=await fetch('/api/global');gS=await r.json();applyGS();}catch(e){}}
+function applyGS(){document.getElementById('gLd').value=gS.ledMode||0;document.getElementById('gTL').checked=!!gS.tempoLed;document.getElementById('gNP').checked=!!gS.neoPixel;var br=gS.brightness==null?78:gS.brightness;document.getElementById('gBr').value=br;document.getElementById('gBv').textContent=br+'%';document.getElementById('gTo').value=gS.timeoutIdx||0;var p1=gS.pot1CC==-1?0:(gS.pot1CC||0)+1;var p2=gS.pot2CC==-1?0:(gS.pot2CC||0)+1;document.getElementById('gP1').value=p1;document.getElementById('gP2').value=p2;document.getElementById('gEC').value=(gS.expCC||0)+1;document.getElementById('pL0').textContent=p1?'CC '+p1:'Off';document.getElementById('pL1').textContent=p2?'CC '+p2:'Off';}
+async function gSave(obj){if('pot1CC'in obj)obj.pot1CC=obj.pot1CC>0?obj.pot1CC-1:-1;if('pot2CC'in obj)obj.pot2CC=obj.pot2CC>0?obj.pot2CC-1:-1;if('expCC'in obj)obj.expCC=obj.expCC-1;Object.assign(gS,obj);await post('/api/global',obj);applyGS();}
+async function load(){try{var r=await fetch('/api/state');var s=await r.json();ren(s);loadGlobal();}catch(e){document.getElementById('grid').innerHTML='<p style="color:#555;padding:20px">Could not load state.</p>';}}
 function ren(s){
 aP=s.activePreset||0;
 var g=document.getElementById('gch');g.innerHTML='';

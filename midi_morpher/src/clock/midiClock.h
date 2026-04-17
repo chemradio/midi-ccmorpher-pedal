@@ -38,6 +38,7 @@ inline const float noteValueMul[NUM_NOTE_VALUES] = {
 struct MidiClock {
   float         bpm            = DEFAULT_BPM;
   bool          externalSync   = false;
+  bool          ledEnabled     = true;
   unsigned long tickIntervalUs = (unsigned long)(60000000.0f / (DEFAULT_BPM * 24.0f));
   unsigned long lastTickUs     = 0;
   unsigned long lastExternalMs = 0;
@@ -60,7 +61,7 @@ struct MidiClock {
 
   // Advance beat counter and flash the tempo LED on the downbeat.
   void onPulse() {
-    if(pulseCount == 0) {
+    if(pulseCount == 0 && ledEnabled) {
       digitalWrite(TEMPO_LED_PIN, HIGH);
       ledOnMs = millis();
       if(ledOnMs == 0) ledOnMs = 1;   // 0 is the "LED off" sentinel
@@ -93,7 +94,7 @@ struct MidiClock {
 
     // Tempo LED auto-off after 50 ms.
     if(ledOnMs != 0 && (nowMs - ledOnMs) > 50) {
-      digitalWrite(TEMPO_LED_PIN, LOW);
+      digitalWrite(TEMPO_LED_PIN, LOW); // always off — ledEnabled only gates HIGH
       ledOnMs = 0;
     }
   }

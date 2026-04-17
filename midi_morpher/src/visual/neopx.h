@@ -10,8 +10,9 @@ void initNeoPixel()
     pixel.setBrightness(1); // Adjust brightness (0-255)
 }
 
-void updateNeoPixel(uint8_t midiValue, AnalogPot *pots)
+void updateNeoPixel(uint8_t midiValue, AnalogPot *pots, bool enabled)
 {
+    if(!enabled) { pixel.clear(); pixel.show(); return; }
     uint8_t target = midiValue;
 
     for (int i = 0; i < 2; i++)

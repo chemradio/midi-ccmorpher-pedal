@@ -4,6 +4,7 @@
 #include "../pedalState.h"
 #include "../footswitches/footswitchObject.h"
 #include "../statePersistance.h"
+#include "../menu/mainMenu.h"
 
 // Defined in encoderButton.h — used here to distinguish encoder-button+rotate
 // (MIDI channel) from bare rotate (tempo).
@@ -50,6 +51,12 @@ inline void handleEncoder(PedalState &pedal,
   if(dt < 15)      accelMult = 8;
   else if(dt < 30) accelMult = 4;
   else if(dt < 60) accelMult = 2;
+
+  // ── Main menu ──────────────────────────────────────────────────────────────
+  if(pedal.menuState != MenuState::NONE) {
+    handleMenuRotate(pedal, delta);
+    return;
+  }
 
   // ── Two-level mode select (category / variant) ─────────────────────────────
   if(pedal.inModeSelect) {

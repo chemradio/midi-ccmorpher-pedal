@@ -15,5 +15,5 @@ inline void handleExpInput(PedalState &pedal) {
   uint8_t midiVal = (uint8_t)((expInput.lastValue * 128UL) / 4096);
   if (midiVal == expInput.lastMidiValue) return;
   expInput.lastMidiValue = midiVal;
-  sendMIDI(pedal.midiChannel, false, expInput.midiCCNumber, midiVal);
+  sendMIDI(pedal.midiChannel, false, pedal.globalSettings.expCC, midiVal);
 }

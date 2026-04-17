@@ -78,7 +78,7 @@ inline void handleAnalogPot(
     }
   } else {
     // ── Send CC mode ──────────────────────────────────────────────────────
-    // Default: pot acts as a direct CC controller.
+    if(pot.midiCCNumber == POT_CC_OFF) return;
     uint8_t midiScaled = (uint8_t)((pot.lastValue * 128UL) / 4096);
     if(midiScaled != pot.lastMidiValue) {
       pot.lastMidiValue       = midiScaled;

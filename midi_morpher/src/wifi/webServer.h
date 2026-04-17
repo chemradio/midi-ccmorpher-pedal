@@ -3,6 +3,7 @@
 #include <WebServer.h>
 #include <WiFi.h>
 #include "../clock/midiClock.h"
+#include "../controls/pots.h"
 #include "../footswitches/footswitchObject.h"
 #include "../pedalState.h"
 #include "../statePersistance.h"
@@ -268,8 +269,63 @@ inline void handlePostPot() {
     int id    = jsonInt(body, "id");
     int value = jsonInt(body, "value");
     if(id < 0 || id > 1 || value < 0 || value > 127) { webServer.send(400); return; }
-    uint8_t cc = (id == 0) ? POT1_CC : POT2_CC;
-    sendMIDI(_webPedal->midiChannel, false, cc, (uint8_t)value);
+    uint8_t cc = (id == 0) ? _webPedal->globalSettings.pot1CC
+                           : _webPedal->globalSettings.pot2CC;
+    if(cc != POT_CC_OFF)
+        sendMIDI(_webPedal->midiChannel, false, cc, (uint8_t)value);
+    webServer.send(200, F("application/json"), F("{\"ok\":true}"));
+}
+
+// ── Global settings ────────────────────────────────────────────────────────────
+
+inline String buildGlobalJson() {
+    if(!_webPedal) return F("{}");
+    const GlobalSettings &gs = _webPedal->globalSettings;
+    String j;
+    j.reserve(200);
+    j  = F("{\"ledMode\":");    j += gs.ledMode;
+    j += F(",\"tempoLed\":");   j += gs.tempoLedEnabled ? F("true") : F("false");
+    j += F(",\"neoPixel\":");   j += gs.neoPixelEnabled ? F("true") : F("false");
+    j += F(",\"brightness\":"); j += gs.displayBrightness;
+    j += F(",\"timeoutIdx\":"); j += gs.displayTimeoutIdx;
+    j += F(",\"pot1CC\":");     j += (gs.pot1CC == POT_CC_OFF) ? -1 : (int)gs.pot1CC;
+    j += F(",\"pot2CC\":");     j += (gs.pot2CC == POT_CC_OFF) ? -1 : (int)gs.pot2CC;
+    j += F(",\"expCC\":");      j += gs.expCC;
+    j += F(",\"routing\":");    j += gs.routingFlags;
+    j += '}';
+    return j;
+}
+
+inline void handleGetGlobal() {
+    addCORS();
+    webServer.send(200, F("application/json"), buildGlobalJson());
+}
+
+inline void handlePostGlobal() {
+    addCORS();
+    if(!_webPedal) { webServer.send(500); return; }
+    GlobalSettings &gs = _webPedal->globalSettings;
+    const String &body = webServer.arg("plain");
+    int v; bool b;
+    v = jsonInt(body, "ledMode");
+    if(v >= 0 && v <= 2) gs.ledMode = (uint8_t)v;
+    if(jsonBool(body, "tempoLed", b)) gs.tempoLedEnabled = b;
+    if(jsonBool(body, "neoPixel", b)) gs.neoPixelEnabled = b;
+    v = jsonInt(body, "brightness");
+    if(v >= 0 && v <= 100) gs.displayBrightness = (uint8_t)v;
+    v = jsonInt(body, "timeoutIdx");
+    if(v >= 0 && v < NUM_DISP_TIMEOUTS) gs.displayTimeoutIdx = (uint8_t)v;
+    v = jsonInt(body, "pot1CC");
+    if(v == -1)                  { gs.pot1CC = POT_CC_OFF; analogPots[0].midiCCNumber = POT_CC_OFF; }
+    else if(v >= 0 && v <= 127)  { gs.pot1CC = (uint8_t)v; analogPots[0].midiCCNumber = gs.pot1CC; }
+    v = jsonInt(body, "pot2CC");
+    if(v == -1)                  { gs.pot2CC = POT_CC_OFF; analogPots[1].midiCCNumber = POT_CC_OFF; }
+    else if(v >= 0 && v <= 127)  { gs.pot2CC = (uint8_t)v; analogPots[1].midiCCNumber = gs.pot2CC; }
+    v = jsonInt(body, "expCC");
+    if(v >= 0 && v <= 127) gs.expCC = (uint8_t)v;
+    v = jsonInt(body, "routing");
+    if(v >= 0 && v <= (int)ROUTE_ALL) gs.routingFlags = (uint8_t)v;
+    saveGlobalSettings(*_webPedal);
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
@@ -341,6 +397,9 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on("/api/poll",      HTTP_OPTIONS, handleOPTIONS);
     webServer.on("/api/pot",       HTTP_POST, handlePostPot);
     webServer.on("/api/pot",       HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/global",    HTTP_GET,  handleGetGlobal);
+    webServer.on("/api/global",    HTTP_POST, handlePostGlobal);
+    webServer.on("/api/global",    HTTP_OPTIONS, handleOPTIONS);
 
     // Captive-portal catch-all — any unknown path redirects to the UI root.
     webServer.onNotFound(handleCaptivePortal);

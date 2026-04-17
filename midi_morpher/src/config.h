@@ -34,9 +34,6 @@
 #define POT2_PIN 2 // DOWN speed / CC pot
 #define EXP_IN 12  // Expression pedal input
 
-// ── Toggle switches ───────────────────────────────────────────────────────────
-#define LST_PIN 47 // Lock settings
-
 // ── I2C display (SSD1306 OLED) ────────────────────────────────────────────────
 #define SDA_PIN 41
 #define SCL_PIN 42
@@ -56,7 +53,8 @@
 // ── Timing ────────────────────────────────────────────────────────────────────
 #define DEBOUNCE_DELAY 80          // ms — footswitch & button debounce
 #define DISPLAY_TIMEOUT 2000       // ms — temp screen hold before home screen returns
-#define CHANNEL_SELECT_HOLD_MS 600 // ms — encoder button hold time to enter per-FS channel select
+#define CHANNEL_SELECT_HOLD_MS 600  // ms — encoder button hold time to enter per-FS channel select
+#define UNLOCK_HOLD_MS         3000 // ms — encoder button hold time to unlock settings
 
 // ── Sentinel ──────────────────────────────────────────────────────────────────
 #define NO_LED_PIN 255 // Marker for controls without a status LED

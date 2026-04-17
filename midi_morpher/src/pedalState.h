@@ -1,6 +1,7 @@
 #pragma once
 #include "config.h"
 #include "footswitches/footswitchObject.h"
+#include "globalSettings.h"
 #include "midiCCModulator.h"
 #include "sharedTypes.h"
 
@@ -21,6 +22,14 @@ struct PedalState
     uint8_t modeSelectCatIdx = 0;
     uint8_t modeSelectVarIdx = 0;
     int8_t  modeSelectFSIdx  = -1;
+
+    // Main menu state
+    MenuState menuState      = MenuState::NONE;
+    uint8_t   menuItemIdx    = 0;
+    uint8_t   menuRoutingIdx = 0;   // routing sub-list cursor; also YES/NO in LOCK_CONFIRM
+
+    // Non-preset global settings
+    GlobalSettings globalSettings;
 
     unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;

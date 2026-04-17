@@ -80,7 +80,27 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
     presetDirty  = false;
 }
 
-// Load all presets from NVS on boot.
+// ── Global settings (non-preset) ─────────────────────────────────────────────
+
+inline void saveGlobalSettings(const PedalState &state) {
+    prefs.begin("globals", false);
+    prefs.putBytes("gs", &state.globalSettings, sizeof(GlobalSettings));
+    prefs.end();
+}
+
+inline void loadGlobalSettings(PedalState &state) {
+    prefs.begin("globals", true);
+    size_t sz = prefs.getBytesLength("gs");
+    bool loaded = (sz == sizeof(GlobalSettings));
+    if(loaded) prefs.getBytes("gs", &state.globalSettings, sizeof(GlobalSettings));
+    prefs.end();
+    if(!loaded) {
+        state.globalSettings = GlobalSettings{};  // struct defaults
+        saveGlobalSettings(state);
+    }
+}
+
+// ── Load all presets from NVS on boot. ───────────────────────────────────────
 // Handles three cases:
 //   1. Current format (sizeof presets): load directly.
 //   2. Legacy format without the bpm field: copy, set bpm = DEFAULT_BPM, upgrade NVS.

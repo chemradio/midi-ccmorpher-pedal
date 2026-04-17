@@ -16,24 +16,41 @@ enum DisplayMode {
   DISPLAY_PARAM
 };
 
-inline String        tempDisplayText = "";
 inline unsigned long lastInteraction = 0;
-inline DisplayMode   displayMode     = DISPLAY_DEFAULT;
-inline constexpr unsigned long displayTimeout = DISPLAY_TIMEOUT;
+inline DisplayMode displayMode = DISPLAY_DEFAULT;
+inline uint8_t displayContrastPct = 78; // kept in sync with globalSettings.displayBrightness
+inline bool    displayDimmed      = false;
 
-bool initDisplay() {
+// Set and persist the display contrast level (0–100 %). Call whenever brightness
+// changes — also used to restore brightness after a timeout dim.
+inline void applyDisplayContrast(uint8_t pct) {
+  displayContrastPct = pct;
+  if(!displayDimmed) {
+    uint8_t c = (uint8_t)((uint16_t)pct * 255 / 100);
+    display.ssd1306_command(0x81);
+    display.ssd1306_command(c);
+  }
+}
+
+// Turn display back on after a timeout blank. No-op if not currently blanked.
+inline void undimDisplay() {
+  if(!displayDimmed) return;
+  displayDimmed = false;
+  display.ssd1306_command(0xAF); // SSD1306_DISPLAYON — restores at last-set contrast
+}
+
+inline bool initDisplay() {
   Wire.begin(SDA_PIN, SCL_PIN);
   if(!display.begin(SSD1306_SWITCHCAPVCC, OLED_ADDRESS)) {
     return false;
   }
   display.clearDisplay();
-  display.dim(true);
+  display.dim(true);   // keep dark until applyGlobalSettings sets real brightness
   display.display();
   return true;
 }
 
-void showStartupScreen() {
-  display.dim(false);
+inline void showStartupScreen() {
   display.clearDisplay();
   display.invertDisplay(false);
   display.setTextSize(2);
@@ -45,7 +62,7 @@ void showStartupScreen() {
   display.display();
   displayMode = DISPLAY_PARAM;
 }
-void displayLockChange(bool locked) {
+inline void displayLockChange(bool locked) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -56,7 +73,7 @@ void displayLockChange(bool locked) {
   display.display();
 }
 
-void displayLockedMessage(String whoSays = "") {
+inline void displayLockedMessage(String whoSays = "") {
   display.clearDisplay();
   display.invertDisplay(false);
   display.setTextSize(2);
@@ -70,9 +87,9 @@ void displayLockedMessage(String whoSays = "") {
 }
 
 // Returns the parameter string shown on the right side of each FS row.
-static String _buttonNumStr(const FSButton &btn) {
+inline static String _buttonNumStr(const FSButton &btn) {
   if(btn.isNote) {
-    static const char *noteNames[] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+    static const char *noteNames[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
     return String(noteNames[btn.midiNumber % 12]) + String((int)(btn.midiNumber / 12) - 1);
   }
   if(btn.isSystem) {
@@ -89,7 +106,7 @@ static String _buttonNumStr(const FSButton &btn) {
   return "CC:" + String(btn.midiNumber + 1);
 }
 
-void displayHomeScreen(PedalState &pedal) {
+inline void displayHomeScreen(PedalState &pedal) {
   displayMode = DISPLAY_DEFAULT;
   lastInteraction = millis();
   display.clearDisplay();
@@ -106,11 +123,13 @@ void displayHomeScreen(PedalState &pedal) {
   display.setCursor(32, 0);
   display.print(F("P:"));
   display.print(activePreset + 1);
-  if(presetDirty) display.print('*');
+  if(presetDirty)
+    display.print('*');
 
   display.setCursor(62, 0);
   display.print((int)midiClock.bpm);
-  if(midiClock.externalSync) display.print(F("E"));
+  if(midiClock.externalSync)
+    display.print(F("E"));
 
   if(pedal.settingsLocked) {
     display.setCursor(104, 0);
@@ -130,7 +149,8 @@ void displayHomeScreen(PedalState &pedal) {
 
     // Mode name truncated to 8 chars to leave room for the optional channel indicator
     const char *name = btn.modMode.name;
-    for(uint8_t c = 0; c < 8 && name[c] != '\0'; c++) display.print(name[c]);
+    for(uint8_t c = 0; c < 8 && name[c] != '\0'; c++)
+      display.print(name[c]);
 
     // Parameter right-aligned to display edge
     String numStr = _buttonNumStr(btn);
@@ -150,22 +170,53 @@ void displayHomeScreen(PedalState &pedal) {
   display.display();
 }
 
-void resetDisplayTimeout(PedalState &pedal) {
+inline void resetDisplayTimeout(PedalState &pedal) {
+  static unsigned long prevLastInteraction = 0;
   unsigned long now = millis();
 
-  if(displayMode == DISPLAY_PARAM &&
-     now - lastInteraction > displayTimeout) {
-    lastInteraction = now;
-    displayMode = DISPLAY_DEFAULT;
-    pedal.inModeSelect = false;   // cancel mode select on timeout
-    displayHomeScreen(pedal);
+  // Undim immediately if a display function ran since the last check.
+  if(displayDimmed && lastInteraction != prevLastInteraction)
+    undimDisplay();
+  prevLastInteraction = lastInteraction;
+
+  uint8_t tidx = pedal.globalSettings.displayTimeoutIdx;
+  if(tidx >= NUM_DISP_TIMEOUTS) tidx = DISP_TIMEOUT_DEF_IDX;
+  uint32_t timeoutMs = DISP_TIMEOUT_MS[tidx];
+  if(timeoutMs == 0) {
+    if(displayDimmed) undimDisplay();
+    return;
   }
+
+  if(!displayDimmed && (now - lastInteraction) > timeoutMs) {
+    displayDimmed = true;
+    display.ssd1306_command(0xAE); // SSD1306_DISPLAYOFF — screen fully off
+  }
+}
+
+inline void displayUnlockProgress(uint8_t pct) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(24, 4);
+  display.print(F("Hold to Unlock"));
+  uint8_t barW = (uint8_t)((uint16_t)pct * 124 / 100);
+  display.drawRect(2, 22, 124, 14, SSD1306_WHITE);
+  if(barW > 0)
+    display.fillRect(2, 22, barW, 14, SSD1306_WHITE);
+  display.setTextSize(2);
+  display.setCursor(46, 44);
+  display.print(pct);
+  display.print(F("%"));
+  display.display();
 }
 
 // Prints a MIDI note number as a note name+octave, e.g. 60 → "C4", 61 → "C#4".
 // Middle C = 60 = C4.
-static void _printNoteName(uint8_t note) {
-  static const char *names[] = { "C","C#","D","D#","E","F","F#","G","G#","A","A#","B" };
+inline static void _printNoteName(uint8_t note) {
+  static const char *names[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
   display.print(names[note % 12]);
   display.print((int)(note / 12) - 1);
 }
@@ -173,7 +224,7 @@ static void _printNoteName(uint8_t note) {
 // Helper used by both press and mode-change displays.
 // Prints the mode name at size 2 if it fits in 128px, else size 1.
 // Returns the y position of the next available row after the name.
-static int _displayModeName(const char *modeName, int y) {
+inline static int _displayModeName(const char *modeName, int y) {
   bool big = strlen(modeName) <= 10;
   display.setTextSize(big ? 2 : 1);
   display.setCursor(0, y);
@@ -182,7 +233,7 @@ static int _displayModeName(const char *modeName, int y) {
 }
 
 // Prints "CC: X", "PC: X", "Note: X" or scene info on one row.
-static void _displayNumber(const FSButton &button, int y) {
+inline static void _displayNumber(const FSButton &button, int y) {
   display.setTextSize(1);
   display.setCursor(0, y);
   if(button.isSystem) {
@@ -223,7 +274,7 @@ static void _displayNumber(const FSButton &button, int y) {
 }
 
 // Shown while the user is editing a per-FS MIDI channel (hold encoder button with FS held).
-void displayFSChannel(FSButton &btn) {
+inline void displayFSChannel(FSButton &btn) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -247,7 +298,7 @@ void displayFSChannel(FSButton &btn) {
   display.display();
 }
 
-void displayFootswitchPress(FSButton &button) {
+inline void displayFootswitchPress(FSButton &button) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -291,7 +342,7 @@ void displayFootswitchPress(FSButton &button) {
 
 // Encoder turned while holding a footswitch — show what value changed and to what.
 // Big number = the focus; small header = context (FS name + mode).
-void displayEncoderFSTurn(FSButton &button) {
+inline void displayEncoderFSTurn(FSButton &button) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -354,7 +405,7 @@ void displayEncoderFSTurn(FSButton &button) {
 }
 
 // Encoder turned with no footswitch held — MIDI channel selection.
-void displayMidiChannel(uint8_t channel) {
+inline void displayMidiChannel(uint8_t channel) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -373,7 +424,7 @@ void displayMidiChannel(uint8_t channel) {
 }
 
 // Two-level mode selector: category (level 0) or variant within category (level 1).
-void displayModeSelectScreen(const char *fsName, uint8_t catIdx, uint8_t varIdx, bool variantLevel) {
+inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx, uint8_t varIdx, bool variantLevel) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -420,7 +471,7 @@ void displayModeSelectScreen(const char *fsName, uint8_t catIdx, uint8_t varIdx,
   display.display();
 }
 
-void encoderButtonFSModeChange(FSButton &button) {
+inline void encoderButtonFSModeChange(FSButton &button) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -441,7 +492,7 @@ void encoderButtonFSModeChange(FSButton &button) {
   display.display();
 }
 
-void displayPotRampSpeed(String potName, uint32_t rampRaw) {
+inline void displayPotRampSpeed(String potName, uint32_t rampRaw) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -451,7 +502,8 @@ void displayPotRampSpeed(String potName, uint32_t rampRaw) {
   display.println("");
   if(rampRaw & CLOCK_SYNC_FLAG) {
     uint8_t idx = rampRaw & 0xFF;
-    if(idx >= NUM_NOTE_VALUES) idx = NUM_NOTE_VALUES - 1;
+    if(idx >= NUM_NOTE_VALUES)
+      idx = NUM_NOTE_VALUES - 1;
     display.print(noteValueNames[idx]);
   } else {
     float seconds = rampRaw / 1000.0f;
@@ -461,7 +513,7 @@ void displayPotRampSpeed(String potName, uint32_t rampRaw) {
   display.display();
 }
 
-void displayPotCC(String potName, uint8_t midiScaled) {
+inline void displayPotCC(String potName, uint8_t midiScaled) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -474,14 +526,14 @@ void displayPotCC(String potName, uint8_t midiScaled) {
   display.display();
 }
 
-void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, uint32_t rampRaw = 0) {
+inline void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, uint32_t rampRaw = 0) {
   if(isMidiCC)
     displayPotCC(potName, midiScaled);
   else
     displayPotRampSpeed(potName, rampRaw);
 }
 
-void displayTapTempo(float bpm) {
+inline void displayTapTempo(float bpm) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -499,7 +551,7 @@ void displayTapTempo(float bpm) {
   display.display();
 }
 
-void displayPresetLoad(uint8_t idx) {
+inline void displayPresetLoad(uint8_t idx) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -517,7 +569,7 @@ void displayPresetLoad(uint8_t idx) {
   display.display();
 }
 
-void displayPresetSaved(uint8_t idx) {
+inline void displayPresetSaved(uint8_t idx) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
@@ -534,4 +586,3 @@ void displayPresetSaved(uint8_t idx) {
   display.print(F("SAVED"));
   display.display();
 }
-
