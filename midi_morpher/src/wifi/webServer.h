@@ -291,6 +291,7 @@ inline String buildGlobalJson() {
     j += F(",\"pot1CC\":");     j += (gs.pot1CC == POT_CC_OFF) ? -1 : (int)gs.pot1CC;
     j += F(",\"pot2CC\":");     j += (gs.pot2CC == POT_CC_OFF) ? -1 : (int)gs.pot2CC;
     j += F(",\"expCC\":");      j += gs.expCC;
+    j += F(",\"expWake\":");    j += gs.expWakesDisplay ? F("true") : F("false");
     j += F(",\"routing\":");    j += gs.routingFlags;
     j += '}';
     return j;
@@ -323,6 +324,7 @@ inline void handlePostGlobal() {
     else if(v >= 0 && v <= 127)  { gs.pot2CC = (uint8_t)v; analogPots[1].midiCCNumber = gs.pot2CC; }
     v = jsonInt(body, "expCC");
     if(v >= 0 && v <= 127) gs.expCC = (uint8_t)v;
+    if(jsonBool(body, "expWake", b)) gs.expWakesDisplay = b;
     v = jsonInt(body, "routing");
     if(v >= 0 && v <= (int)ROUTE_ALL) gs.routingFlags = (uint8_t)v;
     saveGlobalSettings(*_webPedal);

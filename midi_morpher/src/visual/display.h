@@ -551,6 +551,29 @@ inline void displayTapTempo(float bpm) {
   display.display();
 }
 
+inline void displayExpInput(uint8_t ccNum, uint8_t midiVal) {
+  undimDisplay();
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(F("Exp In"));
+  String ccStr = String(F("CC ")) + String(ccNum + 1);
+  display.setCursor(128 - (int)ccStr.length() * 6, 0);
+  display.print(ccStr);
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+  display.setTextSize(3);
+  display.setCursor(0, 18);
+  display.print(midiVal);
+  int barW = (int)(midiVal * 128L / 127);
+  if(barW > 0) display.fillRect(0, 52, barW, 10, SSD1306_WHITE);
+  display.drawRect(0, 52, 128, 10, SSD1306_WHITE);
+  display.display();
+}
+
 inline void displayPresetLoad(uint8_t idx) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
