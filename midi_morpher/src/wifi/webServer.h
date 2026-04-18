@@ -7,6 +7,7 @@
 #include "../footswitches/footswitchObject.h"
 #include "../pedalState.h"
 #include "../statePersistance.h"
+#include "../analogInOut/expInput.h"
 #include "webUI.h"
 
 // ── AP credentials ─────────────────────────────────────────────────────────────
@@ -383,6 +384,27 @@ inline void handleGetPoll() {
     webServer.send(200, F("application/json"), buildPollJson());
 }
 
+inline void handleGetExpCal() {
+    addCORS();
+    unsigned long elapsed = expCalibrating ? (millis() - expCalStart) : (unsigned long)EXP_CAL_DURATION_MS;
+    if (elapsed > EXP_CAL_DURATION_MS) elapsed = EXP_CAL_DURATION_MS;
+    uint8_t secsLeft = expCalibrating
+        ? (uint8_t)((EXP_CAL_DURATION_MS - elapsed + 999) / 1000)
+        : 0;
+    String j = F("{\"calibrating\":");
+    j += expCalibrating ? F("true") : F("false");
+    j += F(",\"secsLeft\":");
+    j += secsLeft;
+    j += '}';
+    webServer.send(200, "application/json", j);
+}
+
+inline void handlePostExpCal() {
+    addCORS();
+    startExpCalibration();
+    webServer.send(200, "application/json", F("{\"ok\":true}"));
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 inline void initWebServer(PedalState &pedal) {
     _webPedal = &pedal;
@@ -402,6 +424,9 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on("/api/global",    HTTP_GET,  handleGetGlobal);
     webServer.on("/api/global",    HTTP_POST, handlePostGlobal);
     webServer.on("/api/global",    HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/expcal",    HTTP_GET,  handleGetExpCal);
+    webServer.on("/api/expcal",    HTTP_POST, handlePostExpCal);
+    webServer.on("/api/expcal",    HTTP_OPTIONS, handleOPTIONS);
 
     // Captive-portal catch-all — any unknown path redirects to the UI root.
     webServer.onNotFound(handleCaptivePortal);

@@ -45,6 +45,8 @@ struct GlobalSettings {
     uint8_t displayTimeoutIdx = DISP_TIMEOUT_DEF_IDX;
     uint8_t pot1CC            = 20;           // 0–127 = CC num; POT_CC_OFF = disabled
     uint8_t pot2CC            = 21;
-    uint8_t expCC             = 20;           // expression input CC number (0–127)
-    bool    expWakesDisplay   = true;         // show exp value on OLED when pedal moves
+    uint8_t  expCC            = 20;           // expression input CC number (0–127)
+    bool     expWakesDisplay  = true;         // show exp value on OLED when pedal moves
+    uint16_t expCalMin        = 0xFFFF;       // 0xFFFF = not calibrated (auto-cal takes over)
+    uint16_t expCalMax        = 0;
 };

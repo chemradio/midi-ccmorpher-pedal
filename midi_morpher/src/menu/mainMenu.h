@@ -5,6 +5,7 @@
 #include "../statePersistance.h"
 #include "../visual/display.h"
 #include "../controls/pots.h"
+#include "../analogInOut/expInput.h"
 
 // ── Menu item indices ──────────────────────────────────────────────────────────
 #define MENU_MIDI_CH    0
@@ -12,20 +13,21 @@
 #define MENU_POT1_CC    2
 #define MENU_POT2_CC    3
 #define MENU_EXP_CC     4
-#define MENU_EXP_WAKE   5
-#define MENU_LEDS       6
-#define MENU_TEMPO_LED  7
-#define MENU_NEOPIXEL   8
-#define MENU_BRIGHTNESS 9
-#define MENU_TIMEOUT    10
-#define MENU_LOCK       11
-#define MENU_EXIT       12
-#define MENU_COUNT      13
+#define MENU_EXP_CAL    5
+#define MENU_EXP_WAKE   6
+#define MENU_LEDS       7
+#define MENU_TEMPO_LED  8
+#define MENU_NEOPIXEL   9
+#define MENU_BRIGHTNESS 10
+#define MENU_TIMEOUT    11
+#define MENU_LOCK       12
+#define MENU_EXIT       13
+#define MENU_COUNT      14
 
 static const char *menuItemNames[] = {
     "MIDI Channel", "Routings",   "Pot 1 CC",   "Pot 2 CC",
-    "Exp In CC",    "Exp Wake",   "LEDs",        "Tempo LED",
-    "NeoPixel",     "Brightness", "Screen Off",  "Lock",     "Exit"
+    "Exp In CC",    "Exp Cal",    "Exp Wake",   "LEDs",        "Tempo LED",
+    "NeoPixel",     "Brightness", "Screen Off", "Lock",        "Exit"
 };
 
 static const char *ledModeNames[] = { "On", "Cnsrv", "Off" };
@@ -67,6 +69,7 @@ inline String _menuItemRhs(const PedalState &pedal, uint8_t item) {
             return pedal.globalSettings.pot2CC == POT_CC_OFF
                    ? String(F("Off")) : String(F("CC")) + String(pedal.globalSettings.pot2CC + 1);
         case MENU_EXP_CC:     return String(F("CC")) + String(pedal.globalSettings.expCC + 1);
+        case MENU_EXP_CAL:    return String();
         case MENU_EXP_WAKE:   return String(pedal.globalSettings.expWakesDisplay ? F("ON") : F("OFF"));
         case MENU_LEDS: {
             uint8_t m = pedal.globalSettings.ledMode;
@@ -306,6 +309,11 @@ inline void handleMenuPress(PedalState &pedal) {
                 case MENU_TIMEOUT:
                     pedal.menuState = MenuState::EDITING;
                     displayMenuEditing(pedal);
+                    break;
+                case MENU_EXP_CAL:
+                    startExpCalibration();
+                    pedal.menuState = MenuState::NONE;
+                    displayExpCalibrating(5);
                     break;
                 case MENU_EXP_WAKE:
                     pedal.globalSettings.expWakesDisplay = !pedal.globalSettings.expWakesDisplay;

@@ -551,6 +551,33 @@ inline void displayTapTempo(float bpm) {
   display.display();
 }
 
+inline void displayExpCalibrating(uint8_t secsLeft) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(F("Exp Calibrate"));
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+  if(secsLeft == 0) {
+    display.setTextSize(2);
+    display.setCursor(20, 26);
+    display.print(F("Done!"));
+  } else {
+    display.setCursor(0, 12);
+    display.print(F("Sweep pedal full range"));
+    display.setTextSize(3);
+    display.setCursor(50, 28);
+    display.print(secsLeft);
+    display.setTextSize(1);
+    display.setCursor(72, 36);
+    display.print('s');
+  }
+  display.display();
+}
+
 inline void displayExpInput(uint8_t ccNum, uint8_t midiVal) {
   undimDisplay();
   displayMode = DISPLAY_PARAM;
