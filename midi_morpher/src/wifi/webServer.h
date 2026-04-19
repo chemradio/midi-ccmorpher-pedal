@@ -192,6 +192,13 @@ inline void handleCaptivePortal() {
     webServer.send(302, F("text/plain"), F(""));
 }
 
+// Dismiss the captive-portal websheet without disconnecting from WiFi.
+// Returning 204 satisfies Android's connectivity check; iOS shows its own
+// Done button in the websheet chrome.
+inline void handleDismiss() {
+    webServer.send(204, F("text/plain"), F(""));
+}
+
 inline void handleGetState() {
     addCORS();
     webServer.send(200, F("application/json"), buildStateJson());
@@ -427,6 +434,8 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on("/api/expcal",    HTTP_GET,  handleGetExpCal);
     webServer.on("/api/expcal",    HTTP_POST, handlePostExpCal);
     webServer.on("/api/expcal",    HTTP_OPTIONS, handleOPTIONS);
+
+    webServer.on("/dismiss", HTTP_GET, handleDismiss);
 
     // Captive-portal catch-all — any unknown path redirects to the UI root.
     webServer.onNotFound(handleCaptivePortal);

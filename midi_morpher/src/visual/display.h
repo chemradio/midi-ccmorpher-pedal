@@ -190,6 +190,10 @@ inline void resetDisplayTimeout(PedalState &pedal) {
   if(!displayDimmed && (now - lastInteraction) > timeoutMs) {
     displayDimmed = true;
     display.ssd1306_command(0xAE); // SSD1306_DISPLAYOFF — screen fully off
+    // Exit any menu or mode-select state so the next encoder button press
+    // goes to FS mode select rather than being captured by a stale menu state.
+    pedal.menuState   = MenuState::NONE;
+    pedal.inModeSelect = false;
   }
 }
 
