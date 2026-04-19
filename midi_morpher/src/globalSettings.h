@@ -15,10 +15,10 @@
 
 // ── LED modes ─────────────────────────────────────────────────────────────────
 #define LED_MODE_ON           0  // always full on
-#define LED_MODE_CONSERVATIVE 1  // full blink on preset load, then dim
+#define LED_MODE_CONSERVATIVE 1  // blink on preset load/save, otherwise fully off
 #define LED_MODE_OFF          2
-#define CONSERVATIVE_DIM_DUTY  20   // analogWrite duty (0–255) while dimmed (~8%)
-#define CONSERVATIVE_BLINK_MS  1500 // full-on duration after preset load (ms)
+#define CONSERVATIVE_ACTIVITY_BLINK_MS  240 // full period (on + off) after preset load
+#define CONSERVATIVE_ACTIVITY_BLINK_DUR 960 // total duration of activity blink burst (ms)
 
 // ── Display timeout table (index 0–3) ─────────────────────────────────────────
 static constexpr uint32_t    DISP_TIMEOUT_MS[]    = {2000, 5000, 10000, 0};
