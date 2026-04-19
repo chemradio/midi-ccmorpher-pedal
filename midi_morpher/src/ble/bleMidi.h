@@ -183,9 +183,13 @@ inline void initBleMidi() {
   bleMidiServer->setCallbacks(new BleMidiServerCallbacks());
 
   NimBLEService *svc = bleMidiServer->createService(BLE_MIDI_SERVICE_UUID);
+  // Apple BLE-MIDI 1.0 spec requires both WRITE (with response) and
+  // WRITE_WITHOUT_RESPONSE. Most modern centrals use WRITE_NR for latency,
+  // but including WRITE keeps us compatible with older/quirky clients.
   bleMidiChar = svc->createCharacteristic(
       BLE_MIDI_CHAR_UUID,
-      NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::NOTIFY);
+      NIMBLE_PROPERTY::READ   | NIMBLE_PROPERTY::WRITE |
+      NIMBLE_PROPERTY::WRITE_NR | NIMBLE_PROPERTY::NOTIFY);
   bleMidiChar->setCallbacks(new BleMidiCharCallbacks());
   svc->start();
 
@@ -193,6 +197,11 @@ inline void initBleMidi() {
   adv->addServiceUUID(BLE_MIDI_SERVICE_UUID);
   adv->setName(BLE_DEVICE_NAME);
   adv->enableScanResponse(true);
+  // 20–40 ms advertising interval (units of 0.625 ms). Default ~1.28 s is too
+  // slow for MIDI discovery; this makes the pedal appear almost immediately in
+  // iOS / macOS / Android Bluetooth pickers with no meaningful power cost.
+  adv->setMinInterval(0x20);
+  adv->setMaxInterval(0x40);
   adv->start();
 }
 
