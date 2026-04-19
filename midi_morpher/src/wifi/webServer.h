@@ -1,5 +1,6 @@
 #pragma once
 #include <DNSServer.h>
+#include <ESPmDNS.h>
 #include <WebServer.h>
 #include <WiFi.h>
 #include "../clock/midiClock.h"
@@ -33,11 +34,13 @@ inline void startAP() {
     // phone/laptop probes for captive-portal detection hits our web server.
     dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
     dnsServer.start(53, "*", AP_IP);
+    MDNS.begin("midimorpher");
     webServer.begin();
     _apRunning = true;
 }
 
 inline void stopAP() {
+    MDNS.end();
     dnsServer.stop();
     webServer.stop();
     WiFi.softAPdisconnect(true);

@@ -2,13 +2,13 @@
 #include <Arduino.h>
 
 // ── MIDI routing flag bits ─────────────────────────────────────────────────────
-#define ROUTE_DIN_BLE 0x01
-#define ROUTE_DIN_USB 0x02
-#define ROUTE_USB_DIN 0x04
-#define ROUTE_USB_BLE 0x08
-#define ROUTE_BLE_DIN 0x10
-#define ROUTE_BLE_USB 0x20
-#define ROUTE_ALL     0x3F
+#define ROUTE_DIN_BLE  0x01
+#define ROUTE_DIN_USB  0x02
+#define ROUTE_USB_DIN  0x04
+#define ROUTE_USB_BLE  0x08
+#define ROUTE_BLE_DIN  0x10
+#define ROUTE_BLE_USB  0x20
+#define ROUTE_ALL      0x3F
 
 // ── Pot CC "disabled" sentinel ─────────────────────────────────────────────────
 #define POT_CC_OFF 0xFF

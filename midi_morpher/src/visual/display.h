@@ -179,21 +179,29 @@ inline void resetDisplayTimeout(PedalState &pedal) {
     undimDisplay();
   prevLastInteraction = lastInteraction;
 
-  uint8_t tidx = pedal.globalSettings.displayTimeoutIdx;
-  if(tidx >= NUM_DISP_TIMEOUTS) tidx = DISP_TIMEOUT_DEF_IDX;
-  uint32_t timeoutMs = DISP_TIMEOUT_MS[tidx];
-  if(timeoutMs == 0) {
-    if(displayDimmed) undimDisplay();
+  // Param screens revert to the home screen after a short idle period. The
+  // main settings menu gets 5s (user is reading a list); other transient
+  // param screens get 3s. Clears transient UI state so the next encoder press
+  // starts cleanly from the home screen.
+  if(displayMode == DISPLAY_PARAM) {
+    uint32_t revertMs = (pedal.menuState != MenuState::NONE) ? 5000 : 3000;
+    if((now - lastInteraction) > revertMs) {
+      pedal.menuState       = MenuState::NONE;
+      pedal.inModeSelect    = false;
+      pedal.inChannelSelect = false;
+      displayHomeScreen(pedal);
+    }
     return;
   }
 
+  // Home screen: honour the user's "Display off" setting. "Always" → never blank.
+  uint8_t tidx = pedal.globalSettings.displayTimeoutIdx;
+  if(tidx >= NUM_DISP_TIMEOUTS) tidx = DISP_TIMEOUT_DEF_IDX;
+  uint32_t timeoutMs = DISP_TIMEOUT_MS[tidx];
+  if(timeoutMs == 0) return;
   if(!displayDimmed && (now - lastInteraction) > timeoutMs) {
     displayDimmed = true;
-    display.ssd1306_command(0xAE); // SSD1306_DISPLAYOFF — screen fully off
-    // Exit any menu or mode-select state so the next encoder button press
-    // goes to FS mode select rather than being captured by a stale menu state.
-    pedal.menuState   = MenuState::NONE;
-    pedal.inModeSelect = false;
+    display.ssd1306_command(0xAE); // SSD1306_DISPLAYOFF
   }
 }
 
@@ -428,6 +436,8 @@ inline void displayMidiChannel(uint8_t channel) {
 }
 
 // Two-level mode selector: category (level 0) or variant within category (level 1).
+// Header shows FS name + step indicator [1/2] or [2/2] so the user knows which
+// stage of the two-press configuration they're on.
 inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx, uint8_t varIdx, bool variantLevel) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
@@ -435,42 +445,36 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx, uint8_t 
   display.invertDisplay(false);
   display.setTextColor(SSD1306_WHITE);
 
+  // Row 1 — FS name (left) + step indicator (right)
   display.setTextSize(1);
   display.setCursor(0, 0);
   display.print(fsName);
+  const char *step = variantLevel ? "[2/2]" : "[1/2]";
+  display.setCursor(128 - (int)strlen(step) * 6, 0);
+  display.print(step);
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
 
+  // Row 2 — label: what we're picking
+  display.setCursor(0, 12);
+  display.print(variantLevel ? F("Mode:") : F("Category:"));
+
+  // Row 3 — current selection (size 2 if it fits, else size 1)
+  const char *value;
   if(!variantLevel) {
-    // ── Category select ──────────────────────────────────────────────────────
-    display.setCursor(0, 14);
-    display.print(F("Category:"));
-
-    const char *catName = modeCategories[catIdx].name;
-    display.setTextSize(2);
-    display.setCursor(0, 30);
-    display.print(catName);
-
-    display.setTextSize(1);
-    display.setCursor(0, 56);
-    display.print(F("Scroll / Press=OK"));
+    value = modeCategories[catIdx].name;
   } else {
-    // ── Variant select ───────────────────────────────────────────────────────
-    display.print(F("  "));
-    display.print(modeCategories[catIdx].name);
-
-    display.setCursor(0, 14);
-    display.print(F("Mode:"));
-
     uint8_t modeIdx = modeCategories[catIdx].firstIdx + varIdx;
-    const char *modeName = modes[modeIdx].name;
-    bool big = strlen(modeName) <= 10;
-    display.setTextSize(big ? 2 : 1);
-    display.setCursor(0, 30);
-    display.print(modeName);
-
-    display.setTextSize(1);
-    display.setCursor(0, 56);
-    display.print(F("Scroll / Press=Set"));
+    value = modes[modeIdx].name;
   }
+  bool big = strlen(value) <= 10;
+  display.setTextSize(big ? 2 : 1);
+  display.setCursor(0, 28);
+  display.print(value);
+
+  // Row 4 — hint
+  display.setTextSize(1);
+  display.setCursor(0, 56);
+  display.print(variantLevel ? F("Turn / Press=Set") : F("Turn / Press=Next"));
 
   display.display();
 }

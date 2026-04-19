@@ -70,8 +70,9 @@ inline void bleMidiSendBytes(const uint8_t *midiBytes, uint8_t n) {
   pkt[0] = 0x80 | ((uint8_t)(ts >> 7) & 0x3F);
   pkt[1] = 0x80 | ((uint8_t)ts & 0x7F);
   for(uint8_t i = 0; i < n; i++) pkt[2 + i] = midiBytes[i];
-  bleMidiChar->setValue(pkt, n + 2);
-  bleMidiChar->notify();
+  // notify(value, length) is the NimBLE 2.x atomic form — sets value and sends
+  // in one call, avoiding the setValue()+notify() race with the BLE task.
+  bleMidiChar->notify(pkt, n + 2);
 }
 
 // SysEx: data must include leading 0xF0 and trailing 0xF7. BLE-MIDI rules
@@ -90,8 +91,7 @@ inline void bleMidiSendSysEx(const uint8_t *data, uint8_t n) {
     pkt[o++] = data[i];                    // F0 + body
   pkt[o++] = tsLo;                         // timestamp for F7
   pkt[o++] = data[n - 1];                  // F7
-  bleMidiChar->setValue(pkt, o);
-  bleMidiChar->notify();
+  bleMidiChar->notify(pkt, o);
 }
 
 // ── RX callback — parses BLE-MIDI, pushes raw MIDI bytes to the ring ────────
@@ -163,9 +163,10 @@ class BleMidiServerCallbacks : public NimBLEServerCallbacks {
 public:
   void onConnect(NimBLEServer *srv, NimBLEConnInfo &info) override {
     bleMidiConnected = true;
-    // Request 7.5–15 ms connection interval for low-latency MIDI.
-    // (min 6×1.25=7.5ms, max 12×1.25=15ms, latency 0, timeout 2s)
-    srv->updateConnParams(info.getConnHandle(), 6, 12, 0, 200);
+    // 20–40 ms interval: enough headroom for WiFi AP coexistence while still
+    // low-latency for MIDI. Tight 7.5ms intervals caused Logic Pro Core MIDI
+    // errors when the WiFi AP was active.
+    srv->updateConnParams(info.getConnHandle(), 16, 32, 0, 200);
   }
   void onDisconnect(NimBLEServer *, NimBLEConnInfo &, int) override {
     bleMidiConnected = false;

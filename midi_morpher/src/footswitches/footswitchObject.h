@@ -82,23 +82,29 @@ struct ModeInfo {
 // midiNumber in System mode is an index into this table. Order = priority
 // (most-used first). Max encoder value = NUM_SYS_CMDS - 1.
 
-enum SysCmdKind : uint8_t { SYS_REALTIME, SYS_MMC, SYS_SPP };
+enum SysCmdKind : uint8_t { SYS_MMC, SYS_SPP };
 
 struct SysCmdInfo {
   const char *name;
   SysCmdKind  kind;
-  uint8_t     data;  // realtime byte, MMC sub-id, or SPP pos (always 0 here)
+  uint8_t     data;  // MMC sub-id or SPP pos (always 0 here)
+  uint8_t     rt;    // optional System Real-Time byte to also send (0 = none)
 };
 
+// Play/Stop/Continue emit BOTH MMC SysEx and the matching real-time byte so
+// the pedal works with DAWs in "Listen to MMC" mode (Logic / Pro Tools / Cubase
+// etc. — MMC triggers transport) AND with gear/DAWs slaved to external MIDI
+// clock (hardware sequencers, drum machines — real-time bytes trigger transport).
+// MMC receivers ignore the real-time byte and vice-versa, so dual-emit is safe.
 inline constexpr SysCmdInfo systemCommands[] = {
-  { "Play",      SYS_REALTIME, 0xFA },  // MIDI Start
-  { "Stop",      SYS_REALTIME, 0xFC },  // MIDI Stop
-  { "Continue",  SYS_REALTIME, 0xFB },  // MIDI Continue
-  { "Record",    SYS_MMC,      0x06 },  // MMC Record Strobe
-  { "Pause",     SYS_MMC,      0x09 },  // MMC Pause
-  { "Rewind",    SYS_MMC,      0x05 },  // MMC Rewind
-  { "FFwd",      SYS_MMC,      0x04 },  // MMC Fast Forward
-  { "GotoStart", SYS_SPP,      0x00 },  // Song Position 0
+  { "Play",      SYS_MMC, 0x02, 0xFA },  // MMC Play + Start
+  { "Stop",      SYS_MMC, 0x01, 0xFC },  // MMC Stop + Stop RT
+  { "Continue",  SYS_MMC, 0x03, 0xFB },  // MMC Deferred Play + Continue RT
+  { "Record",    SYS_MMC, 0x06, 0x00 },  // MMC Record Strobe
+  { "Pause",     SYS_MMC, 0x09, 0x00 },  // MMC Pause
+  { "Rewind",    SYS_MMC, 0x05, 0x00 },  // MMC Rewind
+  { "FFwd",      SYS_MMC, 0x04, 0x00 },  // MMC Fast Forward
+  { "GotoStart", SYS_SPP, 0x00, 0x00 },  // Song Position 0
 };
 inline constexpr uint8_t NUM_SYS_CMDS = sizeof(systemCommands) / sizeof(systemCommands[0]);
 
@@ -106,10 +112,10 @@ inline void sendSystemCommand(uint8_t idx) {
   if(idx >= NUM_SYS_CMDS) return;
   const SysCmdInfo &c = systemCommands[idx];
   switch(c.kind) {
-    case SYS_REALTIME: sendSystemRealtime(c.data); break;
-    case SYS_MMC:      sendMMC(c.data);            break;
-    case SYS_SPP:      sendSPP((uint16_t)c.data);  break;
+    case SYS_MMC: sendMMC(c.data);           break;
+    case SYS_SPP: sendSPP((uint16_t)c.data); break;
   }
+  if(c.rt) sendSystemRealtime(c.rt);
 }
 
 // ── Mode table ───────────────────────────────────────────────────────────────
