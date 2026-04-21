@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), a rotary encoder, two potentiometers, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, and an analog expression output (via AD5292-BRUZ-20 digital potentiometer). The pedal supports 6 presets that store complete configurations.
+MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), a rotary encoder, two potentiometers, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, BLE MIDI, and an analog expression output (via AD5292-BRUZ-20 digital potentiometer). The pedal supports 6 presets that store complete configurations including per-preset BPM.
 
 **Firmware target:** ESP32-S3-N16R8, Arduino framework.
 
@@ -74,6 +74,8 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 
 ## Footswitch Modes (full ordered list)
 
+32 modes total. Scene modes come in normal (encoder picks value, press sends it) and Scroll (each press advances to next value, wrapping) variants.
+
 1. PC
 2. CC momentary
 3. CC latching
@@ -96,17 +98,22 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 20. RANDOM STEPPER latching
 21. RANDOM STEPPER inverted momentary
 22. RANDOM STEPPER inverted latching
-23. Helix Snapshots (CC69, values 0–7)
-24. Quad Cortex Scenes (CC43, values 0–7)
-25. Fractal Scenes (CC34, values 0–7)
-26. Kemper Slots (CC50–CC54, value 1 — encoder picks CC number)
-27. Tap Tempo (no MIDI output — press updates internal `midiClock.bpm` via `receiveTap()`)
+23. Helix Snapshots (CC69, values 0–7 — encoder picks value)
+24. Helix Snapshot Scroll (CC69, 0–7 — each press advances to next)
+25. Quad Cortex Scenes (CC43, values 0–7)
+26. Quad Cortex Scene Scroll (CC43, 0–7 — each press advances to next)
+27. Fractal Scenes (CC34, values 0–7)
+28. Fractal Scene Scroll (CC34, 0–7 — each press advances to next)
+29. Kemper Slots (CC50–CC54, value 1 — encoder picks CC number)
+30. Kemper Slot Scroll (CC50–CC54 — each press cycles to next slot)
+31. Tap Tempo (no MIDI output — press updates internal `midiClock.bpm` via `receiveTap()`)
+32. System (encoder picks command from `systemCommands[]` — sends MMC SysEx + System Real-Time byte)
 
 ---
 
 ## Preset System
 
-- 6 presets, each storing: global MIDI channel + per-footswitch modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs
+- 6 presets, each storing: global MIDI channel, per-preset BPM, + per-footswitch modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs
 - NVS namespace `"presets"` — key `"prs"` (PresetData[6] blob) + key `"act"` (active preset index)
 - **No auto-save.** `markStateDirty()` only sets `presetDirty = true` (used for display indicator). Settings are volatile until explicitly saved.
 - **PRESET button short press:** `applyPreset((activePreset+1)%6, pedal)` — loads next preset live
@@ -118,7 +125,7 @@ MIDI Morpher is an ESP32-S3 based MIDI controller pedal with 6 independently con
 
 - `FSButton::_setLED()` only updates the `ledState` bool — does **not** drive GPIO
 - GPIO is driven exclusively by `updatePresetLEDs()` in the main loop: only `buttons[activePreset].ledPin` is HIGH
-- `updateActivityLed()` drives GPIO 20: reflects `buttons[lastActiveFSIndex].ledState`
+- `updateActivityLed()` drives GPIO 45 (`ACTIVITY_LED_PIN`): reflects `buttons[lastActiveFSIndex].ledState`
 - `lastActiveFSIndex` (int8_t, -1 = none) in `PedalState` — updated in main loop when a footswitch registers a new press
 
 ---
@@ -146,12 +153,16 @@ There is one `MidiCCModulator` shared by all 6 footswitches (`PedalState::modula
 
 ## Encoder & UI Logic
 
-- **Encoder turn (no FS held):** changes global MIDI output channel.
-- **Hold FS + press encoder:** enters mode select for that footswitch.
-- **Hold FS + turn encoder (modulation modes):** selects MIDI CC number.
+- **Encoder turn (no FS held, no menu):** adjusts internal BPM (20–300). Breaks external sync. Acceleration applies.
+- **Encoder button held + turn:** changes global MIDI output channel (0–15, no acceleration).
+- **Short press encoder (no FS held):** enters main menu (14 items) — see `src/menu/mainMenu.h`.
+- **Hold FS + short press encoder:** enters two-level mode select for that footswitch (category → variant).
+- **Hold FS + turn encoder (modulation modes):** selects MIDI CC number (or PB_SENTINEL for pitch bend, one step below CC 0).
 - **Hold FS + turn encoder (basic modes):** selects PC/CC/Note number.
+- **Hold FS + turn encoder (scene/system modes):** selects scene value or system command index.
+- **Hold FS + long press encoder (~600 ms):** enters per-footswitch MIDI channel select.
 - **Hold FS + turn pots:** adjusts UP and DOWN modulation speed for that footswitch.
-- **LOCK switch:** disables encoder and pot input; stops WiFi AP. Preset loading still works when locked; saving does not.
+- **LOCK switch:** disables encoder and pot input; stops WiFi AP. Preset loading still works when locked; saving does not. Encoder button held 3 s (no FS) unlocks.
 
 ### Encoder acceleration
 
@@ -173,6 +184,23 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 - **CC latching:** alternates between 0 and 127 on each press.
 - **NOTE:** momentary only. Note On on press, Note Off on release.
 - **Scene/Snapshot modes (Helix, QC, Fractal, Kemper):** encoder selects the target value or CC number depending on the unit.
+
+---
+
+## Global Settings (`src/globalSettings.h`)
+
+Non-preset settings persisted to NVS namespace `"globals"`. Accessed via the main menu (encoder button short press, no FS held).
+
+- **MIDI routing flags** (6-bit): 6 toggleable pairs — DIN→USB, USB→DIN, DIN→BLE, BLE→DIN, USB→BLE, BLE→USB. Default: `ROUTE_ALL` (0x3F, full mesh).
+- **LED mode**: On (preset LED always lit + slow blink if dirty), Conservative (minimal; brief blink on load/save), Off.
+- **Tempo LED**: enabled/disabled.
+- **NeoPixel**: enabled/disabled.
+- **Display brightness**: 0–100%, persisted.
+- **Display timeout**: 2 s / 5 s / 10 s / always-on.
+- **Pot 1 / Pot 2 CC**: 0–127 or `POT_CC_OFF` (0xFF) to disable CC sending.
+- **Expression pedal CC**: 0–127.
+- **Expression pedal calibration**: min/max ADC recorded during a 5-second sweep.
+- **Exp wake display**: when enabled, expression pedal movement briefly shows value on OLED.
 
 ---
 
@@ -224,6 +252,8 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 |--------|------|------|--------|
 | GET | `/api/state` | — | Full state JSON: channel, activePreset, presetDirty, bpm, externalSync, buttons[6] |
 | GET | `/api/presets` | — | All 6 PresetData slots + activePreset index |
+| GET | `/api/global` | — | All global settings as JSON |
+| POST | `/api/global` | global settings fields | Update global settings (routing, LED mode, display, pot CCs, etc.) |
 | POST | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15) |
 | POST | `/api/button/:id` | `{modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs}` | Update footswitch config |
 | POST | `/api/button/:id/press` | — | Simulate footswitch press (`simulatePress(true,…)`) |
@@ -233,6 +263,9 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 | POST | `/api/pot` | `{"id":0,"value":64}` | Send CC 20 (id=0) or CC 21 (id=1) directly |
 | POST | `/api/preset/load/:id` | — | `applyPreset(id, pedal)` — apply preset live |
 | POST | `/api/preset/save/:id` | — | `saveCurrentPreset(pedal)` — write to NVS; blocked when locked |
+| GET | `/api/expcal` | — | Poll calibration status `{running, min, max}` |
+| POST | `/api/expcal` | — | Start 5-second expression pedal calibration sweep |
+| GET | `/dismiss` | — | Clean shutdown of WiFi AP |
 
 - `fsChannel` of 255 (0xFF) means "follow global channel"
 - `handleButtonPress` also sets `_webPedal->lastActiveFSIndex = idx` to update the activity LED
@@ -245,12 +278,13 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 - **Auto-polling** (2 s interval via `GET /api/poll`): keeps BPM, external sync, preset dirty, and active preset in sync with hardware changes
 - Preset bar (P1–P6 buttons + Save button); active preset highlighted; `● Unsaved` badge when dirty
 - POT1 / POT2 virtual sliders (send CC 20 / CC 21)
+- **Global settings grid**: LED mode, tempo LED, NeoPixel, display brightness, display timeout, pot CC numbers, expression CC, expression calibration button
 - 6 footswitch cards, each with:
   - Full-width trigger button at bottom (hold for momentary modes; click-toggle for latching; mouseleave auto-releases momentary)
   - Mode dropdown with `<optgroup>` categories (Basic, Ramper, LFO, Stepper, Random, Scenes, Utility)
   - MIDI number input — **1-indexed** (1–128 for CC/PC/Note, 1–8 / 1–5 for scenes); converted to 0-based on POST
   - Mode-aware input `max` attribute + blur clamp + pre-POST clamp to prevent out-of-range values
-  - Input is disabled when mode is Tap Tempo
+  - Input is disabled when mode is Tap Tempo or System
   - Channel dropdown (Global or Ch 1–16)
   - Ramp Up / Ramp Down: slider (ms) or note-value dropdown, toggled by inline "sync" checkbox. Visible for modulation modes only.
 
@@ -262,19 +296,22 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 |------|---------|
 | `src/config.h` | All pin assignments and firmware constants |
 | `src/sharedTypes.h` | `ModulationType` enum |
+| `src/globalSettings.h` | Non-preset global settings struct (routing, LED mode, display, pot/exp CCs, calibration) |
 | `src/pedalState.h` | `PedalState` struct (global state container) |
 | `src/statePersistance.h` | Preset NVS storage: `PresetData`, `loadAllPresets`, `saveCurrentPreset`, `applyPreset`, `markStateDirty` |
 | `src/presets.h` | `handlePresetButton`, `updatePresetLEDs`, `updateActivityLed` |
-| `src/footswitches/footswitchObject.h` | `FSButton`, mode table, `applyModeFlags`, `applyModeIndex`, `simulatePress` |
-| `src/midiCCModulator.h` | Modulation engine (ramp, LFO, stepper, random) |
-| `src/controls/encoder.h` | Encoder ISR and turn handler |
-| `src/controls/encoderButton.h` | Encoder button tap/long-press handler |
+| `src/footswitches/footswitchObject.h` | `FSButton`, mode table (32 modes), `applyModeFlags`, `applyModeIndex`, `simulatePress` |
+| `src/midiCCModulator.h` | Modulation engine (ramp, LFO, stepper, random); CC and Pitch Bend output |
+| `src/controls/encoder.h` | Encoder ISR and turn handler (BPM, midiNumber, channel, menu nav) |
+| `src/controls/encoderButton.h` | Encoder button tap/long-press handler (menu entry, mode select, channel select, unlock) |
 | `src/controls/pots.h` | Pot read, ramp speed or CC send |
 | `src/controls/toggles.h` | MS2 and LOCK toggle handlers |
+| `src/menu/mainMenu.h` | 14-item main menu state machine (routing, LED mode, display, pot CCs, exp, lock) |
+| `src/potentiometers/analogReadHelpers.h` | ADC averaging, EMA filter, deadband — shared by pots and expression input |
 | `src/visual/display.h` | OLED rendering (home screen, all param screens, preset load/save screens) |
 | `src/visual/neopx.h` | NeoPixel RGB modulation indicator |
 | `src/analogInOut/digipot.h` | AD5292 SPI driver |
-| `src/analogInOut/expInput.h` | Expression pedal input |
+| `src/analogInOut/expInput.h` | Expression pedal input + 5-second calibration sweep |
 | `src/wifi/webServer.h` | WiFi AP, DNS catch-all, captive-portal redirect, route registration, all REST handlers |
 | `src/wifi/webUI.h` | Embedded HTML/CSS/JS SPA (PROGMEM) |
 | `src/clock/midiClock.h` | MIDI Clock (24 ppqn), internal BPM, external sync, tap tempo, `syncToMs()`, tempo LED |

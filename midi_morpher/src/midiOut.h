@@ -36,6 +36,24 @@ inline void sendClockTick() {
   bleMidiSendBytes(b, 1);
 }
 
+// Send a 14-bit Pitch Bend (0xE0|ch, LSB, MSB). Range 0..16383, center 8192.
+// DIN + USB + BLE. USB guarded by tud_mounted() to avoid blocking when no host.
+inline void sendPitchBend(uint8_t channel, uint16_t value14) {
+  if(value14 > 16383) value14 = 16383;
+  uint8_t status = 0xE0 | (channel & 0x0F);
+  uint8_t lsb    = (uint8_t)(value14 & 0x7F);
+  uint8_t msb    = (uint8_t)((value14 >> 7) & 0x7F);
+  Serial1.write(status);
+  Serial1.write(lsb);
+  Serial1.write(msb);
+  if(tud_mounted()) {
+    midiEventPacket_t p = { 0x0E, status, lsb, msb };
+    midi.writePacket(&p);
+  }
+  uint8_t b[3] = { status, lsb, msb };
+  bleMidiSendBytes(b, 3);
+}
+
 inline void sendNote(uint8_t channel, uint8_t note, bool on, uint8_t velocity = 100) {
   uint8_t status = (on ? 0x90 : 0x80) | channel;
   uint8_t vel    = on ? (velocity & 0x7F) : 0;

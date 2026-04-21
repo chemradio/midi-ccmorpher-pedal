@@ -33,7 +33,7 @@ inline void handleEncoder(PedalState &pedal,
                          void (*displayLockedMessage)(String),
                          void (*displayFSChannel)(FSButton &),
                          void (*displayBpmCallback)(float),
-                         void (*displayModeSelect)(const char *, uint8_t, uint8_t, bool)) {
+                         void (*displayModeSelect)(const char *, uint8_t, uint8_t, uint8_t, uint8_t)) {
   if(encoderPos == lastEncoderPos) return;
 
   int delta      = encoderPos - lastEncoderPos;
@@ -58,19 +58,42 @@ inline void handleEncoder(PedalState &pedal,
     return;
   }
 
-  // ── Two-level mode select (category / variant) ─────────────────────────────
+  // ── Three-level mode select (category / sub-group / variant / CC Hi+Lo) ────
   if(pedal.inModeSelect) {
+    const ModeCategory &cat = modeCategories[pedal.modeSelectCatIdx];
+    const char *fsName = pedal.buttons[pedal.modeSelectFSIdx].name;
     if(pedal.modeSelectLevel == 0) {
       int next = constrain((int)pedal.modeSelectCatIdx + delta, 0, NUM_CATEGORIES - 1);
       pedal.modeSelectCatIdx = (uint8_t)next;
-      displayModeSelect(pedal.buttons[pedal.modeSelectFSIdx].name,
-                        pedal.modeSelectCatIdx, 0, false);
-    } else {
-      const ModeCategory &cat = modeCategories[pedal.modeSelectCatIdx];
-      int next = constrain((int)pedal.modeSelectVarIdx + delta, 0, (int)cat.count - 1);
+      displayModeSelect(fsName, pedal.modeSelectCatIdx, 0, 0, 0);
+    } else if(pedal.modeSelectLevel == 1) {
+      int maxIdx = (cat.subGroupCount > 0)
+                     ? (int)cat.subGroupCount - 1
+                     : (int)cat.count - 1;
+      int next = constrain((int)pedal.modeSelectVarIdx + delta, 0, maxIdx);
       pedal.modeSelectVarIdx = (uint8_t)next;
-      displayModeSelect(pedal.buttons[pedal.modeSelectFSIdx].name,
-                        pedal.modeSelectCatIdx, pedal.modeSelectVarIdx, true);
+      displayModeSelect(fsName, pedal.modeSelectCatIdx, 1,
+                        pedal.modeSelectVarIdx, 0);
+    } else if(pedal.modeSelectLevel == 2) {
+      if(cat.subGroupCount > 0) {
+        int next = constrain((int)pedal.modeSelectSubVarIdx + delta,
+                             0, (int)cat.subGroupSize - 1);
+        pedal.modeSelectSubVarIdx = (uint8_t)next;
+        displayModeSelect(fsName, pedal.modeSelectCatIdx, 2,
+                          pedal.modeSelectVarIdx, pedal.modeSelectSubVarIdx);
+      } else {
+        // CC Hi value (0-127, acceleration applies)
+        int next = constrain((int)pedal.modeSelectVarIdx + delta * accelMult, 0, 127);
+        pedal.modeSelectVarIdx = (uint8_t)next;
+        displayModeSelect(fsName, pedal.modeSelectCatIdx, 2,
+                          pedal.modeSelectVarIdx, 0);
+      }
+    } else {
+      // Level 3: CC Lo value (0-127, acceleration applies)
+      int next = constrain((int)pedal.modeSelectSubVarIdx + delta * accelMult, 0, 127);
+      pedal.modeSelectSubVarIdx = (uint8_t)next;
+      displayModeSelect(fsName, pedal.modeSelectCatIdx, 3,
+                        pedal.modeSelectVarIdx, pedal.modeSelectSubVarIdx);
     }
     return;
   }
@@ -96,19 +119,35 @@ inline void handleEncoder(PedalState &pedal,
 
   if(activeButtonIndex >= 0) {
     FSButton &btn = pedal.buttons[activeButtonIndex];
-    uint8_t maxVal;
-    int     step;
-    if(btn.isScene) {
-      maxVal = btn.modMode.sceneMaxVal;
-      step   = delta;
-    } else if(btn.isSystem) {
-      maxVal = NUM_SYS_CMDS - 1;
-      step   = delta;
-    } else {
-      maxVal = 127;
-      step   = delta * accelMult;
+    if(btn.isKeyboard) {
+      // Keyboard mode: cycle through available keys (no acceleration, small range)
+      int next = constrain((int)btn.midiNumber + delta, 0, (int)(NUM_HID_KEYS - 1));
+      btn.midiNumber = (uint8_t)next;
+      displayFSCallback(btn);
+      markStateDirty();
+      return;
     }
-    btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + step, 0, (int)maxVal);
+    if(btn.isModSwitch) {
+      // Modulation modes: range extends one step below CC0 to PB_SENTINEL (PB).
+      // Cursor space: -1 = PB, 0..127 = CC0..CC127. Acceleration applies.
+      int cur  = (btn.midiNumber == PB_SENTINEL) ? -1 : (int)btn.midiNumber;
+      int next = constrain(cur + delta * accelMult, -1, 127);
+      btn.midiNumber = (next < 0) ? PB_SENTINEL : (uint8_t)next;
+    } else {
+      uint8_t maxVal;
+      int     step;
+      if(btn.isScene) {
+        maxVal = btn.modMode.sceneMaxVal;
+        step   = delta;
+      } else if(btn.isSystem) {
+        maxVal = NUM_SYS_CMDS - 1;
+        step   = delta;
+      } else {
+        maxVal = 127;
+        step   = delta * accelMult;
+      }
+      btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + step, 0, (int)maxVal);
+    }
     displayFSCallback(btn);
   } else if(encBtnPressing) {
     // Encoder button held + rotate → global MIDI channel (no acceleration).

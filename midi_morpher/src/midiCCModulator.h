@@ -10,23 +10,43 @@ enum RampShape {
   SHAPE_SQUARE
 };
 
+// Destination for the modulator output. CC emits 7-bit CC messages on
+// midiCCNumber; PITCHBEND emits 14-bit Pitch Bend messages (rest = 8192 center,
+// active = 0 or 16383 depending on inverted flag).
+enum ModDest : uint8_t {
+  DEST_CC,
+  DEST_PITCHBEND
+};
+
+// Full 14-bit range used internally. CC modes downcast to 7-bit on emit.
+static constexpr uint16_t MOD_MAX_14BIT    = 16383;
+static constexpr uint16_t MOD_CENTER_14BIT = 8192;
+// DIN-MIDI rate cap for Pitch Bend emits. 2ms → ~500 msg/s; DIN fits ~1040 msg/s.
+static constexpr uint16_t MOD_PB_MIN_EMIT_MS = 2;
+
 struct MidiCCModulator {
   bool switchPressed = false;
-  bool restingHigh = false; // true = resting at 127 (inverted modes)
+  bool restingHigh = false; // true = resting at top (inverted modes)
   bool latching = false;
   bool isActivated = false;
   bool isModulating = false;
   bool lfoFinishing = false;  // true when LFO is returning to rest after release/latch-off
   bool lfoTowardRest = false; // LFO direction: true = currently sweeping toward rest value
 
-  uint8_t currentValue = 0;
-  uint8_t targetValue = 0;
-  uint8_t rampStartValue = 0;
-  uint8_t randomMin = 0;
-  uint8_t randomMax = 127;
-  uint8_t stepperSteps = 10;
-  uint8_t midiChannel = 0;
-  uint8_t midiCCNumber = 25;
+  uint16_t currentValue = 0;
+  uint16_t targetValue = 0;
+  uint16_t rampStartValue = 0;
+  uint16_t randomMin = 0;
+  uint16_t randomMax = MOD_MAX_14BIT;
+  uint8_t  stepperSteps = 10;
+  uint8_t  midiChannel = 0;
+  uint8_t  midiCCNumber = 25;
+
+  // Output destination & emit-change cache. Reset on state change.
+  ModDest  destType      = DEST_CC;
+  uint8_t  lastEmittedCC = 0xFF;     // 0xFF = never emitted (forces first emit)
+  uint16_t lastEmittedPB = 0xFFFF;   // 0xFFFF = never emitted
+  unsigned long lastEmitMs = 0;
 
   unsigned long rampUpTimeMs = DEFAULT_RAMP_SPEED;
   unsigned long rampDownTimeMs = DEFAULT_RAMP_SPEED;
@@ -43,18 +63,27 @@ struct MidiCCModulator {
   void updateRandomStepper();
 
   // ── Rest position ─────────────────────────────────────────────────────────
-  // Called from toggleFootswitchMode to configure inverted/normal mode.
+  // For CC: rest = 0 or 16383 depending on inverted. For PB: rest is always
+  // 8192 (center), active end swaps based on inverted.
 
-  void setRestingLow() { // normal: rests at 0, sweeps to 127
-    restingHigh = false;
-    currentValue = 0;
-    targetValue = 127;
+  uint16_t restVal()   const {
+    if(destType == DEST_PITCHBEND) return MOD_CENTER_14BIT;
+    return restingHigh ? MOD_MAX_14BIT : 0;
+  }
+  uint16_t activeVal() const {
+    return restingHigh ? 0 : MOD_MAX_14BIT;
   }
 
-  void setRestingHigh() { // inverted: rests at 127, sweeps to 0
+  void setRestingLow() { // normal: rests at 0 (or center for PB)
+    restingHigh = false;
+    currentValue = restVal();
+    targetValue  = activeVal();
+  }
+
+  void setRestingHigh() { // inverted
     restingHigh = true;
-    currentValue = 127;
-    targetValue = 0;
+    currentValue = restVal();
+    targetValue  = activeVal();
   }
 
   // ── Ramp shape ────────────────────────────────────────────────────────────
@@ -77,14 +106,17 @@ struct MidiCCModulator {
   // ── State control ─────────────────────────────────────────────────────────
 
   void reset() {
-    currentValue = restingHigh ? 127 : 0;
-    targetValue = restingHigh ? 0 : 127;
+    currentValue  = restVal();
+    targetValue   = activeVal();
     switchPressed = false;
-    isActivated = false;
-    isModulating = false;
-    lfoFinishing = false;
+    isActivated   = false;
+    isModulating  = false;
+    lfoFinishing  = false;
     lfoTowardRest = false;
     lastRandomTime = 0;
+    // Invalidate emit cache so the next real change always emits.
+    lastEmittedCC = 0xFF;
+    lastEmittedPB = 0xFFFF;
   }
 
   void setLatch(bool enabled) {
@@ -104,19 +136,16 @@ struct MidiCCModulator {
 
   // ── Ramp helpers ──────────────────────────────────────────────────────────
 
-  uint8_t restVal()   const { return restingHigh ? 127 : 0;   }
-  uint8_t activeVal() const { return restingHigh ? 0   : 127; }
-
   // Proportional interpolation step shared by Ramper, Stepper, and LFO.
   // Precondition: currentValue != targetValue.
   // Returns true  when the ramp is complete (outValue = targetValue).
   // Returns false when in progress         (outValue = shaped interpolation).
-  bool calcRampValue(uint8_t &outValue) {
+  bool calcRampValue(uint16_t &outValue) {
     bool     goingUp  = (targetValue > currentValue);
-    uint8_t  distance = goingUp ? (targetValue - currentValue)
-                                : (currentValue - targetValue);
+    uint16_t distance = goingUp ? (uint16_t)(targetValue - currentValue)
+                                : (uint16_t)(currentValue - targetValue);
     unsigned long fullDur = goingUp ? rampUpTimeMs : rampDownTimeMs;
-    unsigned long dur     = (unsigned long)(fullDur * (distance / 127.0f));
+    unsigned long dur     = (unsigned long)(fullDur * ((float)distance / (float)MOD_MAX_14BIT));
 
     if (dur <= 1) { outValue = targetValue; return true; }
 
@@ -125,9 +154,34 @@ struct MidiCCModulator {
 
     float   t      = (float)elapsed / (float)dur;
     float   shaped = shapeRamp(t, rampShape);
-    int     delta  = (int)targetValue - (int)rampStartValue;
-    outValue = (uint8_t)((int)rampStartValue + (int)((float)delta * shaped));
+    int32_t delta  = (int32_t)targetValue - (int32_t)rampStartValue;
+    int32_t v      = (int32_t)rampStartValue + (int32_t)((float)delta * shaped);
+    if(v < 0) v = 0;
+    if(v > (int32_t)MOD_MAX_14BIT) v = MOD_MAX_14BIT;
+    outValue = (uint16_t)v;
     return false;
+  }
+
+  // ── Output emit ───────────────────────────────────────────────────────────
+  // Modulators call emit() whenever currentValue is updated. CC-dest downcasts
+  // 14-bit → 7-bit and only sends on 7-bit change (preserves pre-existing CC
+  // msg rate). PB-dest sends on 14-bit change, gated by MOD_PB_MIN_EMIT_MS so
+  // a fast LFO cannot flood DIN at 31.25 kbaud. `force` bypasses the rate gate
+  // for terminal emits (ramp finished) so the final value is never lost.
+  void emit(bool force = false) {
+    if(destType == DEST_PITCHBEND) {
+      if(currentValue == lastEmittedPB) return;
+      unsigned long now = millis();
+      if(!force && (now - lastEmitMs) < MOD_PB_MIN_EMIT_MS) return;
+      lastEmitMs    = now;
+      lastEmittedPB = currentValue;
+      sendPitchBend(midiChannel, currentValue);
+    } else {
+      uint8_t cc7 = (uint8_t)(currentValue >> 7);  // 0..127
+      if(cc7 == lastEmittedCC) return;
+      lastEmittedCC = cc7;
+      sendMIDI(midiChannel, false, midiCCNumber, cc7);
+    }
   }
 
   void calcAndStartRamp() {

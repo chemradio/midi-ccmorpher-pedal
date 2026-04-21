@@ -137,6 +137,9 @@ inline String buildStateJson() {
         j += F(",\"rampDownNoteIdx\":"); j += (uint8_t)(b.rampDownMs & 0xFF);
         j += F(",\"isModSwitch\":");     j += b.isModSwitch ? F("true") : F("false");
         j += F(",\"isLatching\":");      j += b.isLatching  ? F("true") : F("false");
+        j += F(",\"isKeyboard\":");      j += b.isKeyboard  ? F("true") : F("false");
+        j += F(",\"ccLow\":");           j += b.ccLow;
+        j += F(",\"ccHigh\":");          j += b.ccHigh;
         j += '}';
     }
     j += F("]}");
@@ -244,14 +247,23 @@ inline void handlePostButton(int idx) {
     if(mi >= 0 && mi < NUM_MODES)           applyModeIndex(btn, (uint8_t)mi, &_webPedal->modulator);
     // Clamp midiNumber against mode-appropriate max. Scene modes cap at
     // sceneMaxVal (7 for Helix/QC/Fractal, 4 for Kemper); system commands cap
-    // at NUM_SYS_CMDS-1; everything else 0–127.
-    int mnMax = btn.isScene  ? (int)btn.modMode.sceneMaxVal
-              : btn.isSystem ? (int)(NUM_SYS_CMDS - 1)
-              : 127;
-    if(mn >= 0 && mn <= mnMax)              btn.midiNumber = (uint8_t)mn;
+    // at NUM_SYS_CMDS-1; modulation modes additionally accept 255 (PB_SENTINEL)
+    // meaning Pitch Bend destination; everything else 0–127.
+    if(btn.isModSwitch && mn == (int)PB_SENTINEL) {
+      btn.midiNumber = PB_SENTINEL;
+    } else {
+      int mnMax = btn.isScene  ? (int)btn.modMode.sceneMaxVal
+                : btn.isSystem ? (int)(NUM_SYS_CMDS - 1)
+                : 127;
+      if(mn >= 0 && mn <= mnMax)            btn.midiNumber = (uint8_t)mn;
+    }
     if(ch == 255 || (ch >= 0 && ch <= 15))  btn.fsChannel  = (uint8_t)ch;
     if(_validRamp(up))                      btn.rampUpMs   = up;
     if(_validRamp(dn))                      btn.rampDownMs = dn;
+    int cl = jsonInt(body, "ccLow");
+    int ch2 = jsonInt(body, "ccHigh");
+    if(cl >= 0 && cl <= 127)   btn.ccLow  = (uint8_t)cl;
+    if(ch2 >= 0 && ch2 <= 127) btn.ccHigh = (uint8_t)ch2;
     markStateDirty();
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }

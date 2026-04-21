@@ -7,8 +7,8 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 ## Features at a Glance
 
 - 4 onboard footswitches + 2 external via jack — all 6 independently configurable
-- 27 footswitch modes: basic MIDI + 5 modulation types + scene/snapshot for Helix, QC, Fractal, Kemper + Tap Tempo
-- **6 presets** — store and recall complete configurations; footswitch LEDs indicate the active preset
+- 32 footswitch modes: basic MIDI + 5 modulation types + scene/snapshot (with scroll variants) for Helix, QC, Fractal, Kemper + Tap Tempo + System/Transport
+- **6 presets** — store and recall complete configurations including per-preset BPM; footswitch LEDs indicate the active preset
 - Per-footswitch MIDI channel override
 - Modulation speed controlled by two onboard pots (UP and DOWN independently)
 - Proportional return speed — feels consistent regardless of when you release
@@ -19,8 +19,9 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 - **Activity LED** — shows the active state of the most recently pressed footswitch
 - Analog expression output via AD5292 digital potentiometer
 - Expression pedal input — mirrors value to expression out and sends as MIDI CC20
-- mini-TRS MIDI Out + In (MIDI Thru), USB-C MIDI
-- **Wireless web UI** — full configuration from any phone or laptop; includes footswitch trigger buttons and pot sliders
+- mini-TRS MIDI Out + In (MIDI Thru), USB-C MIDI, **BLE MIDI** (Apple standard, iOS/macOS/Windows/Linux/Android)
+- **Configurable MIDI routing** — 6 toggleable pairs: DIN↔USB, DIN↔BLE, USB↔BLE
+- **Wireless web UI** — full configuration from any phone or laptop; includes footswitch trigger buttons, pot sliders, and global settings
 - **Captive portal** — phones/laptops auto-open the UI when joining the network
 - WiFi always on (turns off only when LOCK switch is engaged)
 - LOCK switch — prevents accidental encoder/pot changes and disables WiFi
@@ -40,6 +41,7 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 | Adafruit GFX Library | ≥ 1.11.0 |
 | Adafruit SSD1306 | ≥ 2.5.0 |
 | Adafruit NeoPixel | ≥ 1.12.0 |
+| NimBLE-Arduino | ≥ 2.0.0 |
 
 Built-in (no install needed): `SPI.h`, `Wire.h`, `Preferences.h`, `USB.h`, `USBMIDI.h`, `WebServer.h`, `WiFi.h`
 
@@ -58,8 +60,8 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 | FS1–FS4 | Onboard footswitches |
 | ExtFS1, ExtFS2 | External footswitches via jack |
 | PRESET button | Short press: cycle presets. Long press (1.5 s): save current settings to active preset. |
-| Rotary encoder | MIDI channel / parameter select |
-| Encoder button | Mode select (hold FS first) |
+| Rotary encoder | Adjust BPM (bare turn) / parameter select (while holding FS) / MIDI channel (while holding encoder button) |
+| Encoder button | Short press (no FS): open main menu. Short press (FS held): open mode select. Long press (FS held, ~600 ms): per-FS channel. Long press (no FS, locked, 3 s): unlock. |
 | POT1 | Modulation UP speed (0–5 s) |
 | POT2 | Modulation DOWN speed (0–5 s) |
 | MS2 toggle | Global Momentary / Latching mode |
@@ -72,8 +74,9 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 | mini-TRS MIDI Out | Primary MIDI output |
 | mini-TRS MIDI In | MIDI Thru (passes through to output) |
 | USB-C | USB MIDI out/thru + power |
+| BLE MIDI | Wireless MIDI (Apple BLE-MIDI standard) — always on |
 | Expression Out | Analog wiper mirrors modulation (AD5292 digipot) |
-| Expression In | External expression pedal → mirrors to Exp Out + sends MIDI CC20 |
+| Expression In | External expression pedal → mirrors to Exp Out + sends MIDI CC (configurable) |
 | External FS jack | Connect 2 additional footswitches |
 
 ### Pin Assignments
@@ -122,7 +125,7 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 
 ### Presets
 
-The pedal stores 6 independent presets. Each preset saves the complete configuration: all 6 footswitch modes, MIDI numbers, per-footswitch channels, ramp speeds, and the global MIDI channel.
+The pedal stores 6 independent presets. Each preset saves the complete configuration: all 6 footswitch modes, MIDI numbers, per-footswitch channels, ramp speeds, the global MIDI channel, and the current BPM.
 
 **Switching presets:**
 Press the PRESET button once. The pedal cycles forward through presets (P1 → P2 → … → P6 → P1). The OLED briefly shows the preset number, and the corresponding footswitch LED lights up.
@@ -137,15 +140,38 @@ Any time you change a setting (encoder, pots, or web UI) without saving, the OLE
 
 The 6 footswitch LEDs serve as a preset indicator — only the LED for the currently active preset is lit. A separate **Activity LED** (GPIO 20) takes over the job of showing footswitch activity: it reflects the active/latched state of the most recently pressed footswitch.
 
+### Adjusting BPM
+
+Turn the encoder knob (without holding any footswitch or the encoder button). The OLED shows the new BPM. Manual adjustment also breaks external MIDI clock sync.
+
 ### Changing the Global MIDI Channel
 
-Turn the encoder knob (without holding any footswitch). The OLED shows the new channel (1–16) in real time. The change is part of the current preset — save it to keep it.
+Hold the encoder button and turn the knob. The OLED shows the new channel (1–16) in real time. The change is part of the current preset — save it to keep it.
+
+### Main Menu
+
+Short-press the encoder button (without holding any footswitch) to open the main menu. Turn the encoder to scroll through 14 items; press the encoder button to select. Menu items:
+
+1. MIDI Channel
+2. MIDI Routings (6 toggleable pairs: DIN↔USB, DIN↔BLE, USB↔BLE)
+3. Pot 1 CC (0–127 or Off)
+4. Pot 2 CC (0–127 or Off)
+5. Exp In CC
+6. Exp Calibration (triggers 5-second sweep)
+7. Exp Wake Display
+8. LED Mode (On / Conservative / Off)
+9. Tempo LED (on/off)
+10. NeoPixel (on/off)
+11. Display Brightness (0–100%)
+12. Display Timeout (2 s / 5 s / 10 s / Always)
+13. Lock Settings
+14. Exit
 
 ### Changing a Footswitch Mode
 
 1. Hold the footswitch you want to change.
 2. While holding it, press the encoder button.
-3. The display shows the current mode. Turn the encoder to cycle through all 26 modes.
+3. The display shows a two-level picker: first choose the category (Basic, Ramper, LFO, Stepper, Random, Scenes, Utility), press the encoder to drill in, then choose the variant. Press again to apply.
 4. Release the footswitch to confirm. Save the preset to keep it.
 
 ### Changing the MIDI Number (CC, PC, Note, Scene value)
@@ -191,18 +217,36 @@ Preset *loading* (short PRESET press) works even when LOCK is engaged. Preset *s
 
 ### Scene / Snapshot Modes
 
-These modes are tailored to specific guitar modellers. Encoder selects the target scene/slot.
+These modes are tailored to specific guitar modellers. Each comes in two variants:
+
+- **Normal**: Encoder pre-selects a value; every press sends that same value.
+- **Scroll**: Each press advances to the next scene/slot and sends it (wraps around).
 
 | Mode | CC | Values | Notes |
 |------|----|--------|-------|
-| Helix Snap | CC 69 | 0–7 | Encoder selects snapshot value |
-| QC Scene | CC 43 | 0–7 | Encoder selects scene value |
-| Fractal Scene | CC 34 | 0–7 | Encoder selects scene value |
-| Kemper Slot | CC 50–54 | 1 | Encoder selects CC number (slot 0 = CC50, slot 4 = CC54) |
+| Helix Snap / Helix Scrl | CC 69 | 0–7 | Snapshot select or scroll |
+| QC Scene / QC Scrl | CC 43 | 0–7 | Scene select or scroll |
+| Fractal Scene / Fract Scrl | CC 34 | 0–7 | Scene select or scroll |
+| Kemper Slot / Kemper Scrl | CC 50–54 | 1 | Encoder selects CC number (slot 0 = CC50, slot 4 = CC54); scroll cycles CC numbers |
+
+### System / Transport Mode
+
+Encoder selects one of 8 transport commands. Each press sends both an MMC SysEx message (for DAWs) and the corresponding System Real-Time byte (for hardware).
+
+| Command | MMC | SysEx byte |
+|---------|-----|------------|
+| Play | F0 7F 7F 06 02 F7 | FA |
+| Stop | F0 7F 7F 06 01 F7 | FC |
+| Continue | F0 7F 7F 06 03 F7 | FB |
+| Record | F0 7F 7F 06 06 F7 | — |
+| Pause | F0 7F 7F 06 09 F7 | — |
+| Rewind | F0 7F 7F 06 05 F7 | — |
+| Fast Fwd | F0 7F 7F 06 04 F7 | — |
+| Goto Start | Song Position Pointer to 0 | — |
 
 ### Modulation Modes
 
-All modulation modes output to the CC number set for that footswitch. The same output also drives the expression pedal output jack.
+All modulation modes output to the CC number set for that footswitch. Scroll the encoder one step below CC 0 to select **Pitch Bend** output instead — the modulator then sends 14-bit pitch bend (0–16383, center 8192). The same output also drives the expression pedal output jack.
 
 #### RAMPER
 
@@ -255,13 +299,21 @@ A ramp that only reached CC 50 will return twice as fast as one that reached CC 
 
 ---
 
+## BLE MIDI
+
+The pedal advertises itself as **MIDI Morpher** using the standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`). Compatible with iOS, macOS, Windows, Linux, and Android. BLE MIDI is always active — the LOCK switch does not affect it.
+
+BLE MIDI coexists with the WiFi AP via radio time-slicing. BLE TX and RX can be routed to/from DIN and USB via the configurable MIDI routing flags.
+
+---
+
 ## Wireless Web Interface
 
 The pedal broadcasts its own WiFi access point (always on, except when LOCK is engaged):
 
 - **Network:** `MIDI Morpher`
 - **Password:** `midimorpher`
-- **Address:** `http://192.168.4.1`
+- **Address:** `http://192.168.4.1` or `http://midimorpher.local` (mDNS)
 
 Connect from any phone, tablet, or laptop — no app required.
 
@@ -269,12 +321,13 @@ Connect from any phone, tablet, or laptop — no app required.
 
 - Global MIDI channel (1–16) + live BPM readout (with EXT badge when slaved to incoming MIDI clock)
 - **Presets** — switch between all 6 presets; save the current settings to the active preset
-- Per-footswitch mode (all 27 modes)
+- Per-footswitch mode (all 32 modes)
 - Per-footswitch MIDI CC / PC / Note number — **1-indexed** UI, mode-aware bounds (1–128 for CC/PC/Note, 1–8 for scene modes, 1–5 for Kemper slot), disabled for Tap Tempo
 - Per-footswitch MIDI channel override (or Global)
 - Per-footswitch ramp UP and DOWN speed — either a millisecond slider or a note-value dropdown (1/32T … 2/1), toggled by an inline `sync` checkbox. Visible for modulation modes only.
 - **Footswitch trigger buttons** — activate footswitches directly from the browser (hold for momentary, click-toggle for latching)
 - **POT1 / POT2 sliders** — send CC 20 / CC 21 directly from the web UI
+- **Global settings** — LED mode, tempo LED, NeoPixel, display brightness, display timeout, pot CC assignments, expression CC, expression pedal calibration, MIDI routing flags
 
 ### Unsaved Changes
 
@@ -294,13 +347,20 @@ WiFi turns off automatically when the LOCK switch is engaged and restarts when i
 |--------|------|------|--------|
 | GET | `/api/state` | — | Full state JSON (channel, activePreset, presetDirty, bpm, externalSync, all 6 buttons) |
 | GET | `/api/presets` | — | All 6 preset slots + active index |
+| GET | `/api/global` | — | All global settings as JSON |
+| POST | `/api/global` | global settings fields | Update global settings |
 | POST | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15) |
 | POST | `/api/button/:id` | `{"modeIndex":4,"midiNumber":11,"fsChannel":255,"rampUpMs":1000,"rampDownMs":1000}` | Update footswitch config. Server clamps `midiNumber` against mode range (`sceneMaxVal` for scene modes, 127 otherwise). Ramp values with bit 31 set encode a note-value index (see MIDI Clock below). |
 | POST | `/api/button/:id/press` | — | Simulate footswitch press |
 | POST | `/api/button/:id/release` | — | Simulate footswitch release |
+| POST | `/api/bpm` | `{"bpm":120}` | Set internal BPM (20–300); clears external sync |
+| GET | `/api/poll` | — | Lightweight poll: `{bpm, externalSync, activePreset, presetDirty}` |
 | POST | `/api/pot` | `{"id":0,"value":64}` | Send CC 20 (id=0) or CC 21 (id=1) |
 | POST | `/api/preset/load/:id` | — | Apply preset N (0–5) to live state |
 | POST | `/api/preset/save/:id` | — | Save current live state to preset N |
+| GET | `/api/expcal` | — | Poll calibration status `{running, min, max}` |
+| POST | `/api/expcal` | — | Start 5-second expression pedal calibration sweep |
+| GET | `/dismiss` | — | Clean shutdown of WiFi AP |
 
 ---
 
@@ -342,11 +402,26 @@ The onboard RGB LED (GPIO 48) reflects the current modulation output level:
 All settings are stored in 6 preset slots in internal NVS (non-volatile storage). Each preset contains:
 
 - Global MIDI channel
+- BPM (loaded when the preset is applied)
 - For each of 6 footswitches: mode, MIDI number, per-footswitch channel, ramp UP/DOWN speed
+
+Global settings (LED mode, display, routing, pot/exp CCs, calibration) are stored separately in NVS and are not preset-specific.
 
 Settings are **not auto-saved**. Changes are held in memory until you explicitly save (long-press PRESET button or click Save Preset in the web UI).
 
 On first boot after a firmware update from an older version, the old single-preset settings are migrated into preset slot 1. All other slots initialize to factory defaults.
+
+---
+
+## Expression Pedal Calibration
+
+The expression pedal input auto-ranges, but a manual calibration gives the best accuracy:
+
+1. Open the main menu (encoder button short press, no FS held) and select **Exp Calibration**, or press the **Exp Calibration** button in the web UI.
+2. Slowly sweep the expression pedal from heel to toe and back over 5 seconds.
+3. The min and max ADC readings are saved to non-volatile storage.
+
+If the pedal moves beyond the stored range during normal use, the range expands automatically.
 
 ---
 

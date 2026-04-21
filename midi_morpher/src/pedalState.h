@@ -16,12 +16,16 @@ struct PedalState
     int8_t channelSelectIdx = -1;     // which button is being edited
     int8_t lastActiveFSIndex = -1;    // which footswitch was last pressed (for activity LED)
 
-    // Two-level mode select (category → variant)
-    bool    inModeSelect     = false;
-    uint8_t modeSelectLevel  = 0;     // 0 = category, 1 = variant
-    uint8_t modeSelectCatIdx = 0;
-    uint8_t modeSelectVarIdx = 0;
-    int8_t  modeSelectFSIdx  = -1;
+    // Saved CC variant (0=Momentary, 1=Latching) during the CC Hi/Lo config levels
+    uint8_t modeSelectCCVariant = 0;
+
+    // Three-level mode select (category → sub-group → variant)
+    bool    inModeSelect        = false;
+    uint8_t modeSelectLevel     = 0;   // 0=category, 1=sub-group/variant, 2=variant within sub-group
+    uint8_t modeSelectCatIdx    = 0;
+    uint8_t modeSelectVarIdx    = 0;   // sub-group idx at level 1+  (or direct variant if no sub-groups)
+    uint8_t modeSelectSubVarIdx = 0;   // variant within sub-group at level 2
+    int8_t  modeSelectFSIdx     = -1;
 
     // Main menu state
     MenuState menuState      = MenuState::NONE;

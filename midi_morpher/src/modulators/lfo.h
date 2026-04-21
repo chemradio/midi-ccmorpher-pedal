@@ -8,7 +8,7 @@ inline void MidiCCModulator::updateLFO() {
       isModulating  = false;
       lfoFinishing  = false;
       lfoTowardRest = false;
-      sendMIDI(midiChannel, false, midiCCNumber, currentValue);
+      emit(true);
       return;
     }
     // Bounce: flip direction and queue the next segment.
@@ -19,16 +19,16 @@ inline void MidiCCModulator::updateLFO() {
     return;
   }
 
-  uint8_t newValue;
+  uint16_t newValue;
   if (calcRampValue(newValue)) {
     // Segment complete mid-ramp — snap and send; bounce handled next iteration.
     currentValue = targetValue;
-    sendMIDI(midiChannel, false, midiCCNumber, currentValue);
+    emit(true);
     return;
   }
 
   if (newValue != currentValue) {
     currentValue = newValue;
-    sendMIDI(midiChannel, false, midiCCNumber, currentValue);
+    emit(false);
   }
 }

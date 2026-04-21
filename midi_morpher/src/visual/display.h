@@ -88,8 +88,19 @@ inline void displayLockedMessage(String whoSays = "") {
 
 // Returns the parameter string shown on the right side of each FS row.
 inline static String _buttonNumStr(const FSButton &btn) {
+  if(btn.isKeyboard) {
+    uint8_t idx = btn.midiNumber < NUM_HID_KEYS ? btn.midiNumber : 0;
+    String s = String(hidKeys[idx].name);
+    // Append modifier abbreviations
+    uint8_t m = (btn.fsChannel == 0xFF) ? 0 : btn.fsChannel;
+    if(m & KEY_MOD_CTRL)  s = "^" + s;
+    if(m & KEY_MOD_SHIFT) s = "S+" + s;
+    if(m & KEY_MOD_ALT)   s = "A+" + s;
+    if(m & KEY_MOD_GUI)   s = "G+" + s;
+    return s;
+  }
   if(btn.isNote) {
-    static const char *noteNames[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    static const char *noteNames[] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
     return String(noteNames[btn.midiNumber % 12]) + String((int)(btn.midiNumber / 12) - 1);
   }
   if(btn.isSystem) {
@@ -103,6 +114,8 @@ inline static String _buttonNumStr(const FSButton &btn) {
   }
   if(btn.isPC)
     return "PC:" + String(btn.midiNumber + 1);
+  if(btn.isModSwitch && btn.midiNumber == PB_SENTINEL)
+    return String(F("PB"));
   return "CC:" + String(btn.midiNumber + 1);
 }
 
@@ -248,6 +261,20 @@ inline static int _displayModeName(const char *modeName, int y) {
 inline static void _displayNumber(const FSButton &button, int y) {
   display.setTextSize(1);
   display.setCursor(0, y);
+  if(button.isKeyboard) {
+    uint8_t idx = button.midiNumber < NUM_HID_KEYS ? button.midiNumber : 0;
+    display.print(hidKeys[idx].name);
+    uint8_t m = (button.fsChannel == 0xFF) ? 0 : button.fsChannel;
+    if(m) {
+      display.print(F(" ("));
+      if(m & KEY_MOD_CTRL)  display.print('C');
+      if(m & KEY_MOD_SHIFT) display.print('S');
+      if(m & KEY_MOD_ALT)   display.print('A');
+      if(m & KEY_MOD_GUI)   display.print('G');
+      display.print(')');
+    }
+    return;
+  }
   if(button.isSystem) {
     uint8_t idx = button.midiNumber < NUM_SYS_CMDS ? button.midiNumber : 0;
     display.print(systemCommands[idx].name);
@@ -279,6 +306,8 @@ inline static void _displayNumber(const FSButton &button, int y) {
   } else if(button.isNote) {
     display.print("Note: ");
     _printNoteName(button.midiNumber);
+  } else if(button.isModSwitch && button.midiNumber == PB_SENTINEL) {
+    display.print(F("Pitch Bend"));
   } else {
     display.print("CC: ");
     display.print(button.midiNumber + 1);
@@ -336,7 +365,9 @@ inline void displayFootswitchPress(FSButton &button) {
 
   // Row 4 — state
   display.setCursor(0, y + 10);
-  if(button.isModSwitch) {
+  if(button.isKeyboard) {
+    display.print(button.isActivated ? "PRESSED" : "OFF");
+  } else if(button.isModSwitch) {
     display.print(button.isPressed ? "ACTIVE" : "OFF");
   } else if(button.isPC) {
     display.print(button.isPressed ? "SENT" : "");
@@ -345,7 +376,6 @@ inline void displayFootswitchPress(FSButton &button) {
   } else if(button.isScene) {
     display.print(button.isPressed ? "SENT" : "");
   } else {
-    // CC momentary or latching
     display.print(button.isActivated ? "ON  127" : "OFF   0");
   }
 
@@ -372,8 +402,28 @@ inline void displayEncoderFSTurn(FSButton &button) {
   display.setCursor(0, 12);
   display.setTextSize(1);
 
+  if(button.isKeyboard) {
+    display.print("Key:");
+    uint8_t kidx = button.midiNumber < NUM_HID_KEYS ? button.midiNumber : 0;
+    const char *kname = hidKeys[kidx].name;
+    bool big = strlen(kname) <= 6;
+    display.setTextSize(big ? 3 : 2);
+    display.setCursor(0, 24);
+    display.print(kname);
+    // Show modifier below
+    uint8_t m = (button.fsChannel == 0xFF) ? 0 : button.fsChannel;
+    if(m) {
+      display.setTextSize(1);
+      display.setCursor(0, 50);
+      if(m & KEY_MOD_CTRL)  display.print("Ctrl ");
+      if(m & KEY_MOD_SHIFT) display.print("Shift ");
+      if(m & KEY_MOD_ALT)   display.print("Alt ");
+      if(m & KEY_MOD_GUI)   display.print("Cmd");
+    }
+    display.display();
+    return;
+  }
   if(button.isSystem) {
-    // System/Transport: show the selected command name as big text
     display.print("Cmd:");
     uint8_t idx = button.midiNumber < NUM_SYS_CMDS ? button.midiNumber : 0;
     const char *name = systemCommands[idx].name;
@@ -403,6 +453,14 @@ inline void displayEncoderFSTurn(FSButton &button) {
     } else if(button.isPC) {
       display.print("PC:");
       displayVal = button.midiNumber + 1; // 1-indexed for humans
+    } else if(button.isModSwitch && button.midiNumber == PB_SENTINEL) {
+      // Pitch Bend destination — no numeric value; show "PB" as the big label.
+      display.print(F("Target:"));
+      display.setTextSize(3);
+      display.setCursor(0, 24);
+      display.print(F("PB"));
+      display.display();
+      return;
     } else {
       // CC or modulation — midiNumber is the CC number
       display.print("CC:");
@@ -435,46 +493,124 @@ inline void displayMidiChannel(uint8_t channel) {
   display.display();
 }
 
-// Two-level mode selector: category (level 0) or variant within category (level 1).
-// Header shows FS name + step indicator [1/2] or [2/2] so the user knows which
-// stage of the two-press configuration they're on.
-inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx, uint8_t varIdx, bool variantLevel) {
+// Three-level mode selector.
+// level 0 = category select
+// level 1 = sub-group select (for Ramp/LFO/Stepper/Random) or variant select (CC/Scenes)
+// level 2 = variant within sub-group (for categories with sub-groups)
+//
+// Inverted header bar shows FS name + depth indicator (e.g. "2/3").
+inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
+                                    uint8_t level, uint8_t idx1, uint8_t idx2) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
   display.clearDisplay();
   display.invertDisplay(false);
-  display.setTextColor(SSD1306_WHITE);
 
-  // Row 1 — FS name (left) + step indicator (right)
+  const ModeCategory &cat = modeCategories[catIdx];
+  bool isCCCat = (cat.subGroupCount == 0 && cat.count > 0 && cat.firstIdx < NUM_MODES &&
+                  (modes[cat.firstIdx].mode == FootswitchMode::MomentaryCC ||
+                   modes[cat.firstIdx].mode == FootswitchMode::LatchingCC));
+  uint8_t totalDepth = cat.autoSelect ? 1 : (cat.subGroupCount > 0 ? 3 : (isCCCat ? 4 : 2));
+
+  // ── Inverted header bar ────────────────────────────────────────────────────
+  display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
+  display.setTextColor(SSD1306_BLACK);
   display.setTextSize(1);
-  display.setCursor(0, 0);
+  display.setCursor(2, 1);
   display.print(fsName);
-  const char *step = variantLevel ? "[2/2]" : "[1/2]";
-  display.setCursor(128 - (int)strlen(step) * 6, 0);
-  display.print(step);
-  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+  // Depth indicator right-aligned
+  char depth[5];
+  snprintf(depth, sizeof(depth), "%d/%d", level + 1, totalDepth);
+  display.setCursor(128 - (int)strlen(depth) * 6 - 2, 1);
+  display.print(depth);
+  display.setTextColor(SSD1306_WHITE);
+  display.drawFastHLine(0, 10, 128, SSD1306_WHITE);
 
-  // Row 2 — label: what we're picking
-  display.setCursor(0, 12);
-  display.print(variantLevel ? F("Mode:") : F("Category:"));
+  // ── Content based on level ─────────────────────────────────────────────────
+  const char *label    = nullptr;
+  const char *value    = nullptr;
+  const char *noteLine = nullptr;
 
-  // Row 3 — current selection (size 2 if it fits, else size 1)
-  const char *value;
-  if(!variantLevel) {
-    value = modeCategories[catIdx].name;
+  if(level == 0) {
+    label = "Category:";
+    value = cat.name;
+    if(!cat.autoSelect)
+      noteLine = (cat.subGroupCount > 0) ? "3 steps" : (isCCCat ? "4 steps" : "2 steps");
+  } else if(level == 1) {
+    if(cat.subGroupCount > 0) {
+      label    = (cat.subGroupCount == 3) ? "Wave:" : "Direction:";
+      value    = cat.subGroupNames ? cat.subGroupNames[idx1] : "?";
+      noteLine = cat.subGroupNotes ? cat.subGroupNotes[idx1] : nullptr;
+    } else {
+      label = "Trigger:";
+      value = cat.variantNames ? cat.variantNames[idx1] : "?";
+    }
+  } else if(level == 2 && cat.subGroupCount > 0) {
+    // Sub-group variant select
+    if(cat.subGroupNames && cat.subGroupNames[idx1]) {
+      display.setTextSize(1);
+      display.setCursor(0, 12);
+      display.print(cat.subGroupNames[idx1]);
+      display.print(F(" > Trigger:"));
+    } else {
+      label = "Trigger:";
+    }
+    value    = cat.variantNames ? cat.variantNames[idx2] : "?";
+    noteLine = cat.subGroupNotes ? cat.subGroupNotes[idx1] : nullptr;
+  } else if(level == 2) {
+    // CC Hi value
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 12);
+    display.print(F("Hi (press):"));
+    display.setTextSize(3);
+    display.setCursor(0, 26);
+    display.print(idx1);
+    display.setTextSize(1);
+    display.setCursor(0, 56);
+    display.print(F("Turn=value  Press=OK"));
+    display.display();
+    return;
   } else {
-    uint8_t modeIdx = modeCategories[catIdx].firstIdx + varIdx;
-    value = modes[modeIdx].name;
+    // Level 3: CC Lo value
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 12);
+    display.print(F("Hi:"));
+    display.print(idx1);
+    display.print(F("  Lo (release):"));
+    display.setTextSize(3);
+    display.setCursor(0, 26);
+    display.print(idx2);
+    display.setTextSize(1);
+    display.setCursor(0, 56);
+    display.print(F("Turn=value  Press=OK"));
+    display.display();
+    return;
   }
-  bool big = strlen(value) <= 10;
-  display.setTextSize(big ? 2 : 1);
-  display.setCursor(0, 28);
-  display.print(value);
 
-  // Row 4 — hint
+  if(label) {
+    display.setTextSize(1);
+    display.setCursor(0, 12);
+    display.print(label);
+  }
+
+  if(value) {
+    bool big = strlen(value) <= 10;
+    display.setTextSize(big ? 2 : 1);
+    display.setCursor(0, level == 2 ? 26 : 23);
+    display.print(value);
+  }
+
+  if(noteLine) {
+    display.setTextSize(1);
+    display.setCursor(0, 44);
+    display.print(noteLine);
+  }
+
   display.setTextSize(1);
   display.setCursor(0, 56);
-  display.print(variantLevel ? F("Turn / Press=Set") : F("Turn / Press=Next"));
+  display.print(cat.autoSelect ? F("Press=Confirm") : F("Turn=Select  Press=OK"));
 
   display.display();
 }

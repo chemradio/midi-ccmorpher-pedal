@@ -15,12 +15,15 @@
 #include "src/wifi/webServer.h"
 #include <USB.h>
 #include <USBMIDI.h>
+#include <USBHIDKeyboard.h>
+#include "src/hidKeyboard.h"
 
 // initialize global state
 USBMIDI midi;
+USBHIDKeyboard hidKeyboard;
 PedalState pedal;
 
-// Trampoline declared extern in bleMidi.h — defined here so bleMidi.h doesn't
+// Trampoline declared extern in bleMidlmi.h — defined here so bleMidi.h doesn't
 // need to include midiClock.h (which would create a cycle via midiOut.h).
 void bleMidiOnClockTick() { midiClock.receiveClock(); }
 
@@ -36,6 +39,7 @@ void setup() {
   USB.productName("MIDI Morpher 1.0");
   USB.manufacturerName("Tim");
   USB.firmwareVersion(0x0100);
+  hidKeyboard.begin();
   midi.begin();
   USB.begin();
   delay(1000);
@@ -80,6 +84,10 @@ void loop() {
   midiClock.tick();
   pedal.modulator.update();
 
+  // Sync display state before any input handlers run so encoder/button logic
+  // always sees consistent state (inModeSelect cleared when display reverts).
+  resetDisplayTimeout(pedal);
+
   // Process footswitches, tracking which was last pressed for the activity LED.
   for(int i = 0; i < (int)pedal.buttons.size(); i++) {
     bool wasPressedBefore = pedal.buttons[i].isPressed;
@@ -91,6 +99,15 @@ void loop() {
         displayTapTempo(midiClock.bpm);
       }
     }
+  }
+
+  // Safety net: release all HID keys if no keyboard-mode FS is physically held.
+  // Prevents stuck keys from missed release edges or USB re-enumeration.
+  {
+    bool anyKbPressed = false;
+    for(const auto &b : pedal.buttons)
+      if(b.isKeyboard && b.isPressed) { anyKbPressed = true; break; }
+    if(!anyKbPressed && tud_mounted()) hidKeyboard.releaseAll();
   }
 
   // Keep the live modulator's ramp times synced when the active button's
@@ -121,7 +138,6 @@ void loop() {
 
   updateNeoPixel(pedal.modulator.currentValue, analogPots, pedal.globalSettings.neoPixelEnabled);
   handleExpInput(pedal);
-  resetDisplayTimeout(pedal);
 
   handleWebServer(pedal);
 

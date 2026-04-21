@@ -5,12 +5,20 @@
 inline Preferences prefs;
 
 // ── Persisted button record ────────────────────────────────────────────────────
+// Layout (16 bytes, same as before ccLow/ccHigh were added):
+//   [0] modeIndex  [1] midiNumber  [2-3] padding  [4-7] rampUpMs  [8-11] rampDownMs
+//   [12] fsChannel  [13] ccLow  [14] ccHigh  [15] _pad
+// When loading old NVS data: bytes 13-15 were implicit padding (zero-filled by
+// aggregate-init). ccHigh==0 is treated as 127 in applyPreset (upgrade path).
 struct FSButtonPersisted {
     uint8_t  modeIndex;
     uint8_t  midiNumber;
     uint32_t rampUpMs;
     uint32_t rampDownMs;
-    uint8_t  fsChannel;  // 0xFF = follow global; 0–15 = per-FS override
+    uint8_t  fsChannel;  // 0xFF = follow global; 0–15 = per-FS override; keyboard: modifier bitmask
+    uint8_t  ccLow;      // value sent on CC release / latch-off (default 0)
+    uint8_t  ccHigh;     // value sent on CC press / latch-on (default 127; 0 = treat as 127)
+    uint8_t  _pad;       // keeps sizeof == 16
 };
 
 // ── Preset data ───────────────────────────────────────────────────────────────
@@ -50,7 +58,10 @@ inline void saveCurrentPreset(const PedalState &state) {
             state.buttons[i].midiNumber,
             (uint32_t)state.buttons[i].rampUpMs,
             (uint32_t)state.buttons[i].rampDownMs,
-            state.buttons[i].fsChannel
+            state.buttons[i].fsChannel,
+            state.buttons[i].ccLow,
+            state.buttons[i].ccHigh,
+            0  // _pad
         };
     }
     saveAllPresets();
@@ -70,6 +81,9 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
         btn.rampUpMs     = p.buttons[i].rampUpMs;
         btn.rampDownMs   = p.buttons[i].rampDownMs;
         btn.fsChannel    = p.buttons[i].fsChannel;
+        btn.ccLow        = p.buttons[i].ccLow;
+        // ccHigh==0 means old NVS padding byte — treat as default 127
+        btn.ccHigh       = (p.buttons[i].ccHigh == 0) ? 127 : p.buttons[i].ccHigh;
         uint8_t mi       = p.buttons[i].modeIndex < NUM_MODES ? p.buttons[i].modeIndex : 0;
         applyModeFlags(btn, mi);
     }
@@ -135,7 +149,7 @@ inline void loadAllPresets(PedalState &state) {
             presets[p].midiChannel = 0;
             presets[p].bpm         = DEFAULT_BPM;
             for(int i = 0; i < 6; i++)
-                presets[p].buttons[i] = {0, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF};
+                presets[p].buttons[i] = {0, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 0};
         }
         // Migrate old single-preset "pedal" namespace into preset 0 if it exists.
         prefs.begin("pedal", true);

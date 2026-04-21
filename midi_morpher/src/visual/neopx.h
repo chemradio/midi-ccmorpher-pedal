@@ -28,8 +28,7 @@ void updateNeoPixel(uint8_t midiValue, AnalogPot *pots, bool enabled)
         }
     }
 
-    // uint16_t hue = map(target, 0, 127, 43690, 0);
-    uint16_t hue = map(target, 0, 127, 43690, 65536);
+    uint16_t hue = map(target, 0, 127, 43690, 0);
     // Convert HSV to RGB and set LED color
     uint32_t color = pixel.gamma32(pixel.ColorHSV(hue));
     pixel.setPixelColor(0, color);
