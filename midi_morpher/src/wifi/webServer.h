@@ -100,6 +100,35 @@ inline bool jsonBool(const String &body, const char *key, bool &out) {
     return false;
 }
 
+// Find matching closing brace/bracket for the open character at pos.
+inline int skipToMatch(const String &s, int pos) {
+    char open = s[pos], close = (open == '{') ? '}' : ']';
+    int depth = 0;
+    bool inStr = false;
+    for(int i = pos; i < (int)s.length(); i++) {
+        char c = s[i];
+        if(inStr) { if(c == '\\') i++; else if(c == '"') inStr = false; continue; }
+        if(c == '"')   { inStr = true; continue; }
+        if(c == open)  depth++;
+        if(c == close) { if(--depth == 0) return i; }
+    }
+    return -1;
+}
+
+inline float jsonFloat(const String &body, const char *key) {
+    String k = String('"') + key + '"';
+    int pos  = body.indexOf(k);
+    if(pos < 0) return -1.0f;
+    pos = body.indexOf(':', pos + k.length());
+    if(pos < 0) return -1.0f;
+    pos++;
+    while(pos < (int)body.length() && body[pos] == ' ') pos++;
+    String num;
+    while(pos < (int)body.length() && (isDigit(body[pos]) || body[pos] == '.')) num += body[pos++];
+    if(num.isEmpty()) return -1.0f;
+    return num.toFloat();
+}
+
 // ── State JSON builders ────────────────────────────────────────────────────────
 
 inline String buildStateJson() {
@@ -165,6 +194,51 @@ inline String buildPresetsJson() {
             j += F(",\"rampUpMs\":"); j += b.rampUpMs;
             j += F(",\"rampDownMs\":"); j += b.rampDownMs;
             j += F(",\"fsChannel\":"); j += b.fsChannel;
+            j += '}';
+        }
+        j += F("]}");
+    }
+    j += F("]}");
+    return j;
+}
+
+inline String buildBackupJson() {
+    if(!_webPedal) return F("{}");
+    const GlobalSettings &gs = _webPedal->globalSettings;
+    String j;
+    j.reserve(4500);
+    j  = F("{\"version\":1,\"activePreset\":");
+    j += activePreset;
+    j += F(",\"globalSettings\":{");
+    j += F("\"ledMode\":");             j += gs.ledMode;
+    j += F(",\"tempoLedEnabled\":");    j += gs.tempoLedEnabled   ? F("true") : F("false");
+    j += F(",\"neoPixelEnabled\":");    j += gs.neoPixelEnabled   ? F("true") : F("false");
+    j += F(",\"displayBrightness\":"); j += gs.displayBrightness;
+    j += F(",\"displayTimeoutIdx\":"); j += gs.displayTimeoutIdx;
+    j += F(",\"pot1CC\":");             j += (gs.pot1CC == POT_CC_OFF) ? -1 : (int)gs.pot1CC;
+    j += F(",\"pot2CC\":");             j += (gs.pot2CC == POT_CC_OFF) ? -1 : (int)gs.pot2CC;
+    j += F(",\"expCC\":");              j += gs.expCC;
+    j += F(",\"expWakesDisplay\":");    j += gs.expWakesDisplay   ? F("true") : F("false");
+    j += F(",\"routingFlags\":");       j += gs.routingFlags;
+    j += F(",\"expCalMin\":");          j += gs.expCalMin;
+    j += F(",\"expCalMax\":");          j += gs.expCalMax;
+    j += F("},\"presets\":[");
+    for(int p = 0; p < NUM_PRESETS; p++) {
+        if(p) j += ',';
+        const PresetData &pd = presets[p];
+        j += F("{\"midiChannel\":");  j += pd.midiChannel;
+        j += F(",\"bpm\":");          j += (int)pd.bpm;
+        j += F(",\"buttons\":[");
+        for(int i = 0; i < 6; i++) {
+            if(i) j += ',';
+            const FSButtonPersisted &b = pd.buttons[i];
+            j += F("{\"modeIndex\":"); j += b.modeIndex;
+            j += F(",\"midiNumber\":"); j += b.midiNumber;
+            j += F(",\"rampUpMs\":");   j += b.rampUpMs;
+            j += F(",\"rampDownMs\":"); j += b.rampDownMs;
+            j += F(",\"fsChannel\":");  j += b.fsChannel;
+            j += F(",\"ccLow\":");      j += b.ccLow;
+            j += F(",\"ccHigh\":");     j += b.ccHigh;
             j += '}';
         }
         j += F("]}");
@@ -427,6 +501,172 @@ inline void handlePostExpCal() {
     webServer.send(200, "application/json", F("{\"ok\":true}"));
 }
 
+// ── Backup / Restore / Factory Reset ──────────────────────────────────────────
+
+inline void handleGetBackup() {
+    addCORS();
+    webServer.send(200, F("application/json"), buildBackupJson());
+}
+
+inline void handlePostRestore() {
+    addCORS();
+    if(!_webPedal) { webServer.send(500); return; }
+    if(_webPedal->settingsLocked) {
+        webServer.send(403, F("application/json"), F("{\"error\":\"locked\"}"));
+        return;
+    }
+    const String &body = webServer.arg("plain");
+    if(jsonInt(body, "version") != 1) {
+        webServer.send(400, F("application/json"), F("{\"error\":\"bad version\"}"));
+        return;
+    }
+    int newAp = jsonInt(body, "activePreset");
+
+    // Global settings
+    int gsPos = body.indexOf(F("\"globalSettings\":"));
+    if(gsPos >= 0) {
+        int oPos = body.indexOf('{', gsPos + 17);
+        if(oPos >= 0) {
+            int oEnd = skipToMatch(body, oPos);
+            if(oEnd > oPos) {
+                String gs = body.substring(oPos, oEnd + 1);
+                GlobalSettings &g = _webPedal->globalSettings;
+                int v; bool b;
+                v = jsonInt(gs, "ledMode");            if(v >= 0 && v <= 2) g.ledMode = (uint8_t)v;
+                if(jsonBool(gs, "tempoLedEnabled", b))  g.tempoLedEnabled  = b;
+                if(jsonBool(gs, "neoPixelEnabled", b))  g.neoPixelEnabled  = b;
+                v = jsonInt(gs, "displayBrightness");  if(v >= 0 && v <= 100) g.displayBrightness = (uint8_t)v;
+                v = jsonInt(gs, "displayTimeoutIdx");  if(v >= 0 && v < NUM_DISP_TIMEOUTS) g.displayTimeoutIdx = (uint8_t)v;
+                v = jsonInt(gs, "pot1CC");
+                if(v == -1)                 { g.pot1CC = POT_CC_OFF; analogPots[0].midiCCNumber = POT_CC_OFF; }
+                else if(v >= 0 && v <= 127) { g.pot1CC = (uint8_t)v; analogPots[0].midiCCNumber = g.pot1CC; }
+                v = jsonInt(gs, "pot2CC");
+                if(v == -1)                 { g.pot2CC = POT_CC_OFF; analogPots[1].midiCCNumber = POT_CC_OFF; }
+                else if(v >= 0 && v <= 127) { g.pot2CC = (uint8_t)v; analogPots[1].midiCCNumber = g.pot2CC; }
+                v = jsonInt(gs, "expCC");              if(v >= 0 && v <= 127) g.expCC = (uint8_t)v;
+                if(jsonBool(gs, "expWakesDisplay", b))  g.expWakesDisplay  = b;
+                v = jsonInt(gs, "routingFlags");        if(v >= 0 && v <= (int)ROUTE_ALL) g.routingFlags = (uint8_t)v;
+                uint32_t ecMin = jsonUint(gs, "expCalMin");
+                uint32_t ecMax = jsonUint(gs, "expCalMax");
+                if(ecMin != 0xFFFFFFFFUL && ecMin <= 0xFFFF) g.expCalMin = (uint16_t)ecMin;
+                if(ecMax != 0xFFFFFFFFUL && ecMax <= 0xFFFF) g.expCalMax = (uint16_t)ecMax;
+                saveGlobalSettings(*_webPedal);
+            }
+        }
+    }
+
+    // Presets
+    int prPos = body.indexOf(F("\"presets\":"));
+    if(prPos >= 0) {
+        int arrPos = body.indexOf('[', prPos + 10);
+        if(arrPos >= 0) {
+            int arrEnd = skipToMatch(body, arrPos);
+            if(arrEnd > arrPos) {
+                int pos = arrPos + 1;
+                for(int p = 0; p < NUM_PRESETS && pos < arrEnd; p++) {
+                    while(pos < arrEnd && body[pos] != '{') pos++;
+                    if(pos >= arrEnd) break;
+                    int objEnd = skipToMatch(body, pos);
+                    if(objEnd < 0) break;
+                    String pStr = body.substring(pos, objEnd + 1);
+                    int ch    = jsonInt(pStr, "midiChannel");
+                    float bpm = jsonFloat(pStr, "bpm");
+                    if(ch >= 0 && ch <= 15) presets[p].midiChannel = (uint8_t)ch;
+                    if(bpm >= BPM_MIN && bpm <= BPM_MAX) presets[p].bpm = bpm;
+                    int btPos = pStr.indexOf(F("\"buttons\":"));
+                    if(btPos >= 0) {
+                        int baPos = pStr.indexOf('[', btPos + 10);
+                        if(baPos >= 0) {
+                            int baEnd = skipToMatch(pStr, baPos);
+                            if(baEnd > baPos) {
+                                int bpos = baPos + 1;
+                                for(int bi = 0; bi < 6 && bpos < baEnd; bi++) {
+                                    while(bpos < baEnd && pStr[bpos] != '{') bpos++;
+                                    if(bpos >= baEnd) break;
+                                    int bend = skipToMatch(pStr, bpos);
+                                    if(bend < 0) break;
+                                    String bStr = pStr.substring(bpos, bend + 1);
+                                    FSButtonPersisted &btn = presets[p].buttons[bi];
+                                    int mi  = jsonInt(bStr, "modeIndex");
+                                    int mn  = jsonInt(bStr, "midiNumber");
+                                    uint32_t ru = jsonUint(bStr, "rampUpMs");
+                                    uint32_t rd = jsonUint(bStr, "rampDownMs");
+                                    int fsc = jsonInt(bStr, "fsChannel");
+                                    int cl  = jsonInt(bStr, "ccLow");
+                                    int cH  = jsonInt(bStr, "ccHigh");
+                                    if(mi >= 0 && mi < NUM_MODES)               btn.modeIndex  = (uint8_t)mi;
+                                    if(mn >= 0 && mn <= 255)                    btn.midiNumber = (uint8_t)mn;
+                                    if(_validRamp(ru))                           btn.rampUpMs   = ru;
+                                    if(_validRamp(rd))                           btn.rampDownMs = rd;
+                                    if(fsc == 255 || (fsc >= 0 && fsc <= 15))  btn.fsChannel  = (uint8_t)fsc;
+                                    if(cl >= 0 && cl <= 127)                    btn.ccLow      = (uint8_t)cl;
+                                    if(cH >= 0 && cH <= 127)                    btn.ccHigh     = (uint8_t)cH;
+                                    bpos = bend + 1;
+                                }
+                            }
+                        }
+                    }
+                    pos = objEnd + 1;
+                }
+            }
+        }
+    }
+    saveAllPresets();
+    uint8_t ap = (newAp >= 0 && newAp < NUM_PRESETS) ? (uint8_t)newAp : 0;
+    applyPreset(ap, *_webPedal);
+    webServer.send(200, F("application/json"), F("{\"ok\":true}"));
+}
+
+inline void performFactoryReset(PedalState &state) {
+    const FSButtonPersisted dflt = {0, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 0};
+    // Presets 0, 3, 4, 5: PC mode, program numbers 0-5 (P1–P6)
+    for(int p = 0; p < NUM_PRESETS; p++) {
+        if(p == 1 || p == 2) continue;
+        presets[p].midiChannel = 0;
+        presets[p].bpm = DEFAULT_BPM;
+        for(int i = 0; i < 6; i++) {
+            presets[p].buttons[i] = dflt;
+            presets[p].buttons[i].midiNumber = (uint8_t)i;
+        }
+    }
+    // Preset 1 (index 1): modulation — Ramp, Ramp Latch, LFO Sine, LFO Sine L, Step Latch, Tap Tempo; all on CC1
+    {
+        presets[1].midiChannel = 0;
+        presets[1].bpm = DEFAULT_BPM;
+        const uint8_t mi[6] = {4, 5, 8, 9, 15, 30};
+        const uint8_t mn[6] = {1, 1, 1, 1,  1,  0};
+        for(int i = 0; i < 6; i++) {
+            presets[1].buttons[i] = dflt;
+            presets[1].buttons[i].modeIndex  = mi[i];
+            presets[1].buttons[i].midiNumber = mn[i];
+        }
+    }
+    // Preset 2 (index 2): transport — Play, Stop, Record, Continue, Rewind, FFwd
+    {
+        presets[2].midiChannel = 0;
+        presets[2].bpm = DEFAULT_BPM;
+        const uint8_t sc[6] = {0, 1, 3, 2, 5, 6};
+        for(int i = 0; i < 6; i++) {
+            presets[2].buttons[i] = dflt;
+            presets[2].buttons[i].modeIndex  = 31;
+            presets[2].buttons[i].midiNumber = sc[i];
+        }
+    }
+    saveAllPresets();
+    applyPreset(0, state);
+}
+
+inline void handlePostFactoryReset() {
+    addCORS();
+    if(!_webPedal) { webServer.send(500); return; }
+    if(_webPedal->settingsLocked) {
+        webServer.send(403, F("application/json"), F("{\"error\":\"locked\"}"));
+        return;
+    }
+    performFactoryReset(*_webPedal);
+    webServer.send(200, F("application/json"), F("{\"ok\":true}"));
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 inline void initWebServer(PedalState &pedal) {
     _webPedal = &pedal;
@@ -446,9 +686,15 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on("/api/global",    HTTP_GET,  handleGetGlobal);
     webServer.on("/api/global",    HTTP_POST, handlePostGlobal);
     webServer.on("/api/global",    HTTP_OPTIONS, handleOPTIONS);
-    webServer.on("/api/expcal",    HTTP_GET,  handleGetExpCal);
-    webServer.on("/api/expcal",    HTTP_POST, handlePostExpCal);
-    webServer.on("/api/expcal",    HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/expcal",        HTTP_GET,     handleGetExpCal);
+    webServer.on("/api/expcal",        HTTP_POST,    handlePostExpCal);
+    webServer.on("/api/expcal",        HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/backup",        HTTP_GET,     handleGetBackup);
+    webServer.on("/api/backup",        HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/restore",       HTTP_POST,    handlePostRestore);
+    webServer.on("/api/restore",       HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/factory-reset", HTTP_POST,    handlePostFactoryReset);
+    webServer.on("/api/factory-reset", HTTP_OPTIONS, handleOPTIONS);
 
     webServer.on("/dismiss", HTTP_GET, handleDismiss);
 
