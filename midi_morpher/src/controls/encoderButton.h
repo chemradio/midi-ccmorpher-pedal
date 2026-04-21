@@ -55,7 +55,7 @@ inline void handleEncoderButton(PedalState &pedal,
         if(pedal.modeSelectLevel == 0) {
           // ── Confirm category ──────────────────────────────────────────────
           if(cat.autoSelect) {
-            applyModeIndex(btn, cat.firstIdx, &pedal.modulators[pedal.modeSelectFSIdx]);
+            applyModeIndex(btn, cat.firstIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
             markStateDirty();
             pedal.inModeSelect = false;
             displayModeChange(btn);
@@ -101,7 +101,7 @@ inline void handleEncoderButton(PedalState &pedal,
                                 pedal.modeSelectVarIdx, 0);
             } else {
               // All other flat categories: apply immediately
-              applyModeIndex(btn, tentIdx, &pedal.modulators[pedal.modeSelectFSIdx]);
+              applyModeIndex(btn, tentIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
               markStateDirty();
               pedal.inModeSelect = false;
               displayModeChange(btn);
@@ -114,7 +114,7 @@ inline void handleEncoderButton(PedalState &pedal,
             uint8_t newIdx = cat.firstIdx
                            + pedal.modeSelectVarIdx    * cat.subGroupSize
                            + pedal.modeSelectSubVarIdx;
-            applyModeIndex(btn, newIdx, &pedal.modulators[pedal.modeSelectFSIdx]);
+            applyModeIndex(btn, newIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
             markStateDirty();
             pedal.inModeSelect = false;
             displayModeChange(btn);
@@ -129,7 +129,7 @@ inline void handleEncoderButton(PedalState &pedal,
         } else {
           // ── Level 3 CC: Lo confirmed → apply mode + Hi + Lo ──────────────
           uint8_t newIdx = cat.firstIdx + pedal.modeSelectCCVariant;
-          applyModeIndex(btn, newIdx, &pedal.modulators[pedal.modeSelectFSIdx]);
+          applyModeIndex(btn, newIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
           btn.ccHigh = pedal.modeSelectVarIdx;
           btn.ccLow  = pedal.modeSelectSubVarIdx;
           markStateDirty();

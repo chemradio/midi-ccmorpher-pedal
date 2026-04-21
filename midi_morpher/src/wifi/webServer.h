@@ -222,6 +222,7 @@ inline String buildBackupJson() {
     j += F(",\"routingFlags\":");       j += gs.routingFlags;
     j += F(",\"expCalMin\":");          j += gs.expCalMin;
     j += F(",\"expCalMax\":");          j += gs.expCalMax;
+    j += F(",\"perFsModulator\":");     j += gs.perFsModulator ? F("true") : F("false");
     j += F("},\"presets\":[");
     for(int p = 0; p < NUM_PRESETS; p++) {
         if(p) j += ',';
@@ -318,7 +319,7 @@ inline void handlePostButton(int idx) {
     int ch = jsonInt(body, "fsChannel");
     uint32_t up = jsonUint(body, "rampUpMs");
     uint32_t dn = jsonUint(body, "rampDownMs");
-    if(mi >= 0 && mi < NUM_MODES)           applyModeIndex(btn, (uint8_t)mi, &_webPedal->modulators[idx]);
+    if(mi >= 0 && mi < NUM_MODES)           applyModeIndex(btn, (uint8_t)mi, &_webPedal->modForFS(idx));
     // Clamp midiNumber against mode-appropriate max. Scene modes cap at
     // sceneMaxVal (7 for Helix/QC/Fractal, 4 for Kemper); system commands cap
     // at NUM_SYS_CMDS-1; modulation modes additionally accept 255 (PB_SENTINEL)
@@ -346,7 +347,7 @@ inline void handleButtonPress(int idx) {
     addCORS();
     if(!_webPedal || idx < 0 || idx >= 6) { webServer.send(400); return; }
     FSButton &btn = _webPedal->buttons[idx];
-    btn.simulatePress(true, _webPedal->midiChannel, _webPedal->modulators[idx]);
+    btn.simulatePress(true, _webPedal->midiChannel, _webPedal->modForFS(idx));
     _webPedal->lastActiveFSIndex = idx;
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
@@ -355,7 +356,7 @@ inline void handleButtonRelease(int idx) {
     addCORS();
     if(!_webPedal || idx < 0 || idx >= 6) { webServer.send(400); return; }
     FSButton &btn = _webPedal->buttons[idx];
-    btn.simulatePress(false, _webPedal->midiChannel, _webPedal->modulators[idx]);
+    btn.simulatePress(false, _webPedal->midiChannel, _webPedal->modForFS(idx));
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
@@ -390,6 +391,7 @@ inline String buildGlobalJson() {
     j += F(",\"expCC\":");      j += gs.expCC;
     j += F(",\"expWake\":");    j += gs.expWakesDisplay ? F("true") : F("false");
     j += F(",\"routing\":");    j += gs.routingFlags;
+    j += F(",\"perFsMod\":");   j += gs.perFsModulator ? F("true") : F("false");
     j += '}';
     return j;
 }
@@ -424,6 +426,7 @@ inline void handlePostGlobal() {
     if(jsonBool(body, "expWake", b)) gs.expWakesDisplay = b;
     v = jsonInt(body, "routing");
     if(v >= 0 && v <= (int)ROUTE_ALL) gs.routingFlags = (uint8_t)v;
+    if(jsonBool(body, "perFsMod", b)) gs.perFsModulator = b;
     saveGlobalSettings(*_webPedal);
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
@@ -550,6 +553,7 @@ inline void handlePostRestore() {
                 uint32_t ecMax = jsonUint(gs, "expCalMax");
                 if(ecMin != 0xFFFFFFFFUL && ecMin <= 0xFFFF) g.expCalMin = (uint16_t)ecMin;
                 if(ecMax != 0xFFFFFFFFUL && ecMax <= 0xFFFF) g.expCalMax = (uint16_t)ecMax;
+                if(jsonBool(gs, "perFsModulator", b)) g.perFsModulator = b;
                 saveGlobalSettings(*_webPedal);
             }
         }

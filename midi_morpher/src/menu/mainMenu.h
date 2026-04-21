@@ -18,14 +18,15 @@
 #define MENU_LEDS 7
 #define MENU_TEMPO_LED 8
 #define MENU_NEOPIXEL 9
-#define MENU_BRIGHTNESS 10
-#define MENU_TIMEOUT 11
-#define MENU_LOCK 12
-#define MENU_EXIT 13
-#define MENU_COUNT 14
+#define MENU_PER_FS_MOD 10
+#define MENU_BRIGHTNESS 11
+#define MENU_TIMEOUT 12
+#define MENU_LOCK 13
+#define MENU_EXIT 14
+#define MENU_COUNT 15
 
 static const char *menuItemNames[] = {
-    "MIDI Channel", "Routings", "Pot 1 CC", "Pot 2 CC", "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel", "Brightness", "Screen ON", "Lock", "Exit"};
+    "MIDI Channel", "Routings", "Pot 1 CC", "Pot 2 CC", "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel", "Poly Mod", "Brightness", "Screen ON", "Lock", "Exit"};
 
 static const char *ledModeNames[] = {"On", "Cnsrv", "Off"};
 
@@ -82,6 +83,8 @@ inline String _menuItemRhs(const PedalState &pedal, uint8_t item) {
     return String(pedal.globalSettings.tempoLedEnabled ? F("ON") : F("OFF"));
   case MENU_NEOPIXEL:
     return String(pedal.globalSettings.neoPixelEnabled ? F("ON") : F("OFF"));
+  case MENU_PER_FS_MOD:
+    return String(pedal.globalSettings.perFsModulator ? F("ON") : F("OFF"));
   case MENU_BRIGHTNESS:
     return String(pedal.globalSettings.displayBrightness) + String('%');
   case MENU_TIMEOUT:
@@ -185,6 +188,16 @@ inline void displayMenuEditing(PedalState &pedal) {
     display.setTextSize(2);
     display.setCursor(0, 22);
     display.print(DISP_TIMEOUT_NAMES[pedal.globalSettings.displayTimeoutIdx]);
+    break;
+  case MENU_PER_FS_MOD:
+    display.setTextSize(2);
+    display.setCursor(0, 18);
+    display.print(pedal.globalSettings.perFsModulator ? F("ON") : F("OFF"));
+    display.setTextSize(1);
+    display.setCursor(0, 38);
+    display.print(F("Single mod: clean"));
+    display.setCursor(0, 48);
+    display.print(F("ramps, baud safe"));
     break;
   default:
     break;
@@ -294,6 +307,10 @@ inline void handleMenuRotate(PedalState &pedal, int delta) {
       displayMenuEditing(pedal);
       break;
     }
+    case MENU_PER_FS_MOD:
+      pedal.globalSettings.perFsModulator = !pedal.globalSettings.perFsModulator;
+      displayMenuEditing(pedal);
+      break;
     default:
       break;
     }
@@ -325,6 +342,7 @@ inline void handleMenuPress(PedalState &pedal) {
     case MENU_LEDS:
     case MENU_BRIGHTNESS:
     case MENU_TIMEOUT:
+    case MENU_PER_FS_MOD:
       pedal.menuState = MenuState::EDITING;
       displayMenuEditing(pedal);
       break;
@@ -370,6 +388,9 @@ inline void handleMenuPress(PedalState &pedal) {
     break;
 
   case MenuState::EDITING:
+    if(pedal.menuItemIdx == MENU_PER_FS_MOD) {
+      for(auto &mod : pedal.modulators) { mod.restingHigh = false; mod.reset(); }
+    }
     saveGlobalSettings(pedal);
     pedal.menuState = MenuState::ROOT;
     displayMenuRoot(pedal);

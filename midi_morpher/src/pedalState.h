@@ -39,6 +39,12 @@ struct PedalState
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
     MidiCCModulator modulators[6];
 
+    // Returns the modulator for footswitch idx, or the shared modulator[0]
+    // when per-FS mode is disabled (single-modulator / baud-safe mode).
+    MidiCCModulator& modForFS(int idx) {
+        return globalSettings.perFsModulator ? modulators[idx] : modulators[0];
+    }
+
     std::array<FSButton, 6> buttons = {
         FSButton(FS1_PIN,    PRESET1_LED, "FS 1",    0),
         FSButton(FS2_PIN,    PRESET2_LED, "FS 2",    0),

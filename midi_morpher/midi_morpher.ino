@@ -91,7 +91,7 @@ void loop() {
   // Process footswitches, tracking which was last pressed for the activity LED.
   for(int i = 0; i < (int)pedal.buttons.size(); i++) {
     bool wasPressedBefore = pedal.buttons[i].isPressed;
-    pedal.buttons[i].handleFootswitch(pedal.midiChannel, pedal.modulators[i], displayFootswitchPress);
+    pedal.buttons[i].handleFootswitch(pedal.midiChannel, pedal.modForFS(i), displayFootswitchPress);
     if(pedal.buttons[i].isPressed && !wasPressedBefore) {
       pedal.lastActiveFSIndex = i;
       // Tap tempo press: show the updated BPM after receiveTap() has run.
@@ -110,14 +110,25 @@ void loop() {
     if(!anyKbPressed && tud_mounted()) hidKeyboard.releaseAll();
   }
 
-  // Keep each per-FS modulator's ramp times synced when clock-locked and BPM drifts.
-  for(int i = 0; i < (int)pedal.buttons.size(); i++) {
-    FSButton &ab = pedal.buttons[i];
+  // Keep ramp times synced when clock-locked and BPM drifts.
+  // Per-FS: sync every button's own modulator. Single: only sync the last-pressed.
+  if(pedal.globalSettings.perFsModulator) {
+    for(int i = 0; i < (int)pedal.buttons.size(); i++) {
+      FSButton &ab = pedal.buttons[i];
+      if(ab.isModSwitch) {
+        if(ab.rampUpMs   & CLOCK_SYNC_FLAG)
+          pedal.modulators[i].rampUpTimeMs   = midiClock.syncToMs(ab.rampUpMs);
+        if(ab.rampDownMs & CLOCK_SYNC_FLAG)
+          pedal.modulators[i].rampDownTimeMs = midiClock.syncToMs(ab.rampDownMs);
+      }
+    }
+  } else if(pedal.lastActiveFSIndex >= 0) {
+    FSButton &ab = pedal.buttons[pedal.lastActiveFSIndex];
     if(ab.isModSwitch) {
       if(ab.rampUpMs   & CLOCK_SYNC_FLAG)
-        pedal.modulators[i].rampUpTimeMs   = midiClock.syncToMs(ab.rampUpMs);
+        pedal.modulators[0].rampUpTimeMs   = midiClock.syncToMs(ab.rampUpMs);
       if(ab.rampDownMs & CLOCK_SYNC_FLAG)
-        pedal.modulators[i].rampDownTimeMs = midiClock.syncToMs(ab.rampDownMs);
+        pedal.modulators[0].rampDownTimeMs = midiClock.syncToMs(ab.rampDownMs);
     }
   }
 
@@ -136,7 +147,7 @@ void loop() {
   updateActivityLed(pedal);
 
   uint16_t neoVal = (pedal.lastActiveFSIndex >= 0)
-      ? pedal.modulators[pedal.lastActiveFSIndex].currentValue : 0;
+      ? pedal.modForFS(pedal.lastActiveFSIndex).currentValue : 0;
   updateNeoPixel(neoVal, analogPots, pedal.globalSettings.neoPixelEnabled);
   handleExpInput(pedal);
 

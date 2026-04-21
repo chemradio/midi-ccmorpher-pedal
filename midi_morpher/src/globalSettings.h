@@ -49,4 +49,5 @@ struct GlobalSettings {
     bool     expWakesDisplay  = true;         // show exp value on OLED when pedal moves
     uint16_t expCalMin        = 0xFFFF;       // 0xFFFF = not calibrated (auto-cal takes over)
     uint16_t expCalMax        = 0;
+    bool     perFsModulator   = true;         // true = independent modulator per footswitch
 };
