@@ -37,7 +37,7 @@ struct PedalState
 
     unsigned long rampMinSpeedMs = RAMP_DURATIONS_MIN_MS;
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
-    MidiCCModulator modulator;
+    MidiCCModulator modulators[6];
 
     std::array<FSButton, 6> buttons = {
         FSButton(FS1_PIN,    PRESET1_LED, "FS 1",    0),
@@ -50,7 +50,6 @@ struct PedalState
     void setMidiChannel(uint8_t mc)
     {
         midiChannel = mc;
-        modulator.midiChannel = mc;
     }
 
     void init()

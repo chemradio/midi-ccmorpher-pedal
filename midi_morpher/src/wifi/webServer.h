@@ -318,7 +318,7 @@ inline void handlePostButton(int idx) {
     int ch = jsonInt(body, "fsChannel");
     uint32_t up = jsonUint(body, "rampUpMs");
     uint32_t dn = jsonUint(body, "rampDownMs");
-    if(mi >= 0 && mi < NUM_MODES)           applyModeIndex(btn, (uint8_t)mi, &_webPedal->modulator);
+    if(mi >= 0 && mi < NUM_MODES)           applyModeIndex(btn, (uint8_t)mi, &_webPedal->modulators[idx]);
     // Clamp midiNumber against mode-appropriate max. Scene modes cap at
     // sceneMaxVal (7 for Helix/QC/Fractal, 4 for Kemper); system commands cap
     // at NUM_SYS_CMDS-1; modulation modes additionally accept 255 (PB_SENTINEL)
@@ -346,7 +346,7 @@ inline void handleButtonPress(int idx) {
     addCORS();
     if(!_webPedal || idx < 0 || idx >= 6) { webServer.send(400); return; }
     FSButton &btn = _webPedal->buttons[idx];
-    btn.simulatePress(true, _webPedal->midiChannel, _webPedal->modulator);
+    btn.simulatePress(true, _webPedal->midiChannel, _webPedal->modulators[idx]);
     _webPedal->lastActiveFSIndex = idx;
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
@@ -355,7 +355,7 @@ inline void handleButtonRelease(int idx) {
     addCORS();
     if(!_webPedal || idx < 0 || idx >= 6) { webServer.send(400); return; }
     FSButton &btn = _webPedal->buttons[idx];
-    btn.simulatePress(false, _webPedal->midiChannel, _webPedal->modulator);
+    btn.simulatePress(false, _webPedal->midiChannel, _webPedal->modulators[idx]);
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 

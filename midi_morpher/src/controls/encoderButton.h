@@ -22,7 +22,6 @@ inline unsigned long encBtnPressStart = 0;
 //   level 3: CC only → idx1=confirmed Hi, idx2=Lo value being set
 inline void handleEncoderButton(PedalState &pedal,
                                  void (*displayModeChange)(FSButton &),
-                                 MidiCCModulator &modulator,
                                  void (*displayLockedMessage)(String),
                                  void (*displayFSChannel)(FSButton &),
                                  void (*displayModeSelect)(const char *, uint8_t, uint8_t, uint8_t, uint8_t)) {
@@ -56,7 +55,7 @@ inline void handleEncoderButton(PedalState &pedal,
         if(pedal.modeSelectLevel == 0) {
           // ── Confirm category ──────────────────────────────────────────────
           if(cat.autoSelect) {
-            applyModeIndex(btn, cat.firstIdx, &modulator);
+            applyModeIndex(btn, cat.firstIdx, &pedal.modulators[pedal.modeSelectFSIdx]);
             markStateDirty();
             pedal.inModeSelect = false;
             displayModeChange(btn);
@@ -102,7 +101,7 @@ inline void handleEncoderButton(PedalState &pedal,
                                 pedal.modeSelectVarIdx, 0);
             } else {
               // All other flat categories: apply immediately
-              applyModeIndex(btn, tentIdx, &modulator);
+              applyModeIndex(btn, tentIdx, &pedal.modulators[pedal.modeSelectFSIdx]);
               markStateDirty();
               pedal.inModeSelect = false;
               displayModeChange(btn);
@@ -115,7 +114,7 @@ inline void handleEncoderButton(PedalState &pedal,
             uint8_t newIdx = cat.firstIdx
                            + pedal.modeSelectVarIdx    * cat.subGroupSize
                            + pedal.modeSelectSubVarIdx;
-            applyModeIndex(btn, newIdx, &modulator);
+            applyModeIndex(btn, newIdx, &pedal.modulators[pedal.modeSelectFSIdx]);
             markStateDirty();
             pedal.inModeSelect = false;
             displayModeChange(btn);
@@ -130,7 +129,7 @@ inline void handleEncoderButton(PedalState &pedal,
         } else {
           // ── Level 3 CC: Lo confirmed → apply mode + Hi + Lo ──────────────
           uint8_t newIdx = cat.firstIdx + pedal.modeSelectCCVariant;
-          applyModeIndex(btn, newIdx, &modulator);
+          applyModeIndex(btn, newIdx, &pedal.modulators[pedal.modeSelectFSIdx]);
           btn.ccHigh = pedal.modeSelectVarIdx;
           btn.ccLow  = pedal.modeSelectSubVarIdx;
           markStateDirty();

@@ -82,7 +82,7 @@ void setup() {
 void loop() {
   midiClock.ledEnabled = pedal.globalSettings.tempoLedEnabled;
   midiClock.tick();
-  pedal.modulator.update();
+  for(auto &mod : pedal.modulators) mod.update();
 
   // Sync display state before any input handlers run so encoder/button logic
   // always sees consistent state (inModeSelect cleared when display reverts).
@@ -91,7 +91,7 @@ void loop() {
   // Process footswitches, tracking which was last pressed for the activity LED.
   for(int i = 0; i < (int)pedal.buttons.size(); i++) {
     bool wasPressedBefore = pedal.buttons[i].isPressed;
-    pedal.buttons[i].handleFootswitch(pedal.midiChannel, pedal.modulator, displayFootswitchPress);
+    pedal.buttons[i].handleFootswitch(pedal.midiChannel, pedal.modulators[i], displayFootswitchPress);
     if(pedal.buttons[i].isPressed && !wasPressedBefore) {
       pedal.lastActiveFSIndex = i;
       // Tap tempo press: show the updated BPM after receiveTap() has run.
@@ -110,15 +110,14 @@ void loop() {
     if(!anyKbPressed && tud_mounted()) hidKeyboard.releaseAll();
   }
 
-  // Keep the live modulator's ramp times synced when the active button's
-  // rampUpMs / rampDownMs are clock-locked and BPM has drifted.
-  if(pedal.lastActiveFSIndex >= 0) {
-    FSButton &ab = pedal.buttons[pedal.lastActiveFSIndex];
+  // Keep each per-FS modulator's ramp times synced when clock-locked and BPM drifts.
+  for(int i = 0; i < (int)pedal.buttons.size(); i++) {
+    FSButton &ab = pedal.buttons[i];
     if(ab.isModSwitch) {
       if(ab.rampUpMs   & CLOCK_SYNC_FLAG)
-        pedal.modulator.rampUpTimeMs   = midiClock.syncToMs(ab.rampUpMs);
+        pedal.modulators[i].rampUpTimeMs   = midiClock.syncToMs(ab.rampUpMs);
       if(ab.rampDownMs & CLOCK_SYNC_FLAG)
-        pedal.modulator.rampDownTimeMs = midiClock.syncToMs(ab.rampDownMs);
+        pedal.modulators[i].rampDownTimeMs = midiClock.syncToMs(ab.rampDownMs);
     }
   }
 
@@ -127,7 +126,7 @@ void loop() {
   }
 
   handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage, displayFSChannel, displayTapTempo, displayModeSelectScreen);
-  handleEncoderButton(pedal, encoderButtonFSModeChange, pedal.modulator, displayLockedMessage, displayFSChannel, displayModeSelectScreen);
+  handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage, displayFSChannel, displayModeSelectScreen);
 
   // Preset button (short press = next preset, long press = save)
   handlePresetButton(pedal);
@@ -136,7 +135,9 @@ void loop() {
   updatePresetLEDs(pedal);
   updateActivityLed(pedal);
 
-  updateNeoPixel(pedal.modulator.currentValue, analogPots, pedal.globalSettings.neoPixelEnabled);
+  uint16_t neoVal = (pedal.lastActiveFSIndex >= 0)
+      ? pedal.modulators[pedal.lastActiveFSIndex].currentValue : 0;
+  updateNeoPixel(neoVal, analogPots, pedal.globalSettings.neoPixelEnabled);
   handleExpInput(pedal);
 
   handleWebServer(pedal);

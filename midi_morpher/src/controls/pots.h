@@ -67,12 +67,12 @@ inline void handleAnalogPot(
 
     if(pot.pin == POT1_PIN) {
       btn.rampUpMs = rampRaw;
-      pedal.modulator.setRampTimeUp(effectiveMs);
+      pedal.modulators[activeIdx].setRampTimeUp(effectiveMs);
       markStateDirty();
       displayCallback(String(btn.name) + " UP", false, 0, rampRaw);
     } else {
       btn.rampDownMs = rampRaw;
-      pedal.modulator.setRampTimeDown(effectiveMs);
+      pedal.modulators[activeIdx].setRampTimeDown(effectiveMs);
       markStateDirty();
       displayCallback(String(btn.name) + " DN", false, 0, rampRaw);
     }

@@ -87,9 +87,11 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
         uint8_t mi       = p.buttons[i].modeIndex < NUM_MODES ? p.buttons[i].modeIndex : 0;
         applyModeFlags(btn, mi);
     }
-    // Reset modulator to a clean resting state.
-    state.modulator.restingHigh = false;
-    state.modulator.reset();
+    // Reset all per-FS modulators to a clean resting state.
+    for(int i = 0; i < 6; i++) {
+        state.modulators[i].restingHigh = false;
+        state.modulators[i].reset();
+    }
     activePreset = idx;
     presetDirty  = false;
 }
