@@ -253,6 +253,26 @@ inline String buildBackupJson() {
         }
         j += F("]}");
     }
+    j += F("],\"multis\":[");
+    bool mfirst = true;
+    for(uint8_t i = 0; i < MAX_MULTI_SCENES; i++) {
+        if(multiScenes[i].name[0] == '\0') continue;
+        if(!mfirst) j += ',';
+        mfirst = false;
+        j += F("{\"id\":");       j += i;
+        j += F(",\"name\":\"");   j += multiScenes[i].name; j += '"';
+        j += F(",\"count\":");    j += multiScenes[i].count;
+        j += F(",\"subCmds\":[");
+        for(uint8_t s = 0; s < multiScenes[i].count && s < MAX_MULTI_SUBCMDS; s++) {
+            const MultiSubCmd &sc = multiScenes[i].subCmds[s];
+            if(s) j += ',';
+            j += F("{\"modeIndex\":"); j += sc.modeIndex;
+            j += F(",\"midiNumber\":"); j += sc.midiNumber;
+            j += F(",\"channel\":");   j += sc.channel;
+            j += '}';
+        }
+        j += F("]}");
+    }
     j += F("]}");
     return j;
 }
@@ -631,6 +651,71 @@ inline void handlePostRestore() {
         }
     }
     saveAllPresets();
+
+    // Restore multi scenes
+    int mlPos = body.indexOf(F("\"multis\":"));
+    if(mlPos >= 0) {
+        int arrPos = body.indexOf('[', mlPos + 9);
+        if(arrPos >= 0) {
+            int arrEnd = skipToMatch(body, arrPos);
+            if(arrEnd > arrPos) {
+                memset(multiScenes, 0, sizeof(multiScenes));
+                int pos = arrPos + 1;
+                while(pos < arrEnd) {
+                    while(pos < arrEnd && body[pos] != '{') pos++;
+                    if(pos >= arrEnd) break;
+                    int objEnd = skipToMatch(body, pos);
+                    if(objEnd < 0) break;
+                    String ms = body.substring(pos, objEnd + 1);
+                    int sid = jsonInt(ms, "id");
+                    if(sid >= 0 && sid < (int)MAX_MULTI_SCENES) {
+                        MultiScene &sc = multiScenes[sid];
+                        memset(&sc, 0, sizeof(sc));
+                        int np = ms.indexOf(F("\"name\":\""));
+                        if(np >= 0) {
+                            np += 8;
+                            int ne = ms.indexOf('"', np);
+                            if(ne > np) {
+                                int ln = min(ne - np, (int)(MULTI_NAME_LEN - 1));
+                                ms.substring(np, np + ln).toCharArray(sc.name, MULTI_NAME_LEN);
+                            }
+                        }
+                        int scPos = ms.indexOf(F("\"subCmds\":"));
+                        if(scPos >= 0) {
+                            int ap2 = ms.indexOf('[', scPos + 10);
+                            if(ap2 >= 0) {
+                                int ae2 = skipToMatch(ms, ap2);
+                                int bp = ap2 + 1;
+                                uint8_t cnt = 0;
+                                while(bp < ae2 && cnt < MAX_MULTI_SUBCMDS) {
+                                    while(bp < ae2 && ms[bp] != '{') bp++;
+                                    if(bp >= ae2) break;
+                                    int be = skipToMatch(ms, bp);
+                                    if(be < 0) break;
+                                    String sub = ms.substring(bp, be + 1);
+                                    int mi = jsonInt(sub, "modeIndex");
+                                    int mn = jsonInt(sub, "midiNumber");
+                                    int ch = jsonInt(sub, "channel");
+                                    if(mi >= 0 && mi < (int)NUM_MODES) {
+                                        sc.subCmds[cnt].modeIndex  = (uint8_t)mi;
+                                        sc.subCmds[cnt].midiNumber = (mn >= 0 && mn <= 127) ? (uint8_t)mn : 0;
+                                        sc.subCmds[cnt].channel    = (ch == 255 || (ch >= 0 && ch <= 15))
+                                                                       ? (uint8_t)ch : 0xFF;
+                                        cnt++;
+                                    }
+                                    bp = be + 1;
+                                }
+                                sc.count = cnt;
+                            }
+                        }
+                    }
+                    pos = objEnd + 1;
+                }
+                saveMultiScenes();
+            }
+        }
+    }
+
     uint8_t ap = (newAp >= 0 && newAp < NUM_PRESETS) ? (uint8_t)newAp : 0;
     applyPreset(ap, *_webPedal);
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
@@ -683,6 +768,113 @@ inline void handlePostFactoryReset() {
         return;
     }
     performFactoryReset(*_webPedal);
+    webServer.send(200, F("application/json"), F("{\"ok\":true}"));
+}
+
+// ── Multi scene API ────────────────────────────────────────────────────────────
+
+inline String buildMultiScenesJson() {
+    String j = "[";
+    bool first = true;
+    for(uint8_t i = 0; i < MAX_MULTI_SCENES; i++) {
+        if(multiScenes[i].name[0] == '\0') continue;
+        if(!first) j += ',';
+        first = false;
+        j += F("{\"id\":");          j += i;
+        j += F(",\"name\":\"");      j += multiScenes[i].name; j += '"';
+        j += F(",\"count\":");       j += multiScenes[i].count;
+        j += F(",\"subCmds\":[");
+        for(uint8_t s = 0; s < multiScenes[i].count && s < MAX_MULTI_SUBCMDS; s++) {
+            const MultiSubCmd &sc = multiScenes[i].subCmds[s];
+            if(s) j += ',';
+            j += F("{\"modeIndex\":"); j += sc.modeIndex;
+            j += F(",\"midiNumber\":"); j += sc.midiNumber;
+            j += F(",\"channel\":");   j += sc.channel;
+            j += '}';
+        }
+        j += F("]}");
+    }
+    j += ']';
+    return j;
+}
+
+inline void handleGetMultiScenes() {
+    addCORS();
+    webServer.send(200, F("application/json"), buildMultiScenesJson());
+}
+
+inline void handlePostMultiScenes() {
+    addCORS();
+    if(!_webPedal) { webServer.send(500); return; }
+    if(_webPedal->settingsLocked) {
+        webServer.send(403, F("application/json"), F("{\"error\":\"locked\"}"));
+        return;
+    }
+    uint8_t slot = findEmptyMultiSlot();
+    if(slot == 0xFF) {
+        webServer.send(400, F("application/json"), F("{\"error\":\"full\"}"));
+        return;
+    }
+    const String &body = webServer.arg("plain");
+    MultiScene &sc = multiScenes[slot];
+    memset(&sc, 0, sizeof(sc));
+    // Parse name
+    int npos = body.indexOf(F("\"name\":\""));
+    if(npos >= 0) {
+        npos += 8;
+        int end = body.indexOf('"', npos);
+        if(end > npos) {
+            int len = min(end - npos, (int)(MULTI_NAME_LEN - 1));
+            body.substring(npos, npos + len).toCharArray(sc.name, MULTI_NAME_LEN);
+        }
+    }
+    if(sc.name[0] == '\0') snprintf(sc.name, MULTI_NAME_LEN, "Multi %d", slot + 1);
+    // Parse subCmds array
+    int scPos = body.indexOf(F("\"subCmds\":"));
+    if(scPos >= 0) {
+        int arrPos = body.indexOf('[', scPos + 10);
+        if(arrPos >= 0) {
+            int arrEnd = skipToMatch(body, arrPos);
+            int pos = arrPos + 1;
+            uint8_t cnt = 0;
+            while(pos < arrEnd && cnt < MAX_MULTI_SUBCMDS) {
+                while(pos < arrEnd && body[pos] != '{') pos++;
+                if(pos >= arrEnd) break;
+                int objEnd = skipToMatch(body, pos);
+                if(objEnd < 0) break;
+                String sub = body.substring(pos, objEnd + 1);
+                int mi = jsonInt(sub, "modeIndex");
+                int mn = jsonInt(sub, "midiNumber");
+                int ch = jsonInt(sub, "channel");
+                if(mi >= 0 && mi < (int)NUM_MODES) {
+                    sc.subCmds[cnt].modeIndex  = (uint8_t)mi;
+                    sc.subCmds[cnt].midiNumber = (mn >= 0 && mn <= 127) ? (uint8_t)mn : 0;
+                    sc.subCmds[cnt].channel    = (ch == 255 || (ch >= 0 && ch <= 15))
+                                                  ? (uint8_t)ch : 0xFF;
+                    cnt++;
+                }
+                pos = objEnd + 1;
+            }
+            sc.count = cnt;
+        }
+    }
+    saveMultiScenes();
+    String resp = F("{\"ok\":true,\"id\":");
+    resp += slot;
+    resp += '}';
+    webServer.send(200, F("application/json"), resp);
+}
+
+inline void handleDeleteMultiScene(int id) {
+    addCORS();
+    if(!_webPedal) { webServer.send(500); return; }
+    if(_webPedal->settingsLocked) {
+        webServer.send(403, F("application/json"), F("{\"error\":\"locked\"}"));
+        return;
+    }
+    if(id < 0 || id >= (int)MAX_MULTI_SCENES) { webServer.send(400); return; }
+    memset(&multiScenes[id], 0, sizeof(MultiScene));
+    saveMultiScenes();
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
@@ -778,6 +970,16 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on("/api/factory-reset", HTTP_OPTIONS, handleOPTIONS);
     webServer.on("/api/ota",           HTTP_POST,    handleOTAResponse, handleOTAUpload);
     webServer.on("/api/ota",           HTTP_OPTIONS, handleOPTIONS);
+
+    webServer.on("/api/multis",        HTTP_GET,     handleGetMultiScenes);
+    webServer.on("/api/multis",        HTTP_POST,    handlePostMultiScenes);
+    webServer.on("/api/multis",        HTTP_OPTIONS, handleOPTIONS);
+    for(int i = 0; i < (int)MAX_MULTI_SCENES; i++) {
+        char path[24];
+        snprintf(path, sizeof(path), "/api/multis/%d", i);
+        webServer.on(path, HTTP_DELETE,  [i]() { handleDeleteMultiScene(i); });
+        webServer.on(path, HTTP_OPTIONS, handleOPTIONS);
+    }
 
     webServer.on("/dismiss", HTTP_GET, handleDismiss);
 

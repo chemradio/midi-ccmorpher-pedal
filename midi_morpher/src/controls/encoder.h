@@ -67,6 +67,20 @@ inline void handleEncoder(PedalState &pedal,
       pedal.modeSelectCatIdx = (uint8_t)next;
       displayModeSelect(fsName, pedal.modeSelectCatIdx, 0, 0, 0);
     } else if(pedal.modeSelectLevel == 1) {
+      bool isMultiCat = (cat.firstIdx < NUM_MODES &&
+                         modes[cat.firstIdx].mode == FootswitchMode::Multi);
+      if(isMultiCat) {
+        int step = (delta > 0) ? 1 : -1;
+        int next = (int)pedal.modeSelectVarIdx + step;
+        while(next >= 0 && next < (int)MAX_MULTI_SCENES &&
+              multiScenes[next].name[0] == '\0') next += step;
+        if(next >= 0 && next < (int)MAX_MULTI_SCENES &&
+           multiScenes[next].name[0] != '\0')
+          pedal.modeSelectVarIdx = (uint8_t)next;
+        displayModeSelect(fsName, pedal.modeSelectCatIdx, 1,
+                          pedal.modeSelectVarIdx, 0);
+        return;
+      }
       int maxIdx = (cat.subGroupCount > 0)
                      ? (int)cat.subGroupCount - 1
                      : (int)cat.count - 1;
@@ -119,6 +133,19 @@ inline void handleEncoder(PedalState &pedal,
 
   if(activeButtonIndex >= 0) {
     FSButton &btn = pedal.buttons[activeButtonIndex];
+    if(btn.mode == FootswitchMode::Multi) {
+      int step = (delta > 0) ? 1 : -1;
+      int next = (int)btn.midiNumber + step;
+      while(next >= 0 && next < (int)MAX_MULTI_SCENES &&
+            multiScenes[next].name[0] == '\0') next += step;
+      if(next >= 0 && next < (int)MAX_MULTI_SCENES &&
+         multiScenes[next].name[0] != '\0') {
+        btn.midiNumber = (uint8_t)next;
+        markStateDirty();
+        displayFSCallback(btn);
+      }
+      return;
+    }
     if(btn.isKeyboard) {
       // Keyboard mode: cycle through available keys (no acceleration, small range)
       int next = constrain((int)btn.midiNumber + delta, 0, (int)(NUM_HID_KEYS - 1));

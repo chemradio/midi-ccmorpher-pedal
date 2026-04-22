@@ -60,6 +60,25 @@ inline void handleEncoderButton(PedalState &pedal,
             pedal.inModeSelect = false;
             displayModeChange(btn);
           } else {
+            // Multi category: jump to scene-select level, or bail if no scenes
+            bool isMultiCat = (cat.firstIdx < NUM_MODES &&
+                               modes[cat.firstIdx].mode == FootswitchMode::Multi);
+            if(isMultiCat) {
+              uint8_t fs = firstMultiSlot();
+              if(fs == 0xFF) {
+                pedal.inModeSelect = false;
+                displayNoMultisMessage(btn.name);
+                return;
+              }
+              pedal.modeSelectVarIdx = (btn.mode == FootswitchMode::Multi &&
+                                        btn.midiNumber < MAX_MULTI_SCENES &&
+                                        multiScenes[btn.midiNumber].name[0] != '\0')
+                                        ? btn.midiNumber : fs;
+              pedal.modeSelectLevel = 1;
+              displayModeSelect(btn.name, pedal.modeSelectCatIdx, 1,
+                                pedal.modeSelectVarIdx, 0);
+              return;
+            }
             pedal.modeSelectLevel = 1;
             if(btn.modeIndex >= cat.firstIdx &&
                btn.modeIndex <  cat.firstIdx + cat.count) {
@@ -81,6 +100,17 @@ inline void handleEncoderButton(PedalState &pedal,
 
         } else if(pedal.modeSelectLevel == 1) {
           // ── Confirm sub-group or variant ──────────────────────────────────
+          // Multi: apply mode and bind the selected scene slot
+          bool isMultiCat = (cat.firstIdx < NUM_MODES &&
+                             modes[cat.firstIdx].mode == FootswitchMode::Multi);
+          if(isMultiCat) {
+            applyModeIndex(btn, cat.firstIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
+            btn.midiNumber = pedal.modeSelectVarIdx;
+            markStateDirty();
+            pedal.inModeSelect = false;
+            displayModeChange(btn);
+            return;
+          }
           if(cat.subGroupCount > 0) {
             // Has sub-groups → go to variant level (level 2)
             pedal.modeSelectLevel = 2;

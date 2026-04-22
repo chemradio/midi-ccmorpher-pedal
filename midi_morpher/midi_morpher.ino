@@ -64,6 +64,7 @@ void setup() {
   // Load presets + global settings, then apply global settings to live state
   loadAllPresets(pedal);
   loadGlobalSettings(pedal);
+  loadMultiScenes();
   loadExpCalibration(pedal);
   applyGlobalSettings(pedal);
 

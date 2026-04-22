@@ -88,6 +88,12 @@ inline void displayLockedMessage(String whoSays = "") {
 
 // Returns the parameter string shown on the right side of each FS row.
 inline static String _buttonNumStr(const FSButton &btn) {
+  if(btn.mode == FootswitchMode::Multi) {
+    uint8_t si = btn.midiNumber;
+    if(si < MAX_MULTI_SCENES && multiScenes[si].name[0] != '\0')
+      return String(multiScenes[si].name);
+    return String(F("?"));
+  }
   if(btn.isKeyboard) {
     uint8_t idx = btn.midiNumber < NUM_HID_KEYS ? btn.midiNumber : 0;
     String s = String(hidKeys[idx].name);
@@ -261,6 +267,14 @@ inline static int _displayModeName(const char *modeName, int y) {
 inline static void _displayNumber(const FSButton &button, int y) {
   display.setTextSize(1);
   display.setCursor(0, y);
+  if(button.mode == FootswitchMode::Multi) {
+    uint8_t si = button.midiNumber;
+    if(si < MAX_MULTI_SCENES && multiScenes[si].name[0] != '\0')
+      display.print(multiScenes[si].name);
+    else
+      display.print(F("?"));
+    return;
+  }
   if(button.isKeyboard) {
     uint8_t idx = button.midiNumber < NUM_HID_KEYS ? button.midiNumber : 0;
     display.print(hidKeys[idx].name);
@@ -375,10 +389,30 @@ inline void displayFootswitchPress(FSButton &button) {
     display.print(button.isActivated ? "NOTE ON" : "NOTE OFF");
   } else if(button.isScene) {
     display.print(button.isPressed ? "SENT" : "");
+  } else if(button.mode == FootswitchMode::Multi) {
+    display.print(button.isPressed ? F("FIRED") : F(""));
   } else {
     display.print(button.isActivated ? "ON  127" : "OFF   0");
   }
 
+  display.display();
+}
+
+// Shown when the user selects Multi category but no Multi scenes exist yet.
+inline void displayNoMultisMessage(const char *fsName) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(fsName);
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+  display.setCursor(0, 14);
+  display.print(F("No Multis found."));
+  display.setCursor(0, 28);
+  display.print(F("Create via WebUI"));
   display.display();
 }
 
@@ -401,6 +435,19 @@ inline void displayEncoderFSTurn(FSButton &button) {
   // Row 2 — label; Row 3 — value (large)
   display.setCursor(0, 12);
   display.setTextSize(1);
+
+  if(button.mode == FootswitchMode::Multi) {
+    display.print(F("Scene:"));
+    display.setTextSize(2);
+    display.setCursor(0, 24);
+    uint8_t si = button.midiNumber;
+    if(si < MAX_MULTI_SCENES && multiScenes[si].name[0] != '\0')
+      display.print(multiScenes[si].name);
+    else
+      display.print(F("?"));
+    display.display();
+    return;
+  }
 
   if(button.isKeyboard) {
     display.print("Key:");
@@ -510,7 +557,8 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
   bool isCCCat = (cat.subGroupCount == 0 && cat.count > 0 && cat.firstIdx < NUM_MODES &&
                   (modes[cat.firstIdx].mode == FootswitchMode::MomentaryCC ||
                    modes[cat.firstIdx].mode == FootswitchMode::LatchingCC));
-  uint8_t totalDepth = cat.autoSelect ? 1 : (cat.subGroupCount > 0 ? 3 : (isCCCat ? 4 : 2));
+  bool isMultiCat2 = (cat.firstIdx < NUM_MODES && modes[cat.firstIdx].mode == FootswitchMode::Multi);
+  uint8_t totalDepth = cat.autoSelect ? 1 : (isMultiCat2 ? 2 : (cat.subGroupCount > 0 ? 3 : (isCCCat ? 4 : 2)));
 
   // ── Inverted header bar ────────────────────────────────────────────────────
   display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
@@ -537,7 +585,14 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
     if(!cat.autoSelect)
       noteLine = (cat.subGroupCount > 0) ? "3 steps" : (isCCCat ? "4 steps" : "2 steps");
   } else if(level == 1) {
-    if(cat.subGroupCount > 0) {
+    bool isMultiCat = (cat.firstIdx < NUM_MODES &&
+                       modes[cat.firstIdx].mode == FootswitchMode::Multi);
+    if(isMultiCat) {
+      label = "Multi:";
+      uint8_t si = idx1;
+      value = (si < MAX_MULTI_SCENES && multiScenes[si].name[0] != '\0')
+              ? multiScenes[si].name : "?";
+    } else if(cat.subGroupCount > 0) {
       label    = (cat.subGroupCount == 3) ? "Wave:" : "Direction:";
       value    = cat.subGroupNames ? cat.subGroupNames[idx1] : "?";
       noteLine = cat.subGroupNotes ? cat.subGroupNotes[idx1] : nullptr;

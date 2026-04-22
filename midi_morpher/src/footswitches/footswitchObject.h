@@ -5,6 +5,7 @@
 #include "../midiCCModulator.h"
 #include "../midiOut.h"
 #include "../sharedTypes.h"
+#include "../multimode/multiScene.h"
 
 static constexpr uint8_t PB_SENTINEL = 0xFF;
 
@@ -59,6 +60,9 @@ enum class FootswitchMode {
 
   // USB HID keyboard keystroke
   Keyboard,
+
+  // Multi — fires multiple sub-commands at once; midiNumber = scene slot index
+  Multi,
 };
 
 // ── ModeInfo ─────────────────────────────────────────────────────────────────
@@ -174,9 +178,13 @@ inline constexpr ModeInfo modes[] = {
   // ── Keyboard ──────────────────────────────────────────────────────────────
   // midiNumber = index into hidKeys[]. fsChannel = modifier bitmask (KEY_MOD_*).
   { FootswitchMode::Keyboard,              false,false,false,false,false,false,"Keyboard",      ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,true  },
+
+  // ── Multi ─────────────────────────────────────────────────────────────────
+  // midiNumber = slot index into multiScenes[]. No mode flags set.
+  { FootswitchMode::Multi,                 false,false,false,false,false,false,"Multi",         ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
 };
 
-inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]); // 33
+inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]); // 34
 
 // ── Mode categories (three-level encoder selection) ──────────────────────────
 //
@@ -229,8 +237,9 @@ inline constexpr ModeCategory modeCategories[] = {
   { "Tap Tempo",    true,  30, 1,  0, 0, nullptr,      nullptr,      nullptr      },
   { "System",       true,  31, 1,  0, 0, nullptr,      nullptr,      nullptr      },
   { "Keyboard",     true,  32, 1,  0, 0, nullptr,      nullptr,      nullptr      },
+  { "Multi",        false, 33, 1,  0, 0, nullptr,      nullptr,      nullptr      },
 };
-inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]); // 14
+inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]); // 15
 
 inline uint8_t categoryForModeIndex(uint8_t modeIdx) {
   for(uint8_t i = 0; i < NUM_CATEGORIES; i++) {
@@ -319,6 +328,32 @@ struct FSButton {
     if(isSystem) {
       _setLED(pressed);
       if(pressed) sendSystemCommand(midiNumber);
+      if(displayCallback) displayCallback(*this);
+      return;
+    }
+
+    if(mode == FootswitchMode::Multi) {
+      _setLED(pressed);
+      uint8_t si = midiNumber;
+      if(si < MAX_MULTI_SCENES && multiScenes[si].name[0] != '\0') {
+        const MultiScene &sc = multiScenes[si];
+        for(uint8_t s = 0; s < sc.count && s < MAX_MULTI_SUBCMDS; s++) {
+          const MultiSubCmd &sub = sc.subCmds[s];
+          if(sub.modeIndex >= NUM_MODES) continue;
+          const ModeInfo &mi = modes[sub.modeIndex];
+          uint8_t eff = (sub.channel == 0xFF) ? ch : sub.channel;
+          if(mi.isPC)        { if(pressed) sendMIDI(eff, true, sub.midiNumber); }
+          else if(mi.isNote) { sendNote(eff, sub.midiNumber, pressed); }
+          else if(mi.isScene) {
+            if(pressed) {
+              if(mi.scenePickCC) sendMIDI(eff, false, mi.sceneCC + sub.midiNumber, 1);
+              else               sendMIDI(eff, false, mi.sceneCC, sub.midiNumber);
+            }
+          }
+          else if(mi.isSystem) { if(pressed) sendSystemCommand(sub.midiNumber); }
+          else { sendMIDI(eff, false, sub.midiNumber, pressed ? 127 : 0); }
+        }
+      }
       if(displayCallback) displayCallback(*this);
       return;
     }
