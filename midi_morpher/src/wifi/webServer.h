@@ -1,6 +1,7 @@
 #pragma once
 #include <DNSServer.h>
 #include <ESPmDNS.h>
+#include <Update.h>
 #include <WebServer.h>
 #include <WiFi.h>
 #include "../clock/midiClock.h"
@@ -18,9 +19,15 @@ static constexpr char WIFI_AP_PASS[] = "midimorpher";
 // ── Module state ───────────────────────────────────────────────────────────────
 inline WebServer   webServer(80);
 inline DNSServer   dnsServer;
-inline PedalState *_webPedal  = nullptr;
-inline bool        _apRunning = false;
-inline bool        _wasLocked = false;
+inline PedalState *_webPedal       = nullptr;
+inline bool        _apRunning      = false;
+inline bool        _wasLocked      = false;
+inline bool        _pendingRestart = false;
+
+// ── OTA state ──────────────────────────────────────────────────────────────────
+inline bool   _otaError    = false;
+inline bool   _otaStarted  = false;
+inline String _otaErrorMsg;
 
 // AP gateway / captive-portal target address.
 static const IPAddress AP_IP(192, 168, 4, 1);
@@ -223,6 +230,8 @@ inline String buildBackupJson() {
     j += F(",\"expCalMin\":");          j += gs.expCalMin;
     j += F(",\"expCalMax\":");          j += gs.expCalMax;
     j += F(",\"perFsModulator\":");     j += gs.perFsModulator ? F("true") : F("false");
+    j += F(",\"clockGenerate\":");      j += gs.clockGenerate  ? F("true") : F("false");
+    j += F(",\"clockOutput\":");        j += gs.clockOutput    ? F("true") : F("false");
     j += F("},\"presets\":[");
     for(int p = 0; p < NUM_PRESETS; p++) {
         if(p) j += ',';
@@ -392,6 +401,8 @@ inline String buildGlobalJson() {
     j += F(",\"expWake\":");    j += gs.expWakesDisplay ? F("true") : F("false");
     j += F(",\"routing\":");    j += gs.routingFlags;
     j += F(",\"perFsMod\":");   j += gs.perFsModulator ? F("true") : F("false");
+    j += F(",\"clockGen\":");   j += gs.clockGenerate  ? F("true") : F("false");
+    j += F(",\"clockOut\":");   j += gs.clockOutput    ? F("true") : F("false");
     j += '}';
     return j;
 }
@@ -427,6 +438,8 @@ inline void handlePostGlobal() {
     v = jsonInt(body, "routing");
     if(v >= 0 && v <= (int)ROUTE_ALL) gs.routingFlags = (uint8_t)v;
     if(jsonBool(body, "perFsMod", b)) gs.perFsModulator = b;
+    if(jsonBool(body, "clockGen", b)) gs.clockGenerate  = b;
+    if(jsonBool(body, "clockOut", b)) gs.clockOutput    = b;
     saveGlobalSettings(*_webPedal);
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
@@ -554,6 +567,8 @@ inline void handlePostRestore() {
                 if(ecMin != 0xFFFFFFFFUL && ecMin <= 0xFFFF) g.expCalMin = (uint16_t)ecMin;
                 if(ecMax != 0xFFFFFFFFUL && ecMax <= 0xFFFF) g.expCalMax = (uint16_t)ecMax;
                 if(jsonBool(gs, "perFsModulator", b)) g.perFsModulator = b;
+                if(jsonBool(gs, "clockGenerate",  b)) g.clockGenerate  = b;
+                if(jsonBool(gs, "clockOutput",    b)) g.clockOutput    = b;
                 saveGlobalSettings(*_webPedal);
             }
         }
@@ -671,6 +686,68 @@ inline void handlePostFactoryReset() {
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
+// ── OTA update ─────────────────────────────────────────────────────────────────
+
+// Upload handler — called repeatedly as multipart chunks arrive.
+// Checks the ESP32 firmware magic byte on the first chunk; feeds subsequent
+// chunks to the Update library. Any error aborts the update and sets the flag
+// so the response handler can report it without touching flash further.
+inline void handleOTAUpload() {
+    if (_webPedal && _webPedal->settingsLocked) return;
+    HTTPUpload &upload = webServer.upload();
+
+    if (upload.status == UPLOAD_FILE_START) {
+        _otaError   = false;
+        _otaStarted = false;
+        _otaErrorMsg = "";
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH)) {
+            _otaError    = true;
+            _otaErrorMsg = Update.errorString();
+        }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (_otaError) return;
+        // Validate magic byte on the very first data chunk before writing anything.
+        if (!_otaStarted && upload.currentSize > 0) {
+            _otaStarted = true;
+            if (upload.buf[0] != 0xE9) {
+                _otaError    = true;
+                _otaErrorMsg = "Not a firmware file (bad magic byte)";
+                Update.abort();
+                return;
+            }
+        }
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+            _otaError    = true;
+            _otaErrorMsg = Update.errorString();
+        }
+    } else if (upload.status == UPLOAD_FILE_END) {
+        if (!_otaError && !Update.end(true)) {
+            _otaError    = true;
+            _otaErrorMsg = Update.errorString();
+        }
+    }
+}
+
+// Response handler — called once after the upload is fully received.
+// On success, sends 200 and sets a flag so the main loop restarts after the
+// TCP response has been flushed. On failure, the old firmware remains active.
+inline void handleOTAResponse() {
+    addCORS();
+    if (_webPedal && _webPedal->settingsLocked) {
+        webServer.send(403, F("application/json"), F("{\"error\":\"locked\"}"));
+        return;
+    }
+    if (_otaError || Update.hasError()) {
+        String r = F("{\"error\":\"");
+        r += _otaErrorMsg.length() ? _otaErrorMsg : String(Update.errorString());
+        r += F("\"}");
+        webServer.send(500, F("application/json"), r);
+        return;
+    }
+    webServer.send(200, F("application/json"), F("{\"ok\":true}"));
+    _pendingRestart = true;
+}
+
 // ── Init ───────────────────────────────────────────────────────────────────────
 inline void initWebServer(PedalState &pedal) {
     _webPedal = &pedal;
@@ -699,6 +776,8 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on("/api/restore",       HTTP_OPTIONS, handleOPTIONS);
     webServer.on("/api/factory-reset", HTTP_POST,    handlePostFactoryReset);
     webServer.on("/api/factory-reset", HTTP_OPTIONS, handleOPTIONS);
+    webServer.on("/api/ota",           HTTP_POST,    handleOTAResponse, handleOTAUpload);
+    webServer.on("/api/ota",           HTTP_OPTIONS, handleOPTIONS);
 
     webServer.on("/dismiss", HTTP_GET, handleDismiss);
 
@@ -751,5 +830,11 @@ inline void handleWebServer(PedalState &pedal) {
     if(_apRunning) {
         dnsServer.processNextRequest();
         webServer.handleClient();
+    }
+
+    // Restart after OTA response has been sent — delay lets TCP flush first.
+    if(_pendingRestart) {
+        delay(500);
+        ESP.restart();
     }
 }

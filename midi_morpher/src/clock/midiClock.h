@@ -39,6 +39,8 @@ struct MidiClock {
   float         bpm            = DEFAULT_BPM;
   bool          externalSync   = false;
   bool          ledEnabled     = true;
+  bool          clockGenerate  = true;
+  bool          clockOutput    = true;
   unsigned long tickIntervalUs = (unsigned long)(60000000.0f / (DEFAULT_BPM * 24.0f));
   unsigned long lastTickUs     = 0;
   unsigned long lastExternalMs = 0;
@@ -87,7 +89,7 @@ struct MidiClock {
         lastTickUs += tickIntervalUs;
         // If we fell far behind (blocking display/i2c call), resync.
         if(nowUs - lastTickUs > tickIntervalUs * 4) lastTickUs = nowUs;
-        sendClockTick();
+        if(clockGenerate && clockOutput) sendClockTick();
         onPulse();
       }
     }

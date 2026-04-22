@@ -80,7 +80,9 @@ void setup() {
 }
 
 void loop() {
-  midiClock.ledEnabled = pedal.globalSettings.tempoLedEnabled;
+  midiClock.ledEnabled     = pedal.globalSettings.tempoLedEnabled;
+  midiClock.clockGenerate  = pedal.globalSettings.clockGenerate;
+  midiClock.clockOutput    = pedal.globalSettings.clockOutput;
   midiClock.tick();
   for(auto &mod : pedal.modulators) mod.update();
 
@@ -164,14 +166,20 @@ void loop() {
   const uint8_t  rf           = pedal.globalSettings.routingFlags;
   while(Serial2.available()) {
     byte data = Serial2.read();
-    Serial1.write(data);  // DIN→DIN always
-    Serial1.flush();
+    bool isClockByte = (data == 0xF8);
 
-    if(data == 0xF8) midiClock.receiveClock();
+    if(!isClockByte || midiClock.clockOutput) {
+      Serial1.write(data);  // DIN→DIN always (clock suppressed when clockOutput off)
+      Serial1.flush();
+    }
+
+    if(isClockByte) midiClock.receiveClock();
 
     if(data >= 0xF8) {
-      if(rf & ROUTE_DIN_USB) { midiEventPacket_t pkt = {0x0F, data, 0, 0}; midi.writePacket(&pkt); }
-      if(rf & ROUTE_DIN_BLE) { uint8_t rt = data; bleMidiSendBytes(&rt, 1); }
+      if(!isClockByte || midiClock.clockOutput) {
+        if(rf & ROUTE_DIN_USB) { midiEventPacket_t pkt = {0x0F, data, 0, 0}; midi.writePacket(&pkt); }
+        if(rf & ROUTE_DIN_BLE) { uint8_t rt = data; bleMidiSendBytes(&rt, 1); }
+      }
       continue;
     }
 
@@ -208,17 +216,18 @@ void loop() {
   if(midi.readPacket(&midi_packet_in)) {
     midi_code_index_number_t code_index_num = MIDI_EP_HEADER_CIN_GET(midi_packet_in.header);
     int8_t midix_size = cin_to_midix_size[code_index_num];
-    if(code_index_num == 0x0F && ((uint8_t *)&midi_packet_in)[1] == 0xF8) {
-      midiClock.receiveClock();
-    }
+    bool isClockPkt = (code_index_num == 0x0F && ((uint8_t *)&midi_packet_in)[1] == 0xF8);
+    if(isClockPkt) midiClock.receiveClock();
     if(code_index_num >= 0x2) {
-      uint8_t *midiBytes = ((uint8_t *)&midi_packet_in) + 1;
-      if(rf & ROUTE_USB_DIN) {
-        for(int i = 0; i < midix_size; i++) Serial1.write(midiBytes[i]);
-        Serial1.flush();
-      }
-      if(midix_size > 0 && midix_size <= 3 && (rf & ROUTE_USB_BLE)) {
-        bleMidiSendBytes(midiBytes, (uint8_t)midix_size);
+      if(!isClockPkt || midiClock.clockOutput) {
+        uint8_t *midiBytes = ((uint8_t *)&midi_packet_in) + 1;
+        if(rf & ROUTE_USB_DIN) {
+          for(int i = 0; i < midix_size; i++) Serial1.write(midiBytes[i]);
+          Serial1.flush();
+        }
+        if(midix_size > 0 && midix_size <= 3 && (rf & ROUTE_USB_BLE)) {
+          bleMidiSendBytes(midiBytes, (uint8_t)midix_size);
+        }
       }
     }
   }

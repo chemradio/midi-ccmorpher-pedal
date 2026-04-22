@@ -19,14 +19,16 @@
 #define MENU_TEMPO_LED 8
 #define MENU_NEOPIXEL 9
 #define MENU_PER_FS_MOD 10
-#define MENU_BRIGHTNESS 11
-#define MENU_TIMEOUT 12
-#define MENU_LOCK 13
-#define MENU_EXIT 14
-#define MENU_COUNT 15
+#define MENU_CLOCK_GEN  11
+#define MENU_CLOCK_OUT  12
+#define MENU_BRIGHTNESS 13
+#define MENU_TIMEOUT    14
+#define MENU_LOCK       15
+#define MENU_EXIT       16
+#define MENU_COUNT      17
 
 static const char *menuItemNames[] = {
-    "MIDI Channel", "Routings", "Pot 1 CC", "Pot 2 CC", "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel", "Poly Mod", "Brightness", "Screen ON", "Lock", "Exit"};
+    "MIDI Channel", "Routings", "Pot 1 CC", "Pot 2 CC", "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel", "Poly Mod", "Clock Gen", "Clock Out", "Brightness", "Screen ON", "Lock", "Exit"};
 
 static const char *ledModeNames[] = {"On", "Cnsrv", "Off"};
 
@@ -85,6 +87,13 @@ inline String _menuItemRhs(const PedalState &pedal, uint8_t item) {
     return String(pedal.globalSettings.neoPixelEnabled ? F("ON") : F("OFF"));
   case MENU_PER_FS_MOD:
     return String(pedal.globalSettings.perFsModulator ? F("ON") : F("OFF"));
+  case MENU_CLOCK_GEN:
+    return String(pedal.globalSettings.clockGenerate ? F("ON") : F("OFF"));
+  case MENU_CLOCK_OUT: {
+    bool avail = pedal.globalSettings.clockGenerate || midiClock.externalSync;
+    return avail ? String(pedal.globalSettings.clockOutput ? F("ON") : F("OFF"))
+                 : String(F("N/A"));
+  }
   case MENU_BRIGHTNESS:
     return String(pedal.globalSettings.displayBrightness) + String('%');
   case MENU_TIMEOUT:
@@ -373,6 +382,20 @@ inline void handleMenuPress(PedalState &pedal) {
       saveGlobalSettings(pedal);
       displayMenuRoot(pedal);
       break;
+    case MENU_CLOCK_GEN:
+      pedal.globalSettings.clockGenerate = !pedal.globalSettings.clockGenerate;
+      saveGlobalSettings(pedal);
+      displayMenuRoot(pedal);
+      break;
+    case MENU_CLOCK_OUT: {
+      bool avail = pedal.globalSettings.clockGenerate || midiClock.externalSync;
+      if(avail) {
+        pedal.globalSettings.clockOutput = !pedal.globalSettings.clockOutput;
+        saveGlobalSettings(pedal);
+      }
+      displayMenuRoot(pedal);
+      break;
+    }
     case MENU_LOCK:
       pedal.menuState = MenuState::LOCK_CONFIRM;
       pedal.menuRoutingIdx = 0;

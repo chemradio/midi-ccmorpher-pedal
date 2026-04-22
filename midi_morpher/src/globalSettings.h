@@ -50,4 +50,6 @@ struct GlobalSettings {
     uint16_t expCalMin        = 0xFFFF;       // 0xFFFF = not calibrated (auto-cal takes over)
     uint16_t expCalMax        = 0;
     bool     perFsModulator   = true;         // true = independent modulator per footswitch
+    bool     clockGenerate    = true;         // generate and send internal MIDI clock
+    bool     clockOutput      = true;         // forward clock (internal/external) to MIDI outputs
 };
