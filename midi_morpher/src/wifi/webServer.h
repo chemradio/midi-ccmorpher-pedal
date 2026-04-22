@@ -21,6 +21,7 @@ inline WebServer   webServer(80);
 inline DNSServer   dnsServer;
 inline PedalState *_webPedal       = nullptr;
 inline bool        _apRunning      = false;
+inline bool        _dnsRunning     = false;
 inline bool        _wasLocked      = false;
 inline bool        _pendingRestart = false;
 
@@ -37,10 +38,12 @@ inline void startAP() {
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(AP_IP, AP_IP, IPAddress(255, 255, 255, 0));
     WiFi.softAP(WIFI_AP_SSID, WIFI_AP_PASS);
-    // Catch-all DNS — every hostname resolves to the pedal, so any URL the
-    // phone/laptop probes for captive-portal detection hits our web server.
-    dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
-    dnsServer.start(53, "*", AP_IP);
+    bool cp = !_webPedal || _webPedal->globalSettings.captivePortal;
+    if(cp) {
+        dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+        dnsServer.start(53, "*", AP_IP);
+    }
+    _dnsRunning = cp;
     MDNS.begin("midimorpher");
     webServer.begin();
     _apRunning = true;
@@ -48,7 +51,7 @@ inline void startAP() {
 
 inline void stopAP() {
     MDNS.end();
-    dnsServer.stop();
+    if(_dnsRunning) { dnsServer.stop(); _dnsRunning = false; }
     webServer.stop();
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_OFF);
@@ -229,9 +232,10 @@ inline String buildBackupJson() {
     j += F(",\"routingFlags\":");       j += gs.routingFlags;
     j += F(",\"expCalMin\":");          j += gs.expCalMin;
     j += F(",\"expCalMax\":");          j += gs.expCalMax;
-    j += F(",\"perFsModulator\":");     j += gs.perFsModulator ? F("true") : F("false");
-    j += F(",\"clockGenerate\":");      j += gs.clockGenerate  ? F("true") : F("false");
-    j += F(",\"clockOutput\":");        j += gs.clockOutput    ? F("true") : F("false");
+    j += F(",\"perFsModulator\":");     j += gs.perFsModulator  ? F("true") : F("false");
+    j += F(",\"clockGenerate\":");      j += gs.clockGenerate   ? F("true") : F("false");
+    j += F(",\"clockOutput\":");        j += gs.clockOutput     ? F("true") : F("false");
+    j += F(",\"captivePortal\":");      j += gs.captivePortal   ? F("true") : F("false");
     j += F("},\"presets\":[");
     for(int p = 0; p < NUM_PRESETS; p++) {
         if(p) j += ',';
@@ -298,6 +302,10 @@ inline void handleRoot() {
 // redirect to the root, which triggers the "Sign in to network" prompt on the
 // phone/laptop and takes the user straight to the UI.
 inline void handleCaptivePortal() {
+    if(!_webPedal || !_webPedal->globalSettings.captivePortal) {
+        webServer.send(404, F("text/plain"), F("Not found"));
+        return;
+    }
     webServer.sendHeader(F("Location"), F("http://192.168.4.1/"), true);
     webServer.send(302, F("text/plain"), F(""));
 }
@@ -421,8 +429,9 @@ inline String buildGlobalJson() {
     j += F(",\"expWake\":");    j += gs.expWakesDisplay ? F("true") : F("false");
     j += F(",\"routing\":");    j += gs.routingFlags;
     j += F(",\"perFsMod\":");   j += gs.perFsModulator ? F("true") : F("false");
-    j += F(",\"clockGen\":");   j += gs.clockGenerate  ? F("true") : F("false");
-    j += F(",\"clockOut\":");   j += gs.clockOutput    ? F("true") : F("false");
+    j += F(",\"clockGen\":");        j += gs.clockGenerate   ? F("true") : F("false");
+    j += F(",\"clockOut\":");        j += gs.clockOutput     ? F("true") : F("false");
+    j += F(",\"captivePortal\":");   j += gs.captivePortal   ? F("true") : F("false");
     j += '}';
     return j;
 }
@@ -460,6 +469,21 @@ inline void handlePostGlobal() {
     if(jsonBool(body, "perFsMod", b)) gs.perFsModulator = b;
     if(jsonBool(body, "clockGen", b)) gs.clockGenerate  = b;
     if(jsonBool(body, "clockOut", b)) gs.clockOutput    = b;
+    if(jsonBool(body, "captivePortal", b)) {
+        if(b != gs.captivePortal) {
+            gs.captivePortal = b;
+            if(_apRunning) {
+                if(b && !_dnsRunning) {
+                    dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+                    dnsServer.start(53, "*", AP_IP);
+                    _dnsRunning = true;
+                } else if(!b && _dnsRunning) {
+                    dnsServer.stop();
+                    _dnsRunning = false;
+                }
+            }
+        }
+    }
     saveGlobalSettings(*_webPedal);
     webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
@@ -589,6 +613,7 @@ inline void handlePostRestore() {
                 if(jsonBool(gs, "perFsModulator", b)) g.perFsModulator = b;
                 if(jsonBool(gs, "clockGenerate",  b)) g.clockGenerate  = b;
                 if(jsonBool(gs, "clockOutput",    b)) g.clockOutput    = b;
+                if(jsonBool(gs, "captivePortal",  b)) g.captivePortal  = b;
                 saveGlobalSettings(*_webPedal);
             }
         }
@@ -1030,7 +1055,7 @@ inline void handleWebServer(PedalState &pedal) {
     }
 
     if(_apRunning) {
-        dnsServer.processNextRequest();
+        if(_dnsRunning) dnsServer.processNextRequest();
         webServer.handleClient();
     }
 
