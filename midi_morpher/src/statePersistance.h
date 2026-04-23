@@ -4,12 +4,22 @@
 // ── NVS handle ────────────────────────────────────────────────────────────────
 inline Preferences prefs;
 
-// ── Persisted button record ────────────────────────────────────────────────────
-// Layout (16 bytes, same as before ccLow/ccHigh were added):
-//   [0] modeIndex  [1] midiNumber  [2-3] padding  [4-7] rampUpMs  [8-11] rampDownMs
-//   [12] fsChannel  [13] ccLow  [14] ccHigh  [15] _pad
-// When loading old NVS data: bytes 13-15 were implicit padding (zero-filled by
-// aggregate-init). ccHigh==0 is treated as 127 in applyPreset (upgrade path).
+// ── Persisted extra action (16 bytes) ─────────────────────────────────────────
+struct FSActionPersisted {
+    uint8_t  enabled;    // 0 = disabled
+    uint8_t  modeIndex;
+    uint8_t  midiNumber;
+    uint8_t  fsChannel;
+    uint8_t  ccLow;
+    uint8_t  ccHigh;
+    uint8_t  _pad[2];    // align rampUpMs to 4 bytes
+    uint32_t rampUpMs;
+    uint32_t rampDownMs;
+};  // 16 bytes
+
+// ── Persisted button record (64 bytes) ────────────────────────────────────────
+// Primary action: first 16 bytes (legacy layout preserved).
+// Extra actions: 3 × FSActionPersisted (48 bytes). NVS size change resets presets.
 struct FSButtonPersisted {
     uint8_t  modeIndex;
     uint8_t  midiNumber;
@@ -18,7 +28,8 @@ struct FSButtonPersisted {
     uint8_t  fsChannel;  // 0xFF = follow global; 0–15 = per-FS override; keyboard: modifier bitmask
     uint8_t  ccLow;      // value sent on CC release / latch-off (default 0)
     uint8_t  ccHigh;     // value sent on CC press / latch-on (default 127; 0 = treat as 127)
-    uint8_t  _pad;       // keeps sizeof == 16
+    uint8_t  _pad;
+    FSActionPersisted extraActions[FS_NUM_EXTRA];  // LONG, DOUBLE, RELEASE
 };
 
 // ── Preset data ───────────────────────────────────────────────────────────────
@@ -53,16 +64,30 @@ inline void saveCurrentPreset(const PedalState &state) {
     p.midiChannel = state.midiChannel;
     p.bpm         = midiClock.bpm;
     for(int i = 0; i < 6; i++) {
-        p.buttons[i] = {
-            state.buttons[i].modeIndex,
-            state.buttons[i].midiNumber,
-            (uint32_t)state.buttons[i].rampUpMs,
-            (uint32_t)state.buttons[i].rampDownMs,
-            state.buttons[i].fsChannel,
-            state.buttons[i].ccLow,
-            state.buttons[i].ccHigh,
-            0  // _pad
-        };
+        const FSButton &btn = state.buttons[i];
+        FSButtonPersisted &pb = p.buttons[i];
+        pb.modeIndex  = btn.modeIndex;
+        pb.midiNumber = btn.midiNumber;
+        pb.rampUpMs   = (uint32_t)btn.rampUpMs;
+        pb.rampDownMs = (uint32_t)btn.rampDownMs;
+        pb.fsChannel  = btn.fsChannel;
+        pb.ccLow      = btn.ccLow;
+        pb.ccHigh     = btn.ccHigh;
+        pb._pad       = 0;
+        for(int t = 0; t < (int)FS_NUM_EXTRA; t++) {
+            const FSAction &act = btn.extraActions[t];
+            FSActionPersisted &ap = pb.extraActions[t];
+            ap.enabled    = act.enabled ? 1u : 0u;
+            ap.modeIndex  = act.modeIndex;
+            ap.midiNumber = act.midiNumber;
+            ap.fsChannel  = act.fsChannel;
+            ap.ccLow      = act.ccLow;
+            ap.ccHigh     = act.ccHigh;
+            ap._pad[0]    = 0;
+            ap._pad[1]    = 0;
+            ap.rampUpMs   = (uint32_t)act.rampUpMs;
+            ap.rampDownMs = (uint32_t)act.rampDownMs;
+        }
     }
     saveAllPresets();
     presetDirty = false;
@@ -77,15 +102,31 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
     midiClock.setBpm(p.bpm > 0 ? p.bpm : DEFAULT_BPM);
     for(int i = 0; i < 6; i++) {
         FSButton &btn    = state.buttons[i];
-        btn.midiNumber   = p.buttons[i].midiNumber;
-        btn.rampUpMs     = p.buttons[i].rampUpMs;
-        btn.rampDownMs   = p.buttons[i].rampDownMs;
-        btn.fsChannel    = p.buttons[i].fsChannel;
-        btn.ccLow        = p.buttons[i].ccLow;
-        // ccHigh==0 means old NVS padding byte — treat as default 127
-        btn.ccHigh       = (p.buttons[i].ccHigh == 0) ? 127 : p.buttons[i].ccHigh;
-        uint8_t mi       = p.buttons[i].modeIndex < NUM_MODES ? p.buttons[i].modeIndex : 0;
+        const FSButtonPersisted &pb = p.buttons[i];
+        btn.midiNumber   = pb.midiNumber;
+        btn.rampUpMs     = pb.rampUpMs;
+        btn.rampDownMs   = pb.rampDownMs;
+        btn.fsChannel    = pb.fsChannel;
+        btn.ccLow        = pb.ccLow;
+        btn.ccHigh       = (pb.ccHigh == 0) ? 127 : pb.ccHigh;
+        uint8_t mi       = pb.modeIndex < NUM_MODES ? pb.modeIndex : 0;
         applyModeFlags(btn, mi);
+        // Load extra actions
+        for(int t = 0; t < (int)FS_NUM_EXTRA; t++) {
+            const FSActionPersisted &ap = pb.extraActions[t];
+            FSAction &act = btn.extraActions[t];
+            act.enabled    = ap.enabled != 0;
+            act.modeIndex  = ap.modeIndex < NUM_MODES ? ap.modeIndex : 0;
+            act.midiNumber = ap.midiNumber;
+            act.fsChannel  = ap.fsChannel;
+            act.ccLow      = ap.ccLow;
+            act.ccHigh     = ap.ccHigh != 0 ? ap.ccHigh : 127;
+            act.rampUpMs   = ap.rampUpMs;
+            act.rampDownMs = ap.rampDownMs;
+        }
+        // Reset press state machine
+        btn.pressPhase  = PressPhase::IDLE;
+        btn.longFired   = false;
     }
     // Reset all per-FS modulators to a clean resting state.
     for(int i = 0; i < 6; i++) {

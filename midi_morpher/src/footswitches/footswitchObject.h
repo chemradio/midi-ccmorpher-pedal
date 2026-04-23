@@ -9,6 +9,24 @@
 
 static constexpr uint8_t PB_SENTINEL = 0xFF;
 
+// ── Extra press action ────────────────────────────────────────────────────────
+// Per-footswitch config for LONG(0), DOUBLE(1), and RELEASE(2) press events.
+struct FSAction {
+    bool     enabled    = false;
+    uint8_t  modeIndex  = 0;
+    uint8_t  midiNumber = 0;
+    uint8_t  fsChannel  = 0xFF;
+    uint8_t  ccLow      = 0;
+    uint8_t  ccHigh     = 127;
+    uint32_t rampUpMs   = DEFAULT_RAMP_SPEED;
+    uint32_t rampDownMs = DEFAULT_RAMP_SPEED;
+};
+static constexpr uint8_t        FS_NUM_EXTRA  = 3;
+static constexpr unsigned long  FS_LONG_MS    = 500;
+static constexpr unsigned long  FS_DBL_WIN_MS = 300;
+
+enum class PressPhase : uint8_t { IDLE, WAIT, PRESS_ACTIVE, LONG_ACTIVE, PENDING_DBL, DBL_ACTIVE };
+
 // ── Footswitch mode enum ─────────────────────────────────────────────────────
 
 enum class FootswitchMode {
@@ -293,6 +311,15 @@ struct FSButton {
   ModeInfo modMode = { FootswitchMode::MomentaryPC, false,true,false,false,false,false,
                        "PC",ModulationType::NOMODULATION,SHAPE_LINEAR,0,0,false,false,false,false };
 
+  // Extra press actions: [0]=LONG [1]=DOUBLE [2]=RELEASE
+  FSAction extraActions[FS_NUM_EXTRA];
+
+  // Press state machine
+  PressPhase    pressPhase  = PressPhase::IDLE;
+  unsigned long pressStartMs = 0;
+  unsigned long releaseMs    = 0;
+  bool          longFired    = false;
+
   FSButton(uint8_t p, uint8_t lp, const char *n, uint8_t mN)
       : pin(p), ledPin(lp), name(n), midiNumber(mN) {}
 
@@ -433,17 +460,123 @@ struct FSButton {
     if(displayCallback) displayCallback(*this);
   }
 
+  void _applyExtraAction(uint8_t t, bool pressed, uint8_t ch,
+                         MidiCCModulator &modulator,
+                         void (*displayCallback)(FSButton &)) {
+    if(t >= FS_NUM_EXTRA || !extraActions[t].enabled) return;
+    const FSAction &act = extraActions[t];
+    if(act.modeIndex >= NUM_MODES) return;
+    const ModeInfo &mi = modes[act.modeIndex];
+    uint8_t ach = (act.fsChannel == 0xFF) ? ch : act.fsChannel;
+
+    // Save primary config
+    uint8_t  sv_mi=modeIndex; FootswitchMode sv_mo=mode; ModeInfo sv_mm=modMode;
+    uint8_t  sv_mn=midiNumber, sv_fc=fsChannel, sv_cl=ccLow, sv_cH=ccHigh;
+    uint32_t sv_ru=rampUpMs, sv_rd=rampDownMs;
+    bool sv_lat=isLatching, sv_pc=isPC, sv_nt=isNote, sv_ms=isModSwitch;
+    bool sv_sc=isScene, sv_ss=isSceneScroll, sv_sy=isSystem, sv_kb=isKeyboard;
+
+    modeIndex=act.modeIndex; midiNumber=act.midiNumber; fsChannel=act.fsChannel;
+    ccLow=act.ccLow; ccHigh=act.ccHigh;
+    rampUpMs=act.rampUpMs; rampDownMs=act.rampDownMs;
+    mode=mi.mode; modMode=mi;
+    isLatching=mi.isLatching; isPC=mi.isPC; isNote=mi.isNote;
+    isModSwitch=mi.isModSwitch; isScene=mi.isScene; isSceneScroll=mi.isSceneScroll;
+    isSystem=mi.isSystem; isKeyboard=mi.isKeyboard;
+
+    _applyPressState(pressed, ach, modulator, displayCallback);
+
+    modeIndex=sv_mi; mode=sv_mo; modMode=sv_mm;
+    midiNumber=sv_mn; fsChannel=sv_fc; ccLow=sv_cl; ccHigh=sv_cH;
+    rampUpMs=sv_ru; rampDownMs=sv_rd;
+    isLatching=sv_lat; isPC=sv_pc; isNote=sv_nt; isModSwitch=sv_ms;
+    isScene=sv_sc; isSceneScroll=sv_ss; isSystem=sv_sy; isKeyboard=sv_kb;
+  }
+
   void handleFootswitch(uint8_t midiChannel, MidiCCModulator &modulator,
                         void (*displayCallback)(FSButton &) = nullptr) {
-    const uint8_t ch = effectiveChannel(midiChannel);
-    if((millis() - lastDebounce) < DEBOUNCE_DELAY) return;
-    bool reading = digitalRead(pin);
-    bool pressed = (reading == LOW);
-    if(reading == lastState) return;
-    lastDebounce = millis();
-    lastState    = reading;
-    isPressed    = pressed;
-    _applyPressState(pressed, ch, modulator, displayCallback);
+    unsigned long now = millis();
+    const uint8_t ch  = effectiveChannel(midiChannel);
+    bool hasLong    = extraActions[0].enabled;
+    bool hasDouble  = extraActions[1].enabled;
+    bool hasRelease = extraActions[2].enabled;
+
+    // Debounced edge detection
+    bool edgeDetected = false;
+    if((now - lastDebounce) >= DEBOUNCE_DELAY) {
+      bool reading = digitalRead(pin);
+      if(reading != lastState) {
+        lastDebounce = now;
+        lastState    = reading;
+        isPressed    = (reading == LOW);
+        edgeDetected = true;
+      }
+    }
+
+    if(edgeDetected) {
+      if(isPressed) {
+        // Press edge
+        if(pressPhase == PressPhase::PENDING_DBL) {
+          // Second press within double-tap window → fire DOUBLE
+          pressPhase = PressPhase::DBL_ACTIVE;
+          _applyExtraAction(1, true, ch, modulator, displayCallback);
+        } else {
+          pressStartMs = now;
+          longFired    = false;
+          if(!hasDouble) {
+            _applyPressState(true, ch, modulator, displayCallback);
+            pressPhase = PressPhase::PRESS_ACTIVE;
+          } else {
+            pressPhase = PressPhase::WAIT;
+          }
+        }
+      } else {
+        // Release edge
+        if(hasRelease) _applyExtraAction(2, true, ch, modulator, displayCallback);
+        switch(pressPhase) {
+          case PressPhase::WAIT:
+            // Released before long or double — start double-tap window
+            releaseMs  = now;
+            pressPhase = PressPhase::PENDING_DBL;
+            break;
+          case PressPhase::PRESS_ACTIVE:
+            _applyPressState(false, ch, modulator, displayCallback);
+            pressPhase = PressPhase::IDLE;
+            break;
+          case PressPhase::LONG_ACTIVE:
+            _applyExtraAction(0, false, ch, modulator, displayCallback);
+            longFired  = false;
+            pressPhase = PressPhase::IDLE;
+            break;
+          case PressPhase::DBL_ACTIVE:
+            _applyExtraAction(1, false, ch, modulator, displayCallback);
+            pressPhase = PressPhase::IDLE;
+            break;
+          default:
+            pressPhase = PressPhase::IDLE;
+            break;
+        }
+      }
+    }
+
+    // Long press detection (every tick while held)
+    if(hasLong && !longFired && isPressed &&
+       (pressPhase == PressPhase::WAIT || pressPhase == PressPhase::PRESS_ACTIVE)) {
+      if((now - pressStartMs) >= FS_LONG_MS) {
+        if(pressPhase == PressPhase::PRESS_ACTIVE)
+          _applyPressState(false, ch, modulator, displayCallback);
+        _applyExtraAction(0, true, ch, modulator, displayCallback);
+        longFired  = true;
+        pressPhase = PressPhase::LONG_ACTIVE;
+      }
+    }
+
+    // Double-tap window timeout → treat as single PRESS
+    if(pressPhase == PressPhase::PENDING_DBL && (now - releaseMs) >= FS_DBL_WIN_MS) {
+      _applyPressState(true, ch, modulator, displayCallback);
+      _applyPressState(false, ch, modulator, displayCallback);
+      pressPhase = PressPhase::IDLE;
+    }
   }
 
   void simulatePress(bool pressed, uint8_t midiChannel, MidiCCModulator &modulator) {
