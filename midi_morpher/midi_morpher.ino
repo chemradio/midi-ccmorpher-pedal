@@ -124,6 +124,9 @@ void loop() {
   // Preset button (short press = next preset, long press = save)
   handlePresetButton(pedal);
 
+  // Combined footswitch actions for preset navigation
+  handleCombinedActions(pedal);
+
   // Drive LEDs: FS LEDs show active preset; activity LED shows last-pressed FS state.
   updatePresetLEDs(pedal);
   updateActivityLed(pedal);
