@@ -72,7 +72,9 @@ inline String _menuItemRhs(const PedalState &pedal, uint8_t item) {
                ? String(F("Off"))
                : String(F("CC")) + String(pedal.globalSettings.pot2CC + 1);
   case MENU_EXP_CC:
-    return String(F("CC")) + String(pedal.globalSettings.expCC + 1);
+    return pedal.globalSettings.expCC == POT_CC_OFF
+                ? String(F("Off"))
+                : String(F("CC")) + String(pedal.globalSettings.expCC + 1);
   case MENU_EXP_CAL:
     return String();
   case MENU_EXP_WAKE:
@@ -173,12 +175,14 @@ inline void displayMenuEditing(PedalState &pedal) {
     }
     break;
   }
-  case MENU_EXP_CC:
+  case MENU_EXP_CC: {
+    uint8_t cc = pedal.globalSettings.expCC;
     display.setTextSize(2);
     display.setCursor(0, 22);
-    display.print(F("CC "));
-    display.print(pedal.globalSettings.expCC + 1);
+    if (cc == POT_CC_OFF) display.print(F("Off"));
+    else { display.print(F("CC ")); display.print(cc + 1); }
     break;
+  }
   case MENU_LEDS: {
     uint8_t m = pedal.globalSettings.ledMode;
     display.setTextSize(2);
@@ -291,12 +295,10 @@ inline void handleMenuRotate(PedalState &pedal, int delta) {
       analogPots[1].midiCCNumber = pedal.globalSettings.pot2CC;
       displayMenuEditing(pedal);
       break;
-    case MENU_EXP_CC: {
-      int next = constrain((int)pedal.globalSettings.expCC + delta, 0, 127);
-      pedal.globalSettings.expCC = (uint8_t)next;
+    case MENU_EXP_CC:
+      pedal.globalSettings.expCC = stepPotCC(pedal.globalSettings.expCC, delta);
       displayMenuEditing(pedal);
       break;
-    }
     case MENU_LEDS: {
       int m = constrain((int)pedal.globalSettings.ledMode + delta, 0, 2);
       pedal.globalSettings.ledMode = (uint8_t)m;

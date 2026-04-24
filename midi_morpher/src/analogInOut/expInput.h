@@ -70,6 +70,7 @@ inline void handleExpInput(PedalState &pedal) {
       : (uint8_t)constrain((int32_t)(raw - expMin) * 128 / effSpan, 0, 127);
 
   if (midiVal == expInput.lastMidiValue) return;
+  if (pedal.globalSettings.expCC == POT_CC_OFF) return;
   expInput.lastMidiValue = midiVal;
   sendMIDI(pedal.midiChannel, false, pedal.globalSettings.expCC, midiVal);
   if (pedal.globalSettings.expWakesDisplay)
