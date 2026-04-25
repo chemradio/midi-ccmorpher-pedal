@@ -7,8 +7,9 @@
 #include "../menu/mainMenu.h"
 
 // Defined in encoderButton.h — used here to distinguish encoder-button+rotate
-// (MIDI channel) from bare rotate (tempo).
+// (preset scroll) from bare rotate (tempo).
 extern bool encBtnPressing;
+extern bool encBtnDidPresetNav;
 
 // Declare global variables as extern
 extern volatile int encoderPos;
@@ -189,10 +190,12 @@ inline void handleEncoder(PedalState &pedal,
     }
     displayFSCallback(btn);
   } else if(encBtnPressing) {
-    // Encoder button held + rotate → global MIDI channel (no acceleration).
-    uint8_t ch = (uint8_t)constrain((int)pedal.midiChannel + delta, 0, 15);
-    pedal.setMidiChannel(ch);
-    displayChannelCallback(ch);
+    // Encoder button held + rotate → scroll presets (acceleration for large counts).
+    uint8_t count = pedal.globalSettings.presetCount;
+    int step = delta * (count > 20 ? accelMult : 1);
+    int next = ((int)activePreset + step % (int)count + (int)count) % (int)count;
+    presetNavDirect    = (int8_t)next;
+    encBtnDidPresetNav = true;
   } else {
     // Bare rotate → adjust tempo. Acceleration applies (range 20–300).
     float newBpm = midiClock.bpm + (float)(delta * accelMult);

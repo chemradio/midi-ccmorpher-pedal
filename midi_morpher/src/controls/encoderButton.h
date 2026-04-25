@@ -11,9 +11,10 @@ inline void initEncoderButton() {
   pinMode(encBtn.pin, INPUT_PULLUP);
 }
 
-inline bool          encBtnPressing   = false;
-inline bool          encBtnHandled    = false;
-inline unsigned long encBtnPressStart = 0;
+inline bool          encBtnPressing      = false;
+inline bool          encBtnHandled       = false;
+inline bool          encBtnDidPresetNav  = false;
+inline unsigned long encBtnPressStart    = 0;
 
 // displayModeSelect(fsName, catIdx, level, idx1, idx2)
 //   level 0: catIdx=highlighted cat; idx1/idx2 unused
@@ -318,6 +319,10 @@ inline void handleEncoderButton(PedalState &pedal,
           pedal.modeSelectFSIdx            = activeIdx;
           pedal.modeSelectFromActionSelect = false;
           displayActionSelect(btn, 0);
+        } else if(encBtnDidPresetNav) {
+          // ── Released after preset scroll → show home screen ───────────────
+          encBtnDidPresetNav = false;
+          displayHomeScreen(pedal);
         } else if(!pedal.settingsLocked) {
           // ── Enter main menu ────────────────────────────────────────────────
           pedal.menuState   = MenuState::ROOT;
@@ -332,9 +337,10 @@ inline void handleEncoderButton(PedalState &pedal,
   // ── Press start ────────────────────────────────────────────────────────────
   if(reading == LOW && !encBtnPressing) {
     if((now - encBtn.lastDebounce) < DEBOUNCE_DELAY) return;
-    encBtnPressing   = true;
-    encBtnHandled    = false;
-    encBtnPressStart = now;
+    encBtnPressing     = true;
+    encBtnHandled      = false;
+    encBtnDidPresetNav = false;
+    encBtnPressStart   = now;
     encBtn.lastDebounce = now;
     if(pedal.settingsLocked && pedal.getActiveButtonIndex() < 0) {
       displayUnlockProgress(0);
