@@ -370,7 +370,8 @@ inline void resetDisplayTimeout(PedalState &pedal) {
   // param screens get 3s. Clears transient UI state so the next encoder press
   // starts cleanly from the home screen.
   if(displayMode == DISPLAY_PARAM) {
-    uint32_t revertMs = (pedal.menuState != MenuState::NONE) ? 5000 : 3000;
+    uint32_t revertMs = (pedal.menuState != MenuState::NONE ||
+                         pedal.inActionSelect || pedal.inModeSelect) ? 5000 : 3000;
     if((now - lastInteraction) > revertMs) {
       pedal.menuState                  = MenuState::NONE;
       pedal.inModeSelect               = false;
@@ -647,57 +648,50 @@ inline void displayActionSelect(FSButton &btn, uint8_t slot) {
   lastInteraction = millis();
   display.clearDisplay();
   display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
 
   bool expanded = btn.extraActions[0].enabled || btn.extraActions[1].enabled || btn.extraActions[2].enabled;
   uint8_t slotCount = expanded ? 5 : 2;
 
-  // Header bar (inverted)
-  display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
-  display.setTextColor(SSD1306_BLACK);
-  display.setTextSize(1);
-  display.setCursor(2, 1);
+  // Title + divider
+  display.setCursor(0, 0);
   display.print(btn.name);
-  display.setCursor(72, 1);
-  display.print(F("Actions"));
-  display.setTextColor(SSD1306_WHITE);
+  display.print(F(" Edit"));
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
 
-  // Rows: 10px tall each, starting at y=11
+  // Rows: cursor + label on left, mode name right-aligned
   for(uint8_t s = 0; s < slotCount; s++) {
-    int16_t y = 11 + s * 10;
-    bool sel = (s == slot);
-    if(sel) {
-      display.fillRect(0, y, 128, 9, SSD1306_WHITE);
-      display.setTextColor(SSD1306_BLACK);
-    } else {
-      display.setTextColor(SSD1306_WHITE);
-    }
-    display.setTextSize(1);
-    display.setCursor(2, y + 1);
+    int y = 11 + s * 10;
+    display.setCursor(0, y);
+    display.print(s == slot ? '>' : ' ');
+
+    const char *lbl;
+    const char *rhs = nullptr;
 
     if(s == 0) {
-      display.print(F("PRESS  "));
-      const char *mn = btn.modMode.name;
-      for(uint8_t c = 0; c < 10 && mn[c]; c++) display.print(mn[c]);
+      lbl = "PRESS";
+      rhs = btn.modMode.name;
     } else if(!expanded && s == 1) {
-      display.print(F("+EXPAND"));
+      lbl = "+EXPAND";
     } else if(expanded && s == 4) {
-      display.print(F("COLLAPSE"));
+      lbl = "COLLAPSE";
     } else {
-      // s=1→RELEASE(t=2), s=2→HOLD(t=0), s=3→DBL(t=1)
+      // s=1→REL(t=2), s=2→HOLD(t=0), s=3→DBL(t=1)
+      static const char * const sLbls[] = { nullptr, "REL", "HOLD", "DBL" };
       uint8_t t = (s == 1) ? 2 : (s == 2) ? 0 : 1;
-      static const char * const sNames[] = { nullptr, "REL   ", "HOLD  ", "DBL   " };
-      display.print(sNames[s]);
+      lbl = sLbls[s];
       const FSAction &act = btn.extraActions[t];
-      if(!act.enabled) {
-        display.print(F("---"));
-      } else if(act.modeIndex < NUM_MODES) {
-        const char *mn = modes[act.modeIndex].name;
-        for(uint8_t c = 0; c < 8 && mn[c]; c++) display.print(mn[c]);
-      } else {
-        display.print(F("???"));
-      }
+      rhs = act.enabled ? (act.modeIndex < NUM_MODES ? modes[act.modeIndex].name : "???") : "---";
     }
-    if(sel) display.setTextColor(SSD1306_WHITE);
+
+    display.print(' ');
+    display.print(lbl);
+
+    if(rhs) {
+      int x = 128 - (int)strlen(rhs) * 6;
+      if(x > 42) { display.setCursor(x, y); display.print(rhs); }
+    }
   }
 
   display.display();
