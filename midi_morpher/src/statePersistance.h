@@ -37,7 +37,8 @@ struct FSButtonPersisted {
 struct PresetData {
     uint8_t midiChannel;
     FSButtonPersisted buttons[6];
-    float   bpm;   // per-preset BPM for the internal clock (DEFAULT_BPM on first boot)
+    float   bpm;            // per-preset BPM for the internal clock (DEFAULT_BPM on first boot)
+    FSActionPersisted loadAction;  // optional action fired when this preset is loaded (enabled=0 → none)
 };
 
 inline PresetData presets[NUM_PRESETS];
@@ -95,6 +96,22 @@ inline void saveCurrentPreset(const PedalState &state) {
     presetDirty = false;
 }
 
+// Fire a preset load action (if enabled) using a temporary FSButton.
+// Uses modulators[0] for modulation modes.
+inline void _fireLoadAction(const FSActionPersisted &act, PedalState &state) {
+    if(!act.enabled || act.modeIndex >= NUM_MODES) return;
+    FSButton tmp(255, 255, "", 0);
+    applyModeFlags(tmp, act.modeIndex);
+    tmp.midiNumber = act.midiNumber;
+    tmp.fsChannel  = act.fsChannel;
+    tmp.ccLow      = act.ccLow;
+    tmp.ccHigh     = (act.ccHigh == 0) ? 127 : act.ccHigh;
+    tmp.rampUpMs   = act.rampUpMs;
+    tmp.rampDownMs = act.rampDownMs;
+    uint8_t ch = (tmp.fsChannel == 0xFF) ? state.midiChannel : tmp.fsChannel;
+    tmp._applyPressState(true, ch, state.modulators[0], nullptr);
+}
+
 // Apply a stored preset to the live pedal state.
 // applyModeFlags() is available because footswitchObject.h is included first.
 inline void applyPreset(uint8_t idx, PedalState &state) {
@@ -137,6 +154,7 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
     }
     activePreset = idx;
     presetDirty  = false;
+    _fireLoadAction(p.loadAction, state);
 }
 
 // ── Global settings (non-preset) ─────────────────────────────────────────────

@@ -61,6 +61,7 @@ footer{text-align:center;padding:24px;font-size:.64rem;color:#333}.km{display:fl
 <div class="tb"><div class="tc"><div class="lb">MIDI Channel</div><select id="gch" class="sl"></select></div>
 <div class="tc"><div class="lb">Tempo</div><div class="br"><button class="bb" onclick="nudgeBpm(-1)">&minus;</button><input type="number" id="bpmVal" class="bi" min="20" max="300" value="120"><button class="bb" onclick="nudgeBpm(1)">&plus;</button><span style="font-size:.72rem;color:var(--d)">BPM</span><span id="bpmExt" class="eb">EXT</span></div></div></div>
 <div class="pb"><span class="pl">Preset</span><div id="pbtns"></div><button class="sb" onclick="savePreset()">Save</button></div>
+<div class="pb" id="laBar"><span class="pl">On Load</span><label class="tg" style="margin:0 4px"><input type="checkbox" id="laEn" onchange="laSave()"><span class="tt"></span></label><select id="laM" class="sl" style="flex:1;min-width:90px;max-width:200px"></select><input type="number" id="laN" class="bi" min="1" max="128" value="1" style="width:60px"><select id="laCh" class="sl" style="width:92px"></select></div>
 <div class="pB"><div class="pC"><div class="pk">POT 1 &mdash; <span id="pL0">CC 20</span></div><div class="pr"><input type="range" id="pot0" min="0" max="127" value="0" oninput="potMove(0,this.value)"><span class="pv" id="pv0">0</span></div></div>
 <div class="pC"><div class="pk">POT 2 &mdash; <span id="pL1">CC 21</span></div><div class="pr"><input type="range" id="pot1" min="0" max="127" value="0" oninput="potMove(1,this.value)"><span class="pv" id="pv1">0</span></div></div></div>
 <div class="st">Footswitches</div><div class="gr" id="grid"></div>
@@ -98,7 +99,7 @@ async function loadGlobal(){try{var r=await fetch('/api/global');gS=await r.json
 function applyGS(){document.getElementById('gLd').value=gS.ledMode||0;document.getElementById('gTL').checked=!!gS.tempoLed;document.getElementById('gNP').checked=!!gS.neoPixel;var br=gS.brightness==null?78:gS.brightness;document.getElementById('gBr').value=br;document.getElementById('gBv').textContent=br+'%';document.getElementById('gTo').value=gS.timeoutIdx||0;var p1=gS.pot1CC==-1?0:(gS.pot1CC||0)+1;var p2=gS.pot2CC==-1?0:(gS.pot2CC||0)+1;document.getElementById('gP1').value=p1;document.getElementById('gP2').value=p2;document.getElementById('gEC').value=(gS.expCC||0)+1;document.getElementById('gEW').checked=gS.expWake!==false;document.getElementById('gPM').checked=gS.perFsMod!==false;document.getElementById('gCG').checked=gS.clockGen!==false;var coAvail=gS.clockGen!==false||exSync;var gco=document.getElementById('gCO');gco.checked=gS.clockOut!==false;gco.disabled=!coAvail;document.getElementById('gCOC').style.opacity=coAvail?'':'0.4';document.getElementById('pL0').textContent=p1?'CC '+p1:'Off';document.getElementById('pL1').textContent=p2?'CC '+p2:'Off';for(var k=0;k<6;k++){var e=document.getElementById('rt'+k);if(e)e.checked=!!(gS.routing&(1<<k));}document.getElementById('gCP').checked=gS.captivePortal!==false;nP=gS.presetCount||6;document.getElementById('gPC').value=nP;mkPbtns();}
 async function gSave(obj){if('pot1CC'in obj)obj.pot1CC=obj.pot1CC>0?obj.pot1CC-1:-1;if('pot2CC'in obj)obj.pot2CC=obj.pot2CC>0?obj.pot2CC-1:-1;if('expCC'in obj)obj.expCC=obj.expCC==0?-1:obj.expCC-1;Object.assign(gS,obj);await post('/api/global',obj);applyGS();}
 async function expCal(){var b=document.getElementById('gECB');b.disabled=true;b.textContent='Starting...';try{await fetch('/api/expcal',{method:'POST'});var poll=setInterval(async function(){try{var r=await fetch('/api/expcal');var d=await r.json();if(d.calibrating){b.textContent='Sweep\u2026 '+d.secsLeft+'s';}else{clearInterval(poll);b.textContent='Done!';setTimeout(function(){b.textContent='Calibrate';b.disabled=false;},2000);}}catch(e){clearInterval(poll);b.textContent='Calibrate';b.disabled=false;}},500);}catch(e){b.textContent='Calibrate';b.disabled=false;}}
-async function load(){try{var r=await fetch('/api/state');var s=await r.json();ren(s);loadGlobal();loadMultis();}catch(e){document.getElementById('grid').innerHTML='<p style="color:#555;padding:20px">Could not load state.</p>';}}
+async function load(){try{var r=await fetch('/api/state');var s=await r.json();ren(s);loadGlobal();loadMultis();loadLA(s.activePreset||0);}catch(e){document.getElementById('grid').innerHTML='<p style="color:#555;padding:20px">Could not load state.</p>';}}
 function ren(s){
 aP=s.activePreset||0;
 var g=document.getElementById('gch');g.innerHTML='';
@@ -219,6 +220,40 @@ var dN=d.querySelector('#dnn'+pfx);NV.forEach(function(n,ni){var o=document.crea
 ms.onchange=function(){var mi=+ms.value;var iMn=MOD.has(mi);sH(pfx,mi,d);sFL(pfx,mi,d);d.querySelector('#r'+pfx).classList.toggle('hd',!iMn);var m=mx(mi);nI.max=m;nI.disabled=mi===TT;if(+nI.value>m)nI.value=m;if(+nI.value<1)nI.value=1;var iS=mi===SY;ss.style.display=iS?'':'none';nI.style.display=iS?'none':'';d.querySelector('#ccvF'+pfx).style.display=(mi===1||mi===2||mi===3)?'':'none';var ccLFp=d.querySelector('#ccLF'+pfx);if(ccLFp)ccLFp.style.display=(mi===3)?'none':'';var ccHLp=d.querySelector('#ccHL'+pfx);if(ccHLp)ccHLp.innerHTML=(mi===3)?'Value':'Hi';schA(i,t);};
 d.querySelector('#ccL'+pfx).oninput=function(){schA(i,t);};d.querySelector('#ccH'+pfx).oninput=function(){schA(i,t);};
 return d;}
+var laD={enabled:false,modeIndex:0,midiNumber:0,fsChannel:255};
+var laReady=false;
+function laInit(){
+  if(laReady)return;laReady=true;
+  var ms=document.getElementById('laM');
+  bMS(ms,0);
+  ms.onchange=function(){var mi=+ms.value;var m=mx(mi);var nI=document.getElementById('laN');nI.max=m;nI.disabled=(mi===TT||mi===PU||mi===PD);if(+nI.value>m)nI.value=m;if(+nI.value<1)nI.value=1;laSave();};
+  var ch=document.getElementById('laCh');
+  var og=document.createElement('option');og.value=255;og.textContent='Global';ch.appendChild(og);
+  for(var c=1;c<=16;c++){var o=document.createElement('option');o.value=c-1;o.textContent='Ch '+c;ch.appendChild(o);}
+  ch.onchange=laSave;
+  document.getElementById('laN').oninput=laSave;
+}
+function laRen(){
+  laInit();
+  document.getElementById('laEn').checked=!!laD.enabled;
+  var ms=document.getElementById('laM');if(ms)ms.value=laD.modeIndex;
+  var mn=(laD.midiNumber!=null)?laD.midiNumber:0;
+  var m=mx(laD.modeIndex);
+  var nI=document.getElementById('laN');
+  nI.value=Math.min(mn+1,m);nI.max=m;
+  nI.disabled=(laD.modeIndex===TT||laD.modeIndex===PU||laD.modeIndex===PD);
+  var ch=document.getElementById('laCh');if(ch)ch.value=(laD.fsChannel!=null)?laD.fsChannel:255;
+}
+async function loadLA(idx){try{var r=await fetch('/api/preset/'+idx+'/action');laD=await r.json();laRen();}catch(e){}}
+async function laSave(){
+  var mi=+document.getElementById('laM').value;
+  var m=mx(mi);var n=+document.getElementById('laN').value-1;
+  if(n<0)n=0;if(n>m-1)n=m-1;
+  var ch=+document.getElementById('laCh').value;
+  var en=document.getElementById('laEn').checked;
+  mD();
+  await post('/api/preset/'+aP+'/action',{enabled:en,modeIndex:mi,midiNumber:n,fsChannel:ch,rampUpMs:1000,rampDownMs:1000,ccLow:0,ccHigh:127});
+}
 load();
 </script></body></html>
 )rawliteral";

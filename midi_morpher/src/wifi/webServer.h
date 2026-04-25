@@ -445,13 +445,24 @@ inline void handleRoot() {
 
 inline void handlePresetLoad(int idx);
 inline void handlePresetSave(int idx);
+inline void handleGetPresetAction(int idx);
+inline void handlePostPresetAction(int idx);
 
-// Captive-portal catch-all. Also handles /api/preset/load|save/N for any N,
+// Captive-portal catch-all. Also handles /api/preset/... routes for any N,
 // avoiding registration of up to 256 individual routes.
 inline void handleCaptivePortal() {
   String uri = webServer.uri();
   if(uri.startsWith(F("/api/preset/"))) {
     if(webServer.method() == HTTP_OPTIONS) { handleOPTIONS(); return; }
+    // /api/preset/{idx}/action  (GET or POST)
+    if(uri.endsWith(F("/action"))) {
+      String mid = uri.substring(12, uri.length() - 7);  // between "/api/preset/" and "/action"
+      int idx = mid.toInt();
+      if(idx >= 0 && idx < NUM_PRESETS) {
+        if(webServer.method() == HTTP_GET)  { handleGetPresetAction(idx);  return; }
+        if(webServer.method() == HTTP_POST) { handlePostPresetAction(idx); return; }
+      }
+    }
     if(webServer.method() == HTTP_POST) {
       int slash = uri.lastIndexOf('/');
       int idx   = uri.substring(slash + 1).toInt();
@@ -771,6 +782,76 @@ inline void handlePostGlobal() {
   if(v >= 1 && v <= NUM_PRESETS)
     gs.presetCount = (uint8_t)v;
   saveGlobalSettings(*_webPedal);
+  webServer.send(200, F("application/json"), F("{\"ok\":true}"));
+}
+
+inline void handleGetPresetAction(int idx) {
+  addCORS();
+  if(idx < 0 || idx >= NUM_PRESETS) { webServer.send(400); return; }
+  const FSActionPersisted &la = presets[idx].loadAction;
+  bool upSync = (la.rampUpMs & CLOCK_SYNC_FLAG) != 0;
+  bool dnSync = (la.rampDownMs & CLOCK_SYNC_FLAG) != 0;
+  String j;
+  j.reserve(180);
+  j = F("{\"enabled\":");
+  j += la.enabled ? F("true") : F("false");
+  j += F(",\"modeIndex\":");
+  j += la.modeIndex;
+  j += F(",\"midiNumber\":");
+  j += la.midiNumber;
+  j += F(",\"fsChannel\":");
+  j += la.fsChannel;
+  j += F(",\"ccLow\":");
+  j += la.ccLow;
+  j += F(",\"ccHigh\":");
+  j += (la.ccHigh == 0) ? 127 : (int)la.ccHigh;
+  j += F(",\"rampUpMs\":");
+  j += upSync ? 0u : (uint32_t)la.rampUpMs;
+  j += F(",\"rampDownMs\":");
+  j += dnSync ? 0u : (uint32_t)la.rampDownMs;
+  j += F(",\"rampUpSync\":");
+  j += upSync ? F("true") : F("false");
+  j += F(",\"rampUpNoteIdx\":");
+  j += (uint8_t)(la.rampUpMs & 0xFF);
+  j += F(",\"rampDownSync\":");
+  j += dnSync ? F("true") : F("false");
+  j += F(",\"rampDownNoteIdx\":");
+  j += (uint8_t)(la.rampDownMs & 0xFF);
+  j += '}';
+  webServer.send(200, F("application/json"), j);
+}
+
+inline void handlePostPresetAction(int idx) {
+  addCORS();
+  if(!_webPedal || idx < 0 || idx >= NUM_PRESETS) { webServer.send(400); return; }
+  if(_webPedal->settingsLocked) {
+    webServer.send(403, F("application/json"), F("{\"error\":\"locked\"}"));
+    return;
+  }
+  FSActionPersisted &la = presets[idx].loadAction;
+  const String &body = webServer.arg("plain");
+  bool enabled;
+  if(jsonBool(body, "enabled", enabled)) la.enabled = enabled ? 1u : 0u;
+  if(la.enabled) {
+    int mi = jsonInt(body, "modeIndex");
+    int mn = jsonInt(body, "midiNumber");
+    int ch = jsonInt(body, "fsChannel");
+    uint32_t up = jsonUint(body, "rampUpMs");
+    uint32_t dn = jsonUint(body, "rampDownMs");
+    int cl = jsonInt(body, "ccLow");
+    int cH = jsonInt(body, "ccHigh");
+    if(mi >= 0 && mi < NUM_MODES) la.modeIndex = (uint8_t)mi;
+    const ModeInfo &minfo = modes[la.modeIndex];
+    int mnMax = minfo.isScene ? (int)minfo.sceneMaxVal
+                : minfo.isSystem ? (int)(NUM_SYS_CMDS - 1) : 127;
+    if(mn >= 0 && mn <= mnMax) la.midiNumber = (uint8_t)mn;
+    if(ch == 255 || (ch >= 0 && ch <= 15)) la.fsChannel = (uint8_t)ch;
+    if(_validRamp(up)) la.rampUpMs = up;
+    if(_validRamp(dn)) la.rampDownMs = dn;
+    if(cl >= 0 && cl <= 127) la.ccLow = (uint8_t)cl;
+    if(cH >= 0 && cH <= 127) la.ccHigh = (uint8_t)cH;
+  }
+  saveAllPresets();
   webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
@@ -1100,6 +1181,7 @@ inline void performFactoryReset(PedalState &state) {
   const FSButtonPersisted dflt = {0, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 0};
   // Presets 0, 3, 4, 5: PC mode, program numbers 0-5 (P1–P6)
   for(int p = 0; p < NUM_PRESETS; p++) {
+    memset(&presets[p].loadAction, 0, sizeof(FSActionPersisted));
     if(p == 1 || p == 2)
       continue;
     presets[p].midiChannel = 0;
