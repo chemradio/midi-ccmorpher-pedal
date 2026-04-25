@@ -21,14 +21,15 @@
 #define MENU_PER_FS_MOD 10
 #define MENU_CLOCK_GEN  11
 #define MENU_CLOCK_OUT  12
-#define MENU_BRIGHTNESS 13
-#define MENU_TIMEOUT    14
-#define MENU_LOCK       15
-#define MENU_EXIT       16
-#define MENU_COUNT      17
+#define MENU_BRIGHTNESS    13
+#define MENU_TIMEOUT       14
+#define MENU_PRESET_COUNT  15
+#define MENU_LOCK          16
+#define MENU_EXIT          17
+#define MENU_COUNT         18
 
 static const char *menuItemNames[] = {
-    "MIDI Channel", "Routings", "Pot 1 CC", "Pot 2 CC", "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel", "Poly Mod", "Clock Gen", "Clock Out", "Brightness", "Screen ON", "Lock", "Exit"};
+    "MIDI Channel", "Routings", "Pot 1 CC", "Pot 2 CC", "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel", "Poly Mod", "Clock Gen", "Clock Out", "Brightness", "Screen ON", "Presets", "Lock", "Exit"};
 
 static const char *ledModeNames[] = {"On", "Cnsrv", "Off"};
 
@@ -100,6 +101,8 @@ inline String _menuItemRhs(const PedalState &pedal, uint8_t item) {
     return String(pedal.globalSettings.displayBrightness) + String('%');
   case MENU_TIMEOUT:
     return String(DISP_TIMEOUT_NAMES[pedal.globalSettings.displayTimeoutIdx]);
+  case MENU_PRESET_COUNT:
+    return String(pedal.globalSettings.presetCount);
   default:
     return String();
   }
@@ -212,6 +215,11 @@ inline void displayMenuEditing(PedalState &pedal) {
     display.setCursor(0, 48);
     display.print(F("ramps, baud safe"));
     break;
+  case MENU_PRESET_COUNT:
+    display.setTextSize(3);
+    display.setCursor(0, 18);
+    display.print(pedal.globalSettings.presetCount);
+    break;
   default:
     break;
   }
@@ -322,6 +330,12 @@ inline void handleMenuRotate(PedalState &pedal, int delta) {
       pedal.globalSettings.perFsModulator = !pedal.globalSettings.perFsModulator;
       displayMenuEditing(pedal);
       break;
+    case MENU_PRESET_COUNT: {
+      int cnt = constrain((int)pedal.globalSettings.presetCount + delta, 1, NUM_PRESETS);
+      pedal.globalSettings.presetCount = (uint8_t)cnt;
+      displayMenuEditing(pedal);
+      break;
+    }
     default:
       break;
     }
@@ -354,6 +368,7 @@ inline void handleMenuPress(PedalState &pedal) {
     case MENU_BRIGHTNESS:
     case MENU_TIMEOUT:
     case MENU_PER_FS_MOD:
+    case MENU_PRESET_COUNT:
       pedal.menuState = MenuState::EDITING;
       displayMenuEditing(pedal);
       break;

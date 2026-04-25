@@ -52,7 +52,8 @@ inline void handlePresetButton(PedalState &pedal) {
     } else {
         // Button released — if no long press fired, do a short-press cycle.
         if(!longPressFired) {
-            uint8_t next = (activePreset + 1) % NUM_PRESETS;
+            uint8_t lim  = max((uint8_t)1, pedal.globalSettings.presetCount);
+            uint8_t next = (activePreset + 1) % lim;
             applyPreset(next, pedal);
             displayPresetLoad(activePreset);
         }
@@ -62,48 +63,9 @@ inline void handlePresetButton(PedalState &pedal) {
 
 // ── LED output functions ───────────────────────────────────────────────────────
 
-// Drive the 6 preset LED GPIOs. Only the active preset's LED is lit.
-// States applied to the active LED:
-//   - Fast blink burst  → recent save (confirmation)
-//   - Slow blink        → presetDirty (unsaved changes; non-conservative only)
-//   - Conservative mode → blink on preset select/save activity, fully off at idle
-//   - On mode           → full on when not blinking
+// Preset LEDs are off — 128 presets can't be meaningfully shown on 6 LEDs.
 inline void updatePresetLEDs(const PedalState &pedal) {
-    uint8_t mode = pedal.globalSettings.ledMode;
-
-    if(mode == LED_MODE_OFF) {
-        for(int i = 0; i < 6; i++) analogWrite(pedal.buttons[i].ledPin, 0);
-        return;
-    }
-
-    unsigned long now = millis();
-
-    // Conservative: track preset changes and trigger an activity blink on load.
-    static uint8_t       conservativeLastPreset = 0xFF;
-    static unsigned long conservativeBlinkUntil = 0;
-    if(activePreset != conservativeLastPreset) {
-        conservativeLastPreset = activePreset;
-        conservativeBlinkUntil = now + CONSERVATIVE_ACTIVITY_BLINK_DUR;
-    }
-
-    bool activeOn = true;
-    if(now < presetSaveBlinkUntil) {
-        activeOn = ((now / (PRESET_SAVE_BLINK_MS / 2)) & 1) == 0;
-    } else if(mode == LED_MODE_CONSERVATIVE && now < conservativeBlinkUntil) {
-        activeOn = ((now / (CONSERVATIVE_ACTIVITY_BLINK_MS / 2)) & 1) == 0;
-    } else if(mode != LED_MODE_CONSERVATIVE && presetDirty) {
-        activeOn = ((now / (PRESET_DIRTY_BLINK_MS / 2)) & 1) == 0;
-    } else if(mode == LED_MODE_CONSERVATIVE) {
-        activeOn = false; // fully off when idle in conservative mode
-    }
-
-    for(int i = 0; i < 6; i++) {
-        if(i != (int)activePreset || !activeOn) {
-            analogWrite(pedal.buttons[i].ledPin, 0);
-            continue;
-        }
-        analogWrite(pedal.buttons[i].ledPin, 255);
-    }
+    for(int i = 0; i < 6; i++) analogWrite(pedal.buttons[i].ledPin, 0);
 }
 
 // Drive the activity LED: reflects the logical ledState of the last-pressed footswitch.
@@ -147,13 +109,14 @@ inline void handleCombinedActions(PedalState &pedal) {
         return;
     }
 
+    uint8_t lim = max((uint8_t)1, pedal.globalSettings.presetCount);
     if((combined & 0x01) && !(prevCombinedState & 0x01)) {
-        uint8_t next = (activePreset == 0) ? (NUM_PRESETS - 1) : (activePreset - 1);
+        uint8_t next = (activePreset == 0) ? (lim - 1) : (activePreset - 1);
         applyPreset(next, pedal);
         displayPresetLoad(activePreset);
         lastCombinedMs = now;
     } else if((combined & 0x02) && !(prevCombinedState & 0x02)) {
-        uint8_t next = (activePreset + 1) % NUM_PRESETS;
+        uint8_t next = (activePreset + 1) % lim;
         applyPreset(next, pedal);
         displayPresetLoad(activePreset);
         lastCombinedMs = now;

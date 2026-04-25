@@ -62,6 +62,7 @@ void setup() {
   digitalWrite(TEMPO_LED_PIN, LOW);
 
   // Load presets + global settings, then apply global settings to live state
+  SPIFFS.begin(true);
   loadAllPresets(pedal);
   loadGlobalSettings(pedal);
   loadMultiScenes();

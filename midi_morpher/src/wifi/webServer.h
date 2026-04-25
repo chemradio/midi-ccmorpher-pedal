@@ -282,12 +282,13 @@ inline String buildStateJson() {
 }
 
 inline String buildPresetsJson() {
+  int cnt = _webPedal ? _webPedal->globalSettings.presetCount : NUM_PRESETS;
   String j;
-  j.reserve(2800);
+  j.reserve(cnt * 470 + 40);
   j = F("{\"activePreset\":");
   j += activePreset;
   j += F(",\"presets\":[");
-  for(int p = 0; p < NUM_PRESETS; p++) {
+  for(int p = 0; p < cnt; p++) {
     if(p)
       j += ',';
     j += F("{\"midiChannel\":");
@@ -319,8 +320,9 @@ inline String buildBackupJson() {
   if(!_webPedal)
     return F("{}");
   const GlobalSettings &gs = _webPedal->globalSettings;
+  int cnt = gs.presetCount;
   String j;
-  j.reserve(4500);
+  j.reserve(cnt * 1950 + 500);
   j = F("{\"version\":1,\"activePreset\":");
   j += activePreset;
   j += F(",\"globalSettings\":{");
@@ -357,7 +359,7 @@ inline String buildBackupJson() {
   j += F(",\"captivePortal\":");
   j += gs.captivePortal ? F("true") : F("false");
   j += F("},\"presets\":[");
-  for(int p = 0; p < NUM_PRESETS; p++) {
+  for(int p = 0; p < cnt; p++) {
     if(p)
       j += ',';
     const PresetData &pd = presets[p];
@@ -441,11 +443,24 @@ inline void handleRoot() {
   webServer.send_P(200, "text/html", WEB_UI_HTML);
 }
 
-// Captive-portal catch-all. Any URL other than the registered ones — including
-// OS probes like /generate_204, /hotspot-detect.html, /ncsi.txt — gets a 302
-// redirect to the root, which triggers the "Sign in to network" prompt on the
-// phone/laptop and takes the user straight to the UI.
+inline void handlePresetLoad(int idx);
+inline void handlePresetSave(int idx);
+
+// Captive-portal catch-all. Also handles /api/preset/load|save/N for any N,
+// avoiding registration of up to 256 individual routes.
 inline void handleCaptivePortal() {
+  String uri = webServer.uri();
+  if(uri.startsWith(F("/api/preset/"))) {
+    if(webServer.method() == HTTP_OPTIONS) { handleOPTIONS(); return; }
+    if(webServer.method() == HTTP_POST) {
+      int slash = uri.lastIndexOf('/');
+      int idx   = uri.substring(slash + 1).toInt();
+      if(idx >= 0 && idx < NUM_PRESETS) {
+        if(uri.indexOf(F("/load/")) > 0) { handlePresetLoad(idx); return; }
+        if(uri.indexOf(F("/save/")) > 0) { handlePresetSave(idx); return; }
+      }
+    }
+  }
   if(!_webPedal || !_webPedal->globalSettings.captivePortal) {
     webServer.send(404, F("text/plain"), F("Not found"));
     return;
@@ -673,6 +688,8 @@ inline String buildGlobalJson() {
   j += gs.clockOutput ? F("true") : F("false");
   j += F(",\"captivePortal\":");
   j += gs.captivePortal ? F("true") : F("false");
+  j += F(",\"presetCount\":");
+  j += gs.presetCount;
   j += '}';
   return j;
 }
@@ -750,6 +767,9 @@ inline void handlePostGlobal() {
       }
     }
   }
+  v = jsonInt(body, "presetCount");
+  if(v >= 1 && v <= NUM_PRESETS)
+    gs.presetCount = (uint8_t)v;
   saveGlobalSettings(*_webPedal);
   webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
@@ -794,7 +814,7 @@ inline void handlePostBpm() {
 
 inline String buildPollJson() {
   String j;
-  j.reserve(120);
+  j.reserve(150);
   j = F("{\"bpm\":");
   j += (int)midiClock.bpm;
   j += F(",\"externalSync\":");
@@ -803,6 +823,8 @@ inline String buildPollJson() {
   j += activePreset;
   j += F(",\"presetDirty\":");
   j += presetDirty ? F("true") : F("false");
+  j += F(",\"presetCount\":");
+  j += _webPedal ? _webPedal->globalSettings.presetCount : 6;
   j += '}';
   return j;
 }
@@ -1382,16 +1404,6 @@ inline void initWebServer(PedalState &pedal) {
     webServer.on(path, HTTP_OPTIONS, handleOPTIONS);
     snprintf(path, sizeof(path), "/api/button/%d/action", i);
     webServer.on(path, HTTP_POST, [i]() { handlePostButtonAction(i); });
-    webServer.on(path, HTTP_OPTIONS, handleOPTIONS);
-  }
-
-  for(int i = 0; i < NUM_PRESETS; i++) {
-    char path[26];
-    snprintf(path, sizeof(path), "/api/preset/load/%d", i);
-    webServer.on(path, HTTP_POST, [i]() { handlePresetLoad(i); });
-    webServer.on(path, HTTP_OPTIONS, handleOPTIONS);
-    snprintf(path, sizeof(path), "/api/preset/save/%d", i);
-    webServer.on(path, HTTP_POST, [i]() { handlePresetSave(i); });
     webServer.on(path, HTTP_OPTIONS, handleOPTIONS);
   }
 

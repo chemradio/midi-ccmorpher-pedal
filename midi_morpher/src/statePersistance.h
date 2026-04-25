@@ -1,5 +1,6 @@
 #pragma once
 #include <Preferences.h>
+#include <SPIFFS.h>
 
 // ── NVS handle ────────────────────────────────────────────────────────────────
 inline Preferences prefs;
@@ -51,8 +52,9 @@ inline void markStateDirty() {
 // ── NVS helpers ───────────────────────────────────────────────────────────────
 
 inline void saveAllPresets() {
+    File f = SPIFFS.open("/presets.bin", "w");
+    if(f) { f.write((const uint8_t*)presets, sizeof(presets)); f.close(); }
     prefs.begin("presets", false);
-    prefs.putBytes("prs", presets, sizeof(presets));
     prefs.putUChar("act", activePreset);
     prefs.end();
 }
@@ -146,68 +148,39 @@ inline void saveGlobalSettings(const PedalState &state) {
 }
 
 inline void loadGlobalSettings(PedalState &state) {
+    state.globalSettings = GlobalSettings{};  // struct defaults first
     prefs.begin("globals", true);
     size_t sz = prefs.getBytesLength("gs");
-    bool loaded = (sz == sizeof(GlobalSettings));
-    if(loaded) prefs.getBytes("gs", &state.globalSettings, sizeof(GlobalSettings));
+    if(sz > 0 && sz <= sizeof(GlobalSettings))
+        prefs.getBytes("gs", &state.globalSettings, sz);
     prefs.end();
-    if(!loaded) {
-        state.globalSettings = GlobalSettings{};  // struct defaults
+    if(sz != sizeof(GlobalSettings))
         saveGlobalSettings(state);
-    }
 }
 
-// ── Load all presets from NVS on boot. ───────────────────────────────────────
-// Handles three cases:
-//   1. Current format (sizeof presets): load directly.
-//   2. Legacy format without the bpm field: copy, set bpm = DEFAULT_BPM, upgrade NVS.
-//   3. Unknown / first boot: factory defaults, optionally migrate old "pedal" namespace.
+// ── Load all presets from SPIFFS on boot. ────────────────────────────────────
+// Loads /presets.bin if present and correctly sized; otherwise factory defaults.
 inline void loadAllPresets(PedalState &state) {
-    // Matches the old PresetData layout (before bpm was added).
-    struct LegacyPresetData { uint8_t midiChannel; FSButtonPersisted buttons[6]; };
-
-    prefs.begin("presets", true);
-    size_t sz       = prefs.getBytesLength("prs");
-    bool   loaded   = (sz == sizeof(presets));
-    bool   isLegacy = (!loaded && sz == (size_t)NUM_PRESETS * sizeof(LegacyPresetData));
-
-    if(loaded) {
-        prefs.getBytes("prs", presets, sizeof(presets));
-        activePreset = constrain(prefs.getUChar("act", 0), 0, NUM_PRESETS - 1);
-    } else if(isLegacy) {
-        LegacyPresetData old[NUM_PRESETS];
-        prefs.getBytes("prs", old, sz);
-        activePreset = constrain(prefs.getUChar("act", 0), 0, NUM_PRESETS - 1);
-        for(int p = 0; p < NUM_PRESETS; p++) {
-            presets[p].midiChannel = old[p].midiChannel;
-            presets[p].bpm         = DEFAULT_BPM;
-            for(int i = 0; i < 6; i++) presets[p].buttons[i] = old[p].buttons[i];
+    bool loaded = false;
+    if(SPIFFS.exists("/presets.bin")) {
+        File f = SPIFFS.open("/presets.bin", "r");
+        if(f && (size_t)f.size() == sizeof(presets)) {
+            f.read((uint8_t*)presets, sizeof(presets));
+            loaded = true;
         }
+        if(f) f.close();
     }
-    prefs.end();
-
-    if(!loaded && !isLegacy) {
-        // Factory defaults — all presets identical.
+    if(!loaded) {
         for(int p = 0; p < NUM_PRESETS; p++) {
             presets[p].midiChannel = 0;
             presets[p].bpm         = DEFAULT_BPM;
             for(int i = 0; i < 6; i++)
-                presets[p].buttons[i] = {1, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 0}; // modeIndex=1=PC
+                presets[p].buttons[i] = {1, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 0};
         }
-        // Migrate old single-preset "pedal" namespace into preset 0 if it exists.
-        prefs.begin("pedal", true);
-        if(prefs.getBytesLength("cfg") == sizeof(LegacyPresetData)) {
-            LegacyPresetData old;
-            prefs.getBytes("cfg", &old, sizeof(old));
-            presets[0].midiChannel = old.midiChannel;
-            presets[0].bpm         = DEFAULT_BPM;
-            for(int i = 0; i < 6; i++) presets[0].buttons[i] = old.buttons[i];
-        }
-        prefs.end();
-        activePreset = 0;
+        saveAllPresets();
     }
-
-    if(!loaded) saveAllPresets();   // write upgraded / default data back
-
+    prefs.begin("presets", true);
+    activePreset = constrain(prefs.getUChar("act", 0), 0, NUM_PRESETS - 1);
+    prefs.end();
     applyPreset(activePreset, state);
 }

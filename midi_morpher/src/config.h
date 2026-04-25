@@ -73,7 +73,7 @@
 // USB is active — moved to GPIO 44 / 45.
 #define PRESET_BTN_PIN 13   // Momentary preset select / save button (U0RXD, UART0 unused)
 #define ACTIVITY_LED_PIN 45 // Lights while the last-pressed footswitch is active (strap; keep LOW at reset)
-#define NUM_PRESETS 6
+#define NUM_PRESETS 128
 #define PRESET_SAVE_HOLD_MS 1500 // ms — hold to save current state to active preset
 
 // ── Display layout ────────────────────────────────────────────────────────────

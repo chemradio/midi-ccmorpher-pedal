@@ -53,4 +53,5 @@ struct GlobalSettings {
     bool     clockGenerate    = true;         // generate and send internal MIDI clock
     bool     clockOutput      = true;         // forward clock (internal/external) to MIDI outputs
     bool     captivePortal    = true;         // redirect all unknown URLs to UI (OS "Sign in" prompt)
+    uint8_t  presetCount      = 6;            // 1–128: PRESET button and web UI cycle within [0, presetCount)
 };

@@ -20,6 +20,8 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 
 ## Preset System
 
+(Don't case about previously stored presets. Always opt for better code design than preserving current presets. All of the presets can be erased, reformatted etc.)
+
 - 6 presets, each storing: global MIDI channel, per-preset BPM, + per-footswitch modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs and global settings
 - settings are volatile until explicitly saved
 - PRESET button short press — loads next preset live
