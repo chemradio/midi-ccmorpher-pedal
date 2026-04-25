@@ -92,15 +92,40 @@ void loop() {
 
   // Process footswitches, tracking which was last pressed for the activity LED.
   for(int i = 0; i < (int)pedal.buttons.size(); i++) {
-    bool wasPressedBefore = pedal.buttons[i].isPressed;
-    pedal.buttons[i].handleFootswitch(pedal.midiChannel, pedal.modForFS(i), displayFootswitchPress);
+    bool wasPressedBefore  = pedal.buttons[i].isPressed;
+    bool prevNeedsDraw     = g_homeFSNeedsDraw;
+
+    pedal.buttons[i].handleFootswitch(pedal.midiChannel, pedal.modForFS(i), displayFSUpdateHome);
+
+    // If the callback fired for this button, record its index.
+    if(g_homeFSNeedsDraw && !prevNeedsDraw)
+      g_homeFSIdx = i;
+
     if(pedal.buttons[i].isPressed && !wasPressedBefore) {
       pedal.lastActiveFSIndex = i;
-      // Tap tempo press: show the updated BPM after receiveTap() has run.
       if(pedal.buttons[i].mode == FootswitchMode::TapTempo) {
+        g_homeFSNeedsDraw = false; // tap tempo gets its own screen
         displayTapTempo(midiClock.bpm);
       }
+      // Any FS press exits config / menu and returns to home screen
+      if(pedal.inModeSelect || pedal.inActionSelect ||
+         pedal.inChannelSelect || pedal.menuState != MenuState::NONE) {
+        pedal.inModeSelect               = false;
+        pedal.inActionSelect             = false;
+        pedal.inChannelSelect            = false;
+        pedal.modeSelectFromActionSelect = false;
+        pedal.menuState                  = MenuState::NONE;
+        g_homeFSNeedsDraw                = false;
+        displayHomeScreen(pedal);
+        lastInteraction = millis();
+      }
     }
+  }
+
+  // Redraw home screen if a FS fired and we're not in a param screen.
+  if(g_homeFSNeedsDraw && displayMode == DISPLAY_DEFAULT) {
+    g_homeFSNeedsDraw = false;
+    displayHomeScreen(pedal);
   }
 
   // Safety net: release all HID keys if no keyboard-mode FS is physically held.
@@ -118,8 +143,8 @@ void loop() {
     handleAnalogPot(pot, pedal, displayPotValue, displayLockedMessage);
   }
 
-  handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage, displayFSChannel, displayTapTempo, displayModeSelectScreen);
-  handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage, displayFSChannel, displayModeSelectScreen);
+  handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage, displayFSChannel, displayTapTempo, displayModeSelectScreen, displayActionSelect);
+  handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage, displayFSChannel, displayModeSelectScreen, displayActionSelect);
 
   // Preset button (short press = next preset, long press = save)
   handlePresetButton(pedal);

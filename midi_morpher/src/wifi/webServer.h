@@ -1091,7 +1091,7 @@ inline void performFactoryReset(PedalState &state) {
   {
     presets[1].midiChannel = 0;
     presets[1].bpm = DEFAULT_BPM;
-    const uint8_t mi[6] = {4, 5, 8, 9, 15, 30};
+    const uint8_t mi[6] = {5, 6, 9, 10, 16, 31};
     const uint8_t mn[6] = {1, 1, 1, 1, 1, 0};
     for(int i = 0; i < 6; i++) {
       presets[1].buttons[i] = dflt;
@@ -1106,7 +1106,7 @@ inline void performFactoryReset(PedalState &state) {
     const uint8_t sc[6] = {0, 1, 3, 2, 5, 6};
     for(int i = 0; i < 6; i++) {
       presets[2].buttons[i] = dflt;
-      presets[2].buttons[i].modeIndex = 31;
+      presets[2].buttons[i].modeIndex = 32;
       presets[2].buttons[i].midiNumber = sc[i];
     }
   }

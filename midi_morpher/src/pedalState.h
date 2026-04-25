@@ -27,6 +27,12 @@ struct PedalState
     uint8_t modeSelectSubVarIdx = 0;   // variant within sub-group at level 2
     int8_t  modeSelectFSIdx     = -1;
 
+    // Action selector (FS+encBtn → pick which press-type to configure)
+    bool    inActionSelect            = false;
+    uint8_t actionSelectSlot          = 0;   // highlighted slot
+    bool    modeSelectFromActionSelect = false; // return-to-selector after mode select
+    int8_t  modeSelectExtraActionType = -1;  // -1=PRESS, 0/1/2=extraActions[t]
+
     // Main menu state
     MenuState menuState      = MenuState::NONE;
     uint8_t   menuItemIdx    = 0;

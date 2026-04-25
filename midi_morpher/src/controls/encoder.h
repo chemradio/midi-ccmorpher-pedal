@@ -33,7 +33,8 @@ inline void handleEncoder(PedalState &pedal,
                          void (*displayLockedMessage)(String),
                          void (*displayFSChannel)(FSButton &),
                          void (*displayBpmCallback)(float),
-                         void (*displayModeSelect)(const char *, uint8_t, uint8_t, uint8_t, uint8_t)) {
+                         void (*displayModeSelect)(const char *, uint8_t, uint8_t, uint8_t, uint8_t),
+                         void (*displayActionSelectFn)(FSButton &, uint8_t)) {
   if(encoderPos == lastEncoderPos) return;
 
   int delta      = encoderPos - lastEncoderPos;
@@ -55,6 +56,17 @@ inline void handleEncoder(PedalState &pedal,
   // ── Main menu ──────────────────────────────────────────────────────────────
   if(pedal.menuState != MenuState::NONE) {
     handleMenuRotate(pedal, delta);
+    return;
+  }
+
+  // ── Action selector slot scroll ────────────────────────────────────────────
+  if(pedal.inActionSelect) {
+    FSButton &btn = pedal.buttons[pedal.modeSelectFSIdx];
+    bool expanded = btn.extraActions[0].enabled || btn.extraActions[1].enabled || btn.extraActions[2].enabled;
+    uint8_t slotCount = expanded ? 5 : 2;
+    int next = constrain((int)pedal.actionSelectSlot + delta, 0, (int)slotCount - 1);
+    pedal.actionSelectSlot = (uint8_t)next;
+    displayActionSelectFn(btn, pedal.actionSelectSlot);
     return;
   }
 
@@ -96,11 +108,11 @@ inline void handleEncoder(PedalState &pedal,
         displayModeSelect(fsName, pedal.modeSelectCatIdx, 2,
                           pedal.modeSelectVarIdx, pedal.modeSelectSubVarIdx);
       } else {
-        // CC Hi value (0-127, acceleration applies)
+        // CC Hi/Single value (0-127, acceleration applies)
         int next = constrain((int)pedal.modeSelectVarIdx + delta * accelMult, 0, 127);
         pedal.modeSelectVarIdx = (uint8_t)next;
         displayModeSelect(fsName, pedal.modeSelectCatIdx, 2,
-                          pedal.modeSelectVarIdx, 0);
+                          pedal.modeSelectVarIdx, pedal.modeSelectCCVariant);
       }
     } else {
       // Level 3: CC Lo value (0-127, acceleration applies)

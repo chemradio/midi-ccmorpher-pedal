@@ -192,7 +192,7 @@ inline void loadAllPresets(PedalState &state) {
             presets[p].midiChannel = 0;
             presets[p].bpm         = DEFAULT_BPM;
             for(int i = 0; i < 6; i++)
-                presets[p].buttons[i] = {0, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 0};
+                presets[p].buttons[i] = {1, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 0}; // modeIndex=1=PC
         }
         // Migrate old single-preset "pedal" namespace into preset 0 if it exists.
         prefs.begin("pedal", true);

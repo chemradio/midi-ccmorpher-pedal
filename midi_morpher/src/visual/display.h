@@ -21,6 +21,14 @@ inline DisplayMode displayMode = DISPLAY_DEFAULT;
 inline uint8_t displayContrastPct = 78; // kept in sync with globalSettings.displayBrightness
 inline bool    displayDimmed      = false;
 
+// ── FS home-screen info ────────────────────────────────────────────────────
+// Set by displayFSUpdateHome(); consumed by displayHomeScreen().
+inline int8_t        g_homeFSIdx      = -1;
+inline FSButton     *g_homeFSBtn      = nullptr;
+inline unsigned long g_homeFSMs       = 0;
+inline bool          g_homeFSNeedsDraw = false;
+static const uint32_t FS_INFO_LINGER_MS = 1000;
+
 // Set and persist the display contrast level (0–100 %). Call whenever brightness
 // changes — also used to restore brightness after a timeout dim.
 inline void applyDisplayContrast(uint8_t pct) {
@@ -86,6 +94,37 @@ inline void displayLockedMessage(String whoSays = "") {
   displayMode = DISPLAY_PARAM;
 }
 
+// Compact FS info line for the status bar when a FS fires.
+// Format: "[idx+1] [mode≤7] [value] [ch]"  — fits ~21 chars @ size 1.
+inline static void _drawFSStatusBar(const FSButton &btn, int8_t idx, uint8_t globalCh) {
+  display.setCursor(0, 0);
+  display.print(idx + 1);
+  display.print(' ');
+  const char *m = btn.modMode.name;
+  for(uint8_t c = 0; c < 7 && m[c]; c++) display.print(m[c]);
+  display.print(' ');
+  if(btn.isNote) {
+    static const char *nn[] = {"C","C#","D","D#","E","F","F#","G","G#","A","A#","B"};
+    display.print(nn[btn.midiNumber % 12]);
+    display.print((int)(btn.midiNumber / 12) - 1);
+  } else if(btn.isPC) {
+    display.print(F("PC:"));
+    display.print(btn.midiNumber + 1);
+  } else if(btn.isScene) {
+    display.print(F("V:"));
+    display.print(btn.midiNumber + 1);
+  } else if(btn.isModSwitch && btn.midiNumber == PB_SENTINEL) {
+    display.print(F("PB"));
+  } else if(!btn.isKeyboard && !btn.isSystem) {
+    display.print(F("CC:"));
+    display.print(btn.midiNumber + 1);
+  }
+  display.print(' ');
+  uint8_t ch = (btn.fsChannel != 0xFF) ? btn.fsChannel : globalCh;
+  display.print('c');
+  display.print(ch + 1);
+}
+
 // Returns the parameter string shown on the right side of each FS row.
 inline static String _buttonNumStr(const FSButton &btn) {
   if(btn.mode == FootswitchMode::Multi) {
@@ -125,136 +164,12 @@ inline static String _buttonNumStr(const FSButton &btn) {
   return "CC:" + String(btn.midiNumber + 1);
 }
 
-inline void displayHomeScreen(PedalState &pedal) {
-  displayMode = DISPLAY_DEFAULT;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.invertDisplay(false);
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-
-  // ── Status bar ─────────────────────────────────────────────────────────────
-  // Layout (128px @ 6px/char): Ch:NN  P:N*  BPM[E]  LOCK
-  display.setCursor(0, 0);
-  display.print(F("Ch:"));
-  display.print(pedal.midiChannel + 1);
-
-  display.setCursor(32, 0);
-  display.print(F("P:"));
-  display.print(activePreset + 1);
-  if(presetDirty)
-    display.print('*');
-
-  display.setCursor(62, 0);
-  display.print((int)midiClock.bpm);
-  if(midiClock.externalSync)
-    display.print(F("E"));
-
-  if(pedal.settingsLocked) {
-    display.setCursor(104, 0);
-    display.print(F("LOCK"));
-  }
-
-  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
-
-  // ── Footswitch rows ────────────────────────────────────────────────────────
-  for(int i = 0; i < DISPLAY_FS_ROWS; i++) {
-    const FSButton &btn = pedal.buttons[i];
-    int y = 12 + i * 13;
-
-    display.setCursor(0, y);
-    display.print(i + 1);
-    display.print(' ');
-
-    // Mode name truncated to 8 chars to leave room for the optional channel indicator
-    const char *name = btn.modMode.name;
-    for(uint8_t c = 0; c < 8 && name[c] != '\0'; c++)
-      display.print(name[c]);
-
-    // Parameter right-aligned to display edge
-    String numStr = _buttonNumStr(btn);
-    int numX = 128 - (int)numStr.length() * 6;
-
-    // Per-FS channel override: show channel number just left of the parameter
-    if(btn.fsChannel != 0xFF) {
-      String chStr = String(btn.fsChannel + 1);
-      display.setCursor(numX - (int)chStr.length() * 6 - 6, y);
-      display.print(chStr);
-    }
-
-    display.setCursor(numX, y);
-    display.print(numStr);
-  }
-
-  display.display();
-}
-
-inline void resetDisplayTimeout(PedalState &pedal) {
-  static unsigned long prevLastInteraction = 0;
-  unsigned long now = millis();
-
-  // Undim immediately if a display function ran since the last check.
-  if(displayDimmed && lastInteraction != prevLastInteraction)
-    undimDisplay();
-  prevLastInteraction = lastInteraction;
-
-  // Param screens revert to the home screen after a short idle period. The
-  // main settings menu gets 5s (user is reading a list); other transient
-  // param screens get 3s. Clears transient UI state so the next encoder press
-  // starts cleanly from the home screen.
-  if(displayMode == DISPLAY_PARAM) {
-    uint32_t revertMs = (pedal.menuState != MenuState::NONE) ? 5000 : 3000;
-    if((now - lastInteraction) > revertMs) {
-      pedal.menuState       = MenuState::NONE;
-      pedal.inModeSelect    = false;
-      pedal.inChannelSelect = false;
-      displayHomeScreen(pedal);
-    }
-    return;
-  }
-
-  // Home screen: honour the user's "Display off" setting. "Always" → never blank.
-  uint8_t tidx = pedal.globalSettings.displayTimeoutIdx;
-  if(tidx >= NUM_DISP_TIMEOUTS) tidx = DISP_TIMEOUT_DEF_IDX;
-  uint32_t timeoutMs = DISP_TIMEOUT_MS[tidx];
-  if(timeoutMs == 0) return;
-  if(!displayDimmed && (now - lastInteraction) > timeoutMs) {
-    displayDimmed = true;
-    display.ssd1306_command(0xAE); // SSD1306_DISPLAYOFF
-  }
-}
-
-inline void displayUnlockProgress(uint8_t pct) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.invertDisplay(false);
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-  display.setCursor(24, 4);
-  display.print(F("Hold to Unlock"));
-  uint8_t barW = (uint8_t)((uint16_t)pct * 124 / 100);
-  display.drawRect(2, 22, 124, 14, SSD1306_WHITE);
-  if(barW > 0)
-    display.fillRect(2, 22, barW, 14, SSD1306_WHITE);
-  display.setTextSize(2);
-  display.setCursor(46, 44);
-  display.print(pct);
-  display.print(F("%"));
-  display.display();
-}
-
-// Prints a MIDI note number as a note name+octave, e.g. 60 → "C4", 61 → "C#4".
-// Middle C = 60 = C4.
 inline static void _printNoteName(uint8_t note) {
   static const char *names[] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
   display.print(names[note % 12]);
   display.print((int)(note / 12) - 1);
 }
 
-// Helper used by both press and mode-change displays.
-// Prints the mode name at size 2 if it fits in 128px, else size 1.
-// Returns the y position of the next available row after the name.
 inline static int _displayModeName(const char *modeName, int y) {
   bool big = strlen(modeName) <= 10;
   display.setTextSize(big ? 2 : 1);
@@ -263,7 +178,6 @@ inline static int _displayModeName(const char *modeName, int y) {
   return y + (big ? 18 : 10);
 }
 
-// Prints "CC: X", "PC: X", "Note: X" or scene info on one row.
 inline static void _displayNumber(const FSButton &button, int y) {
   display.setTextSize(1);
   display.setCursor(0, y);
@@ -322,10 +236,189 @@ inline static void _displayNumber(const FSButton &button, int y) {
     _printNoteName(button.midiNumber);
   } else if(button.isModSwitch && button.midiNumber == PB_SENTINEL) {
     display.print(F("Pitch Bend"));
+  } else if(!button.isModSwitch && (button.mode == FootswitchMode::MomentaryCC ||
+                                     button.mode == FootswitchMode::LatchingCC  ||
+                                     button.mode == FootswitchMode::SingleCC)) {
+    display.print("CC:");
+    display.print(button.midiNumber + 1);
+    display.print(" V:");
+    display.print(button.mode == FootswitchMode::SingleCC
+                    ? button.ccHigh
+                    : (button.isActivated ? button.ccHigh : button.ccLow));
   } else {
     display.print("CC: ");
     display.print(button.midiNumber + 1);
   }
+}
+
+inline void displayHomeScreen(PedalState &pedal) {
+  displayMode = DISPLAY_DEFAULT;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+
+  bool fsInfo = (g_homeFSIdx >= 0) && (g_homeFSBtn != nullptr) &&
+                ((millis() - g_homeFSMs) < FS_INFO_LINGER_MS);
+
+  // ── Status bar ─────────────────────────────────────────────────────────────
+  display.setCursor(0, 0);
+  display.print(F("Ch:"));
+  display.print(pedal.midiChannel + 1);
+  if(presetDirty) {
+    display.setCursor(30, 0);
+    display.print('*');
+  }
+  if(pedal.settingsLocked) {
+    display.setCursor(98, 0);
+    display.print(F("LOCK"));
+  }
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+
+  if(fsInfo) {
+    // ── Compact P + BPM (size 1) ──────────────────────────────────────────
+    display.setTextSize(1);
+    display.setCursor(0, 11);
+    display.print(F("P:"));
+    display.print(activePreset + 1);
+    if(presetDirty) display.print('*');
+
+    char bpmBuf[12];
+    snprintf(bpmBuf, sizeof(bpmBuf), "%d%sBPM",
+             (int)midiClock.bpm, midiClock.externalSync ? "E" : "");
+    display.setCursor(128 - (int)strlen(bpmBuf) * 6, 11);
+    display.print(bpmBuf);
+
+    display.drawFastHLine(0, 20, 128, SSD1306_WHITE);
+
+    // ── Mode name + MIDI number ───────────────────────────────────────────
+    int y = _displayModeName(g_homeFSBtn->modMode.name, 23);
+    _displayNumber(*g_homeFSBtn, y);
+    if(g_homeFSBtn->fsChannel != 0xFF) {
+      char chBuf[5];
+      snprintf(chBuf, sizeof(chBuf), "c%d", g_homeFSBtn->fsChannel + 1);
+      display.setCursor(128 - (int)strlen(chBuf) * 6, y);
+      display.print(chBuf);
+    }
+  } else {
+    // ── Big preset number + BPM ───────────────────────────────────────────
+    // Small labels row
+    display.setTextSize(1);
+    display.setCursor(0, 12);
+    display.print('P');
+    display.setCursor(110, 12);
+    display.print(F("BPM"));
+    if(midiClock.externalSync) {
+      display.setCursor(98, 12);
+      display.print(F("EXT"));
+    }
+
+    // Preset digit — size 4 (32px tall)
+    display.setTextSize(4);
+    display.setCursor(0, 20);
+    display.print(activePreset + 1);
+    if(presetDirty) {
+      display.setTextSize(2);
+      display.setCursor(26, 20);
+      display.print('*');
+    }
+
+    // BPM — size 3 (24px tall), right-aligned
+    char bpmBuf[5];
+    snprintf(bpmBuf, sizeof(bpmBuf), "%d", (int)midiClock.bpm);
+    int bpmX = 128 - (int)strlen(bpmBuf) * 18;
+    display.setTextSize(3);
+    display.setCursor(bpmX, 24);
+    display.print(bpmBuf);
+  }
+
+  // ── FS block LEDs ─────────────────────────────────────────────────────────
+  // 6 blocks: x=5,25,45,65,85,105  w=18  y=54  h=9
+  for(int i = 0; i < (int)pedal.buttons.size(); i++) {
+    int bx = 5 + i * 20;
+    bool active = pedal.buttons[i].isActivated || pedal.buttons[i].isPressed;
+    if(active)
+      display.fillRect(bx, 54, 18, 9, SSD1306_WHITE);
+    else
+      display.drawRect(bx, 54, 18, 9, SSD1306_WHITE);
+  }
+
+  display.display();
+}
+
+// Callback passed to handleFootswitch() — replaces displayFootswitchPress.
+// Stores a snapshot of the fired button and requests a home-screen redraw.
+// displayMode stays DISPLAY_DEFAULT so no param-revert timer is started.
+inline void displayFSUpdateHome(FSButton &btn) {
+  g_homeFSBtn      = &btn;
+  g_homeFSMs       = millis();
+  g_homeFSNeedsDraw = true;
+}
+
+inline void resetDisplayTimeout(PedalState &pedal) {
+  static unsigned long prevLastInteraction = 0;
+  unsigned long now = millis();
+
+  // Undim immediately if a display function ran since the last check.
+  if(displayDimmed && lastInteraction != prevLastInteraction)
+    undimDisplay();
+  prevLastInteraction = lastInteraction;
+
+  // Param screens revert to the home screen after a short idle period. The
+  // main settings menu gets 5s (user is reading a list); other transient
+  // param screens get 3s. Clears transient UI state so the next encoder press
+  // starts cleanly from the home screen.
+  if(displayMode == DISPLAY_PARAM) {
+    uint32_t revertMs = (pedal.menuState != MenuState::NONE) ? 5000 : 3000;
+    if((now - lastInteraction) > revertMs) {
+      pedal.menuState                  = MenuState::NONE;
+      pedal.inModeSelect               = false;
+      pedal.inChannelSelect            = false;
+      pedal.inActionSelect             = false;
+      pedal.modeSelectFromActionSelect = false;
+      displayHomeScreen(pedal);
+    }
+    return;
+  }
+
+  // Home screen: if FS info linger just expired, redraw to restore big preset/BPM view.
+  if(g_homeFSIdx >= 0 && g_homeFSBtn != nullptr &&
+     (now - g_homeFSMs) >= FS_INFO_LINGER_MS) {
+    g_homeFSIdx = -1;
+    g_homeFSBtn = nullptr;
+    displayHomeScreen(pedal);
+  }
+
+  // Home screen: honour the user's "Display off" setting. "Always" → never blank.
+  uint8_t tidx = pedal.globalSettings.displayTimeoutIdx;
+  if(tidx >= NUM_DISP_TIMEOUTS) tidx = DISP_TIMEOUT_DEF_IDX;
+  uint32_t timeoutMs = DISP_TIMEOUT_MS[tidx];
+  if(timeoutMs == 0) return;
+  if(!displayDimmed && (now - lastInteraction) > timeoutMs) {
+    displayDimmed = true;
+    display.ssd1306_command(0xAE); // SSD1306_DISPLAYOFF
+  }
+}
+
+inline void displayUnlockProgress(uint8_t pct) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(24, 4);
+  display.print(F("Hold to Unlock"));
+  uint8_t barW = (uint8_t)((uint16_t)pct * 124 / 100);
+  display.drawRect(2, 22, 124, 14, SSD1306_WHITE);
+  if(barW > 0)
+    display.fillRect(2, 22, barW, 14, SSD1306_WHITE);
+  display.setTextSize(2);
+  display.setCursor(46, 44);
+  display.print(pct);
+  display.print(F("%"));
+  display.display();
 }
 
 // Shown while the user is editing a per-FS MIDI channel (hold encoder button with FS held).
@@ -546,6 +639,70 @@ inline void displayMidiChannel(uint8_t channel) {
 // level 2 = variant within sub-group (for categories with sub-groups)
 //
 // Inverted header bar shows FS name + depth indicator (e.g. "2/3").
+// Action selector: pick which press type to configure for a footswitch.
+// Collapsed (no extra actions enabled): [PRESS] [+EXPAND]
+// Expanded (any extra action enabled):  [PRESS] [RELEASE] [HOLD] [DBL] [COLLAPSE]
+inline void displayActionSelect(FSButton &btn, uint8_t slot) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+
+  bool expanded = btn.extraActions[0].enabled || btn.extraActions[1].enabled || btn.extraActions[2].enabled;
+  uint8_t slotCount = expanded ? 5 : 2;
+
+  // Header bar (inverted)
+  display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
+  display.setTextColor(SSD1306_BLACK);
+  display.setTextSize(1);
+  display.setCursor(2, 1);
+  display.print(btn.name);
+  display.setCursor(72, 1);
+  display.print(F("Actions"));
+  display.setTextColor(SSD1306_WHITE);
+
+  // Rows: 10px tall each, starting at y=11
+  for(uint8_t s = 0; s < slotCount; s++) {
+    int16_t y = 11 + s * 10;
+    bool sel = (s == slot);
+    if(sel) {
+      display.fillRect(0, y, 128, 9, SSD1306_WHITE);
+      display.setTextColor(SSD1306_BLACK);
+    } else {
+      display.setTextColor(SSD1306_WHITE);
+    }
+    display.setTextSize(1);
+    display.setCursor(2, y + 1);
+
+    if(s == 0) {
+      display.print(F("PRESS  "));
+      const char *mn = btn.modMode.name;
+      for(uint8_t c = 0; c < 10 && mn[c]; c++) display.print(mn[c]);
+    } else if(!expanded && s == 1) {
+      display.print(F("+EXPAND"));
+    } else if(expanded && s == 4) {
+      display.print(F("COLLAPSE"));
+    } else {
+      // s=1→RELEASE(t=2), s=2→HOLD(t=0), s=3→DBL(t=1)
+      uint8_t t = (s == 1) ? 2 : (s == 2) ? 0 : 1;
+      static const char * const sNames[] = { nullptr, "REL   ", "HOLD  ", "DBL   " };
+      display.print(sNames[s]);
+      const FSAction &act = btn.extraActions[t];
+      if(!act.enabled) {
+        display.print(F("---"));
+      } else if(act.modeIndex < NUM_MODES) {
+        const char *mn = modes[act.modeIndex].name;
+        for(uint8_t c = 0; c < 8 && mn[c]; c++) display.print(mn[c]);
+      } else {
+        display.print(F("???"));
+      }
+    }
+    if(sel) display.setTextColor(SSD1306_WHITE);
+  }
+
+  display.display();
+}
+
 inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
                                     uint8_t level, uint8_t idx1, uint8_t idx2) {
   displayMode = DISPLAY_PARAM;
@@ -558,7 +715,7 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
                   (modes[cat.firstIdx].mode == FootswitchMode::MomentaryCC ||
                    modes[cat.firstIdx].mode == FootswitchMode::LatchingCC));
   bool isMultiCat2 = (cat.firstIdx < NUM_MODES && modes[cat.firstIdx].mode == FootswitchMode::Multi);
-  uint8_t totalDepth = cat.autoSelect ? 1 : (isMultiCat2 ? 2 : (cat.subGroupCount > 0 ? 3 : (isCCCat ? 4 : 2)));
+  uint8_t totalDepth = cat.autoSelect ? 1 : (isMultiCat2 ? 2 : (cat.subGroupCount > 0 ? 3 : (isCCCat ? (level >= 2 && idx2 == 2 ? 3 : 4) : 2)));
 
   // ── Inverted header bar ────────────────────────────────────────────────────
   display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
@@ -613,11 +770,11 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
     value    = cat.variantNames ? cat.variantNames[idx2] : "?";
     noteLine = cat.subGroupNotes ? cat.subGroupNotes[idx1] : nullptr;
   } else if(level == 2) {
-    // CC Hi value
+    // CC Hi / Single value
     display.setTextColor(SSD1306_WHITE);
     display.setTextSize(1);
     display.setCursor(0, 12);
-    display.print(F("Hi (press):"));
+    display.print(idx2 == 2 ? F("Value:") : F("Hi (press):"));
     display.setTextSize(3);
     display.setCursor(0, 26);
     display.print(idx1);

@@ -1,3 +1,11 @@
 {
-    "C_Cpp.default.compilerPath": ""
+    "C_Cpp.default.compilerPath": "",
+    "editor.formatOnSave": true,
+    "editor.tabSize": 2,
+    "editor.detectIndentation": false,
+    "editor.insertSpaces": true,
+    "C_Cpp.clang_format_style": "none",
+    "C_Cpp.clang_format_fallbackStyle": "none",
+    "clangd.enabled": false,
+    "C_Cpp.intelliSenseEngine": "disabled"
 }
