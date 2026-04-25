@@ -85,6 +85,11 @@ enum class FootswitchMode {
 
   // Multi — fires multiple sub-commands at once; midiNumber = scene slot index
   Multi,
+
+  // Preset Navigation
+  PresetUp,
+  PresetDown,
+  PresetNum,   // jump to a specific preset; midiNumber = preset index (0–5)
 };
 
 // ── ModeInfo ─────────────────────────────────────────────────────────────────
@@ -208,9 +213,14 @@ inline constexpr ModeInfo modes[] = {
   // ── Multi (index 35) ──────────────────────────────────────────────────────
   // midiNumber = slot index into multiScenes[]. No mode flags set.
   { FootswitchMode::Multi,                 false,false,false,false,false,false,"Multi",         ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
+
+  // ── Preset Navigation (index 36–38) ───────────────────────────────────────
+  { FootswitchMode::PresetUp,              false,false,false,false,false,false,"Preset Up",     ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
+  { FootswitchMode::PresetDown,            false,false,false,false,false,false,"Preset Down",   ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
+  { FootswitchMode::PresetNum,             false,false,false,false,false,false,"Preset #",      ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
 };
 
-inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]); // 36
+inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]); // 39
 
 // ── Mode categories (three-level encoder selection) ──────────────────────────
 //
@@ -240,8 +250,9 @@ inline constexpr const char *sgNormalInv[]  = { "Normal",   "Inverted"  };
 inline constexpr const char *sgNormNotes[]  = { "0 > 127",  "127 > 0"   };
 inline constexpr const char *sgLfoWave[]    = { "Sine",     "Triangle", "Square"   };
 inline constexpr const char *sgLfoNotes[]   = { "smooth",   "linear",   "on/off"   };
-inline constexpr const char *varMomLatch[]  = { "Momentary","Latching"  };
-inline constexpr const char *varCC[]        = { "Momentary","Latching","Single" };
+inline constexpr const char *varMomLatch[]     = { "Momentary","Latching"  };
+inline constexpr const char *varCC[]           = { "Momentary","Latching","Single" };
+inline constexpr const char *varPresetNav[]    = { "Up",       "Down",     "Preset #" };
 inline constexpr const char *varHelix[]     = { "Snapshot", "Scroll"    };
 inline constexpr const char *varQC[]        = { "Scene",    "Scroll"    };
 inline constexpr const char *varFractal[]   = { "Scene",    "Scroll"    };
@@ -265,8 +276,14 @@ inline constexpr ModeCategory modeCategories[] = {
   { "System",       true,  33, 1,  0, 0, nullptr,      nullptr,      nullptr      },
   { "Keyboard",     true,  34, 1,  0, 0, nullptr,      nullptr,      nullptr      },
   { "Multi",        false, 35, 1,  0, 0, nullptr,      nullptr,      nullptr      },
+  { "Preset Nav",   false, 36, 3,  0, 0, nullptr,      nullptr,      varPresetNav },
 };
-inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]); // 16
+inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]); // 17
+
+// Set to +1 (PresetUp) or -1 (PresetDown) on press; cleared by the main loop.
+inline int8_t presetNavRequest = 0;
+// Set to 0–5 for PresetNum direct-jump; -1 = no request.
+inline int8_t presetNavDirect  = -1;
 
 inline uint8_t categoryForModeIndex(uint8_t modeIdx) {
   for(uint8_t i = 0; i < NUM_CATEGORIES; i++) {
@@ -350,6 +367,20 @@ struct FSButton {
     if(mode == FootswitchMode::TapTempo) {
       if(pressed) midiClock.receiveTap();
       _setLED(pressed);
+      return;
+    }
+
+    if(mode == FootswitchMode::PresetUp || mode == FootswitchMode::PresetDown) {
+      if(pressed) presetNavRequest = (mode == FootswitchMode::PresetUp) ? +1 : -1;
+      _setLED(pressed);
+      if(displayCallback) displayCallback(*this);
+      return;
+    }
+
+    if(mode == FootswitchMode::PresetNum) {
+      if(pressed) presetNavDirect = (int8_t)(midiNumber < NUM_PRESETS ? midiNumber : NUM_PRESETS - 1);
+      _setLED(pressed);
+      if(displayCallback) displayCallback(*this);
       return;
     }
 

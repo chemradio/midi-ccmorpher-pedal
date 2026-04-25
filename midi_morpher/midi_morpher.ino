@@ -122,6 +122,20 @@ void loop() {
     }
   }
 
+  // Preset navigation requested by a preset-nav footswitch
+  if(presetNavDirect >= 0) {
+    applyPreset((uint8_t)presetNavDirect, pedal);
+    displayPresetLoad(activePreset);
+    presetNavDirect = -1;
+  } else if(presetNavRequest != 0) {
+    uint8_t next = (presetNavRequest > 0)
+      ? (activePreset + 1) % NUM_PRESETS
+      : (activePreset == 0 ? NUM_PRESETS - 1 : activePreset - 1);
+    applyPreset(next, pedal);
+    displayPresetLoad(activePreset);
+    presetNavRequest = 0;
+  }
+
   // Redraw home screen if a FS fired and we're not in a param screen.
   if(g_homeFSNeedsDraw && displayMode == DISPLAY_DEFAULT) {
     g_homeFSNeedsDraw = false;
