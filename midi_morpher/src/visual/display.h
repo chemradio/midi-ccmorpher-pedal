@@ -678,7 +678,7 @@ inline void displayActionSelect(FSButton &btn, uint8_t slot) {
       lbl = "COLLAPSE";
     } else {
       // s=1→REL(t=2), s=2→HOLD(t=0), s=3→DBL(t=1)
-      static const char * const sLbls[] = { nullptr, "REL", "HOLD", "DBL" };
+      static const char * const sLbls[] = { nullptr, "RELEASE", "HOLD", "DOUBLE" };
       uint8_t t = (s == 1) ? 2 : (s == 2) ? 0 : 1;
       lbl = sLbls[s];
       const FSAction &act = btn.extraActions[t];
@@ -709,7 +709,15 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
                   (modes[cat.firstIdx].mode == FootswitchMode::MomentaryCC ||
                    modes[cat.firstIdx].mode == FootswitchMode::LatchingCC));
   bool isMultiCat2 = (cat.firstIdx < NUM_MODES && modes[cat.firstIdx].mode == FootswitchMode::Multi);
-  uint8_t totalDepth = cat.autoSelect ? 1 : (isMultiCat2 ? 2 : (cat.subGroupCount > 0 ? 3 : (isCCCat ? (level >= 2 && idx2 == 2 ? 3 : 4) : 2)));
+  // baseDepth = selection steps before value entry
+  uint8_t baseDepth = cat.autoSelect ? 1 : (isMultiCat2 ? 2 : (cat.subGroupCount > 0 ? 3 : (isCCCat ? (level >= 2 && idx2 == 2 ? 3 : 4) : 2)));
+  bool hasValEntry = (!cat.autoSelect && !isMultiCat2);
+  bool hasVel = (level >= 4 && idx2 < NUM_MODES) ? modeNeedsVelocity(idx2) : false;
+  uint8_t totalDepth = baseDepth + (hasValEntry ? 1 : 0) + (hasVel ? 1 : 0);
+  uint8_t stepNum;
+  if(level < 4)      stepNum = level + 1;
+  else if(level == 4) stepNum = baseDepth + 1;
+  else               stepNum = baseDepth + 2; // level 5
 
   // ── Inverted header bar ────────────────────────────────────────────────────
   display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
@@ -719,7 +727,7 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
   display.print(fsName);
   // Depth indicator right-aligned
   char depth[5];
-  snprintf(depth, sizeof(depth), "%d/%d", level + 1, totalDepth);
+  snprintf(depth, sizeof(depth), "%d/%d", stepNum, totalDepth);
   display.setCursor(128 - (int)strlen(depth) * 6 - 2, 1);
   display.print(depth);
   display.setTextColor(SSD1306_WHITE);
@@ -734,7 +742,7 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
     label = "Category:";
     value = cat.name;
     if(!cat.autoSelect)
-      noteLine = (cat.subGroupCount > 0) ? "3 steps" : (isCCCat ? "4 steps" : "2 steps");
+      noteLine = (cat.subGroupCount > 0) ? "4 steps" : (isCCCat ? "5 steps" : "3 steps");
   } else if(level == 1) {
     bool isMultiCat = (cat.firstIdx < NUM_MODES &&
                        modes[cat.firstIdx].mode == FootswitchMode::Multi);
@@ -744,7 +752,7 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
       value = (si < MAX_MULTI_SCENES && multiScenes[si].name[0] != '\0')
               ? multiScenes[si].name : "?";
     } else if(cat.subGroupCount > 0) {
-      label    = (cat.subGroupCount == 3) ? "Wave:" : "Direction:";
+      label    = (cat.subGroupCount >= 3) ? "Wave:" : "Direction:";
       value    = cat.subGroupNames ? cat.subGroupNames[idx1] : "?";
       noteLine = cat.subGroupNotes ? cat.subGroupNotes[idx1] : nullptr;
     } else {
@@ -777,7 +785,7 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
     display.print(F("Turn=value  Press=OK"));
     display.display();
     return;
-  } else {
+  } else if(level == 3) {
     // Level 3: CC Lo value
     display.setTextColor(SSD1306_WHITE);
     display.setTextSize(1);
@@ -788,6 +796,84 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
     display.setTextSize(3);
     display.setCursor(0, 26);
     display.print(idx2);
+    display.setTextSize(1);
+    display.setCursor(0, 56);
+    display.print(F("Turn=value  Press=OK"));
+    display.display();
+    return;
+  } else if(level == 4) {
+    // Level 4: primary value (CC#, PC#, Note#, scene, command, key, preset)
+    // idx1 = current value (0-based), idx2 = modeSelectFinalIdx
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 12);
+    if(idx2 < NUM_MODES) {
+      const ModeInfo &mi = modes[idx2];
+      if(mi.isSystem) {
+        display.print(F("Command:"));
+        display.setTextSize(2);
+        display.setCursor(0, 26);
+        uint8_t si = idx1 < NUM_SYS_CMDS ? idx1 : 0;
+        display.print(systemCommands[si].name);
+      } else if(mi.isKeyboard) {
+        display.print(F("Key:"));
+        display.setTextSize(2);
+        display.setCursor(0, 26);
+        uint8_t ki = idx1 < NUM_HID_KEYS ? idx1 : 0;
+        display.print(hidKeys[ki].name);
+      } else if(mi.isNote) {
+        display.print(F("Note# (1-128):"));
+        display.setTextSize(3);
+        display.setCursor(0, 26);
+        _printNoteName(idx1);
+      } else if(mi.isPC) {
+        display.print(F("PC# (1-128):"));
+        display.setTextSize(3);
+        display.setCursor(0, 26);
+        display.print(idx1 + 1);
+      } else if(mi.isScene) {
+        display.print(F("Scene:"));
+        display.setTextSize(3);
+        display.setCursor(0, 26);
+        display.print(idx1 + 1);
+      } else if(mi.mode == FootswitchMode::PresetNum) {
+        display.print(F("Preset# (1-N):"));
+        display.setTextSize(3);
+        display.setCursor(0, 26);
+        display.print(idx1 + 1);
+      } else if(mi.isModSwitch) {
+        display.print(F("CC (PB=-1):"));
+        display.setTextSize(3);
+        display.setCursor(0, 26);
+        if(idx1 == PB_SENTINEL) display.print(F("PB"));
+        else display.print(idx1 + 1);
+      } else {
+        display.print(F("CC# (1-128):"));
+        display.setTextSize(3);
+        display.setCursor(0, 26);
+        display.print(idx1 + 1);
+      }
+    } else {
+      display.print(F("Value:"));
+      display.setTextSize(3);
+      display.setCursor(0, 26);
+      display.print(idx1 + 1);
+    }
+    display.setTextSize(1);
+    display.setCursor(0, 56);
+    display.print(F("Turn=value  Press=OK"));
+    display.display();
+    return;
+  } else if(level == 5) {
+    // Level 5: Note velocity (1-127)
+    // idx1 = current velocity
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 12);
+    display.print(F("Velocity (1-127):"));
+    display.setTextSize(3);
+    display.setCursor(0, 26);
+    display.print(idx1);
     display.setTextSize(1);
     display.setCursor(0, 56);
     display.print(F("Turn=value  Press=OK"));

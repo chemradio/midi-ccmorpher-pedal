@@ -18,6 +18,7 @@ struct FSAction {
     uint8_t  fsChannel  = 0xFF;
     uint8_t  ccLow      = 0;
     uint8_t  ccHigh     = 127;
+    uint8_t  velocity   = 100;
     uint32_t rampUpMs   = DEFAULT_RAMP_SPEED;
     uint32_t rampDownMs = DEFAULT_RAMP_SPEED;
 };
@@ -40,11 +41,23 @@ enum class FootswitchMode {
   SingleCC,
   MomentaryNote,
 
-  // Ramper
+  // Ramper — Exp curve
   RamperMomentary,
   RamperLatching,
   RamperInvMomentary,
   RamperInvLatching,
+
+  // Ramper — Linear curve
+  RamperLinMomentary,
+  RamperLinLatching,
+  RamperLinInvMomentary,
+  RamperLinInvLatching,
+
+  // Ramper — Sine curve
+  RamperSineMomentary,
+  RamperSineLatching,
+  RamperSineInvMomentary,
+  RamperSineInvLatching,
 
   // LFO — three wave shapes × momentary/latching
   LfoSineMomentary,
@@ -156,43 +169,55 @@ inline constexpr ModeInfo modes[] = {
   { FootswitchMode::NoAction,              false,false,false,false,false,false,"No Action",     ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
 
   // ── Basic (index 1–5) ─────────────────────────────────────────────────────
-  { FootswitchMode::MomentaryPC,        false,false,false,false,false,false,"PC",            ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
+  { FootswitchMode::MomentaryPC,        false,true, false,false,false,false,"PC",            ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
   { FootswitchMode::MomentaryCC,        false,false,false,false,false,false,"CC",            ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
   { FootswitchMode::LatchingCC,         true, false,false,false,false,false,"CC Latch",      ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
   { FootswitchMode::SingleCC,           false,false,false,false,false,false,"CC Single",     ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
   { FootswitchMode::MomentaryNote,      false,false,true, false,false,false,"Note",          ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
 
-  // ── Ramper (index 6–9) ────────────────────────────────────────────────────
-  { FootswitchMode::RamperMomentary,    false,false,false,true, false,false,"Ramp",          ModulationType::RAMPER,      SHAPE_EXP,   0, 0,false,false,false,false },
-  { FootswitchMode::RamperLatching,     true, false,false,true, false,false,"Ramp Latch",    ModulationType::RAMPER,      SHAPE_EXP,   0, 0,false,false,false,false },
-  { FootswitchMode::RamperInvMomentary, false,false,false,true, true, false,"Ramp Inv",      ModulationType::RAMPER,      SHAPE_EXP,   0, 0,false,false,false,false },
-  { FootswitchMode::RamperInvLatching,  true, false,false,true, true, false,"Ramp Inv L",    ModulationType::RAMPER,      SHAPE_EXP,   0, 0,false,false,false,false },
+  // ── Ramper Exp (index 6–9) ───────────────────────────────────────────────
+  { FootswitchMode::RamperMomentary,       false,false,false,true, false,false,"Ramp",          ModulationType::RAMPER, SHAPE_EXP,   0,0,false,false,false,false },
+  { FootswitchMode::RamperLatching,        true, false,false,true, false,false,"Ramp Latch",    ModulationType::RAMPER, SHAPE_EXP,   0,0,false,false,false,false },
+  { FootswitchMode::RamperInvMomentary,    false,false,false,true, true, false,"Ramp Inv",      ModulationType::RAMPER, SHAPE_EXP,   0,0,false,false,false,false },
+  { FootswitchMode::RamperInvLatching,     true, false,false,true, true, false,"Ramp Inv L",    ModulationType::RAMPER, SHAPE_EXP,   0,0,false,false,false,false },
 
-  // ── LFO Sine (index 10–11) ────────────────────────────────────────────────
-  { FootswitchMode::LfoSineMomentary,   false,false,false,true, false,false,"LFO Sine",      ModulationType::LFO,         SHAPE_SINE,  0, 0,false,false,false,false },
-  { FootswitchMode::LfoSineLatching,    true, false,false,true, false,false,"LFO Sine L",    ModulationType::LFO,         SHAPE_SINE,  0, 0,false,false,false,false },
+  // ── Ramper Linear (index 10–13) ──────────────────────────────────────────
+  { FootswitchMode::RamperLinMomentary,    false,false,false,true, false,false,"Ramp Lin",      ModulationType::RAMPER, SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::RamperLinLatching,     true, false,false,true, false,false,"Ramp Lin L",    ModulationType::RAMPER, SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::RamperLinInvMomentary, false,false,false,true, true, false,"Ramp Lin Inv",  ModulationType::RAMPER, SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::RamperLinInvLatching,  true, false,false,true, true, false,"Ramp Lin Inv L",ModulationType::RAMPER, SHAPE_LINEAR,0,0,false,false,false,false },
 
-  // ── LFO Triangle (index 12–13) ────────────────────────────────────────────
-  { FootswitchMode::LfoTriMomentary,    false,false,false,true, false,false,"LFO Tri",       ModulationType::LFO,         SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::LfoTriLatching,     true, false,false,true, false,false,"LFO Tri L",     ModulationType::LFO,         SHAPE_LINEAR,0, 0,false,false,false,false },
+  // ── Ramper Sine (index 14–17) ────────────────────────────────────────────
+  { FootswitchMode::RamperSineMomentary,    false,false,false,true, false,false,"Ramp Sine",     ModulationType::RAMPER, SHAPE_SINE,  0,0,false,false,false,false },
+  { FootswitchMode::RamperSineLatching,     true, false,false,true, false,false,"Ramp Sine L",   ModulationType::RAMPER, SHAPE_SINE,  0,0,false,false,false,false },
+  { FootswitchMode::RamperSineInvMomentary, false,false,false,true, true, false,"Ramp Sine Inv", ModulationType::RAMPER, SHAPE_SINE,  0,0,false,false,false,false },
+  { FootswitchMode::RamperSineInvLatching,  true, false,false,true, true, false,"Ramp Sine Inv L",ModulationType::RAMPER,SHAPE_SINE,  0,0,false,false,false,false },
 
-  // ── LFO Square (index 14–15) ──────────────────────────────────────────────
-  { FootswitchMode::LfoSqMomentary,     false,false,false,true, false,false,"LFO Sq",        ModulationType::LFO,         SHAPE_SQUARE,0, 0,false,false,false,false },
-  { FootswitchMode::LfoSqLatching,      true, false,false,true, false,false,"LFO Sq L",      ModulationType::LFO,         SHAPE_SQUARE,0, 0,false,false,false,false },
+  // ── LFO Sine (index 18–19) ───────────────────────────────────────────────
+  { FootswitchMode::LfoSineMomentary,   false,false,false,true, false,false,"LFO Sine",      ModulationType::LFO,    SHAPE_SINE,  0,0,false,false,false,false },
+  { FootswitchMode::LfoSineLatching,    true, false,false,true, false,false,"LFO Sine L",    ModulationType::LFO,    SHAPE_SINE,  0,0,false,false,false,false },
 
-  // ── Stepper (index 16–19) ─────────────────────────────────────────────────
-  { FootswitchMode::StepperMomentary,   false,false,false,true, false,false,"Step",          ModulationType::STEPPER,     SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::StepperLatching,    true, false,false,true, false,false,"Step Latch",    ModulationType::STEPPER,     SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::StepperInvMomentary,false,false,false,true, true, false,"Step Inv",      ModulationType::STEPPER,     SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::StepperInvLatching, true, false,false,true, true, false,"Step Inv L",    ModulationType::STEPPER,     SHAPE_LINEAR,0, 0,false,false,false,false },
+  // ── LFO Triangle (index 20–21) ───────────────────────────────────────────
+  { FootswitchMode::LfoTriMomentary,    false,false,false,true, false,false,"LFO Tri",       ModulationType::LFO,    SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::LfoTriLatching,     true, false,false,true, false,false,"LFO Tri L",     ModulationType::LFO,    SHAPE_LINEAR,0,0,false,false,false,false },
 
-  // ── Random Stepper (index 20–23) ──────────────────────────────────────────
-  { FootswitchMode::RandomMomentary,    false,false,false,true, false,false,"Random",        ModulationType::RANDOM,      SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::RandomLatching,     true, false,false,true, false,false,"Random L",      ModulationType::RANDOM,      SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::RandomInvMomentary, false,false,false,true, true, false,"Random Inv",    ModulationType::RANDOM,      SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::RandomInvLatching,  true, false,false,true, true, false,"Random Inv L",  ModulationType::RANDOM,      SHAPE_LINEAR,0, 0,false,false,false,false },
+  // ── LFO Square (index 22–23) ─────────────────────────────────────────────
+  { FootswitchMode::LfoSqMomentary,     false,false,false,true, false,false,"LFO Sq",        ModulationType::LFO,    SHAPE_SQUARE,0,0,false,false,false,false },
+  { FootswitchMode::LfoSqLatching,      true, false,false,true, false,false,"LFO Sq L",      ModulationType::LFO,    SHAPE_SQUARE,0,0,false,false,false,false },
 
-  // ── Scene / Snapshot (index 24–31) ───────────────────────────────────────
+  // ── Stepper (index 24–27) ────────────────────────────────────────────────
+  { FootswitchMode::StepperMomentary,   false,false,false,true, false,false,"Step",          ModulationType::STEPPER,SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::StepperLatching,    true, false,false,true, false,false,"Step Latch",    ModulationType::STEPPER,SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::StepperInvMomentary,false,false,false,true, true, false,"Step Inv",      ModulationType::STEPPER,SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::StepperInvLatching, true, false,false,true, true, false,"Step Inv L",    ModulationType::STEPPER,SHAPE_LINEAR,0,0,false,false,false,false },
+
+  // ── Random Stepper (index 28–31) ─────────────────────────────────────────
+  { FootswitchMode::RandomMomentary,    false,false,false,true, false,false,"Random",        ModulationType::RANDOM, SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::RandomLatching,     true, false,false,true, false,false,"Random L",      ModulationType::RANDOM, SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::RandomInvMomentary, false,false,false,true, true, false,"Random Inv",    ModulationType::RANDOM, SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::RandomInvLatching,  true, false,false,true, true, false,"Random Inv L",  ModulationType::RANDOM, SHAPE_LINEAR,0,0,false,false,false,false },
+
+  // ── Scene / Snapshot (index 32–39) ───────────────────────────────────────
   { FootswitchMode::HelixSnapshot,         false,false,false,false,false,true, "Helix Snap",    ModulationType::NOMODULATION,SHAPE_LINEAR,69,7,false,false,false,false },
   { FootswitchMode::HelixSnapshotScroll,   false,false,false,false,false,true, "Helix Scrl",    ModulationType::NOMODULATION,SHAPE_LINEAR,69,7,false,true, false,false },
   { FootswitchMode::QuadCortexScene,       false,false,false,false,false,true, "QC Scene",      ModulationType::NOMODULATION,SHAPE_LINEAR,43,7,false,false,false,false },
@@ -202,22 +227,22 @@ inline constexpr ModeInfo modes[] = {
   { FootswitchMode::KemperSlot,            false,false,false,false,false,true, "Kemper Slot",   ModulationType::NOMODULATION,SHAPE_LINEAR,50,4,true, false,false,false },
   { FootswitchMode::KemperSlotScroll,      false,false,false,false,false,true, "Kemper Scrl",   ModulationType::NOMODULATION,SHAPE_LINEAR,50,4,true, true, false,false },
 
-  // ── Utility (index 32–33) ─────────────────────────────────────────────────
-  { FootswitchMode::TapTempo,              false,false,false,false,false,false,"Tap Tempo",     ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::System,                false,false,false,false,false,false,"System",        ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,true, false },
+  // ── Utility (index 40–41) ────────────────────────────────────────────────
+  { FootswitchMode::TapTempo,              false,false,false,false,false,false,"Tap Tempo",     ModulationType::NOMODULATION,SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::System,                false,false,false,false,false,false,"System",        ModulationType::NOMODULATION,SHAPE_LINEAR,0,0,false,false,true, false },
 
-  // ── Keyboard (index 34) ───────────────────────────────────────────────────
+  // ── Keyboard (index 42) ──────────────────────────────────────────────────
   // midiNumber = index into hidKeys[]. fsChannel = modifier bitmask (KEY_MOD_*).
-  { FootswitchMode::Keyboard,              false,false,false,false,false,false,"Keyboard",      ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,true  },
+  { FootswitchMode::Keyboard,              false,false,false,false,false,false,"Keyboard",      ModulationType::NOMODULATION,SHAPE_LINEAR,0,0,false,false,false,true  },
 
-  // ── Multi (index 35) ──────────────────────────────────────────────────────
+  // ── Multi (index 43) ─────────────────────────────────────────────────────
   // midiNumber = slot index into multiScenes[]. No mode flags set.
-  { FootswitchMode::Multi,                 false,false,false,false,false,false,"Multi",         ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
+  { FootswitchMode::Multi,                 false,false,false,false,false,false,"Multi",         ModulationType::NOMODULATION,SHAPE_LINEAR,0,0,false,false,false,false },
 
-  // ── Preset Navigation (index 36–38) ───────────────────────────────────────
-  { FootswitchMode::PresetUp,              false,false,false,false,false,false,"Preset Up",     ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::PresetDown,            false,false,false,false,false,false,"Preset Down",   ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
-  { FootswitchMode::PresetNum,             false,false,false,false,false,false,"Preset #",      ModulationType::NOMODULATION,SHAPE_LINEAR,0, 0,false,false,false,false },
+  // ── Preset Navigation (index 44–46) ──────────────────────────────────────
+  { FootswitchMode::PresetUp,              false,false,false,false,false,false,"Preset Up",     ModulationType::NOMODULATION,SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::PresetDown,            false,false,false,false,false,false,"Preset Down",   ModulationType::NOMODULATION,SHAPE_LINEAR,0,0,false,false,false,false },
+  { FootswitchMode::PresetNum,             false,false,false,false,false,false,"Preset #",      ModulationType::NOMODULATION,SHAPE_LINEAR,0,0,false,false,false,false },
 };
 
 inline constexpr uint8_t NUM_MODES = sizeof(modes) / sizeof(modes[0]); // 39
@@ -248,6 +273,8 @@ struct ModeCategory {
 // String tables for sub-groups and variants
 inline constexpr const char *sgNormalInv[]  = { "Normal",   "Inverted"  };
 inline constexpr const char *sgNormNotes[]  = { "0 > 127",  "127 > 0"   };
+inline constexpr const char *sgRampWave[]   = { "Exp",     "Exp Inv",  "Linear", "Lin Inv", "Sine",   "Sine Inv" };
+inline constexpr const char *sgRampNotes[]  = { "0>127",   "127>0",    "0>127",  "127>0",   "smooth", "smooth"   };
 inline constexpr const char *sgLfoWave[]    = { "Sine",     "Triangle", "Square"   };
 inline constexpr const char *sgLfoNotes[]   = { "smooth",   "linear",   "on/off"   };
 inline constexpr const char *varMomLatch[]     = { "Momentary","Latching"  };
@@ -259,24 +286,24 @@ inline constexpr const char *varFractal[]   = { "Scene",    "Scroll"    };
 inline constexpr const char *varKemper[]    = { "Slot",     "Scroll"    };
 
 inline constexpr ModeCategory modeCategories[] = {
-  //  name,         auto,  first,count, sgCnt,sgSz, sgNames,     sgNotes,     varNames
-  { "No Action",    true,  0,  1,  0, 0, nullptr,      nullptr,      nullptr      },
-  { "PC",           true,  1,  1,  0, 0, nullptr,      nullptr,      nullptr      },
-  { "CC",           false, 2,  3,  0, 0, nullptr,      nullptr,      varCC        },
-  { "Note",         true,  5,  1,  0, 0, nullptr,      nullptr,      nullptr      },
-  { "Ramp",         false, 6,  4,  2, 2, sgNormalInv,  sgNormNotes,  varMomLatch  },
-  { "LFO",          false, 10, 6,  3, 2, sgLfoWave,    sgLfoNotes,   varMomLatch  },
-  { "Stepper",      false, 16, 4,  2, 2, sgNormalInv,  sgNormNotes,  varMomLatch  },
-  { "Random",       false, 20, 4,  2, 2, sgNormalInv,  sgNormNotes,  varMomLatch  },
-  { "Helix",        false, 24, 2,  0, 0, nullptr,      nullptr,      varHelix     },
-  { "Quad Cortex",  false, 26, 2,  0, 0, nullptr,      nullptr,      varQC        },
-  { "Fractal",      false, 28, 2,  0, 0, nullptr,      nullptr,      varFractal   },
-  { "Kemper",       false, 30, 2,  0, 0, nullptr,      nullptr,      varKemper    },
-  { "Tap Tempo",    true,  32, 1,  0, 0, nullptr,      nullptr,      nullptr      },
-  { "System",       true,  33, 1,  0, 0, nullptr,      nullptr,      nullptr      },
-  { "Keyboard",     true,  34, 1,  0, 0, nullptr,      nullptr,      nullptr      },
-  { "Multi",        false, 35, 1,  0, 0, nullptr,      nullptr,      nullptr      },
-  { "Preset Nav",   false, 36, 3,  0, 0, nullptr,      nullptr,      varPresetNav },
+  //  name,         auto,  first,count, sgCnt,sgSz, sgNames,    sgNotes,    varNames
+  { "No Action",    true,  0,  1,  0, 0, nullptr,     nullptr,     nullptr      },
+  { "PC",           true,  1,  1,  0, 0, nullptr,     nullptr,     nullptr      },
+  { "CC",           false, 2,  3,  0, 0, nullptr,     nullptr,     varCC        },
+  { "Note",         true,  5,  1,  0, 0, nullptr,     nullptr,     nullptr      },
+  { "Ramp",         false, 6,  12, 6, 2, sgRampWave,  sgRampNotes, varMomLatch  },
+  { "LFO",          false, 18, 6,  3, 2, sgLfoWave,   sgLfoNotes,  varMomLatch  },
+  { "Stepper",      false, 24, 4,  2, 2, sgNormalInv, sgNormNotes, varMomLatch  },
+  { "Random",       false, 28, 4,  2, 2, sgNormalInv, sgNormNotes, varMomLatch  },
+  { "Helix",        false, 32, 2,  0, 0, nullptr,     nullptr,     varHelix     },
+  { "Quad Cortex",  false, 34, 2,  0, 0, nullptr,     nullptr,     varQC        },
+  { "Fractal",      false, 36, 2,  0, 0, nullptr,     nullptr,     varFractal   },
+  { "Kemper",       false, 38, 2,  0, 0, nullptr,     nullptr,     varKemper    },
+  { "Tap Tempo",    true,  40, 1,  0, 0, nullptr,     nullptr,     nullptr      },
+  { "System",       true,  41, 1,  0, 0, nullptr,     nullptr,     nullptr      },
+  { "Keyboard",     true,  42, 1,  0, 0, nullptr,     nullptr,     nullptr      },
+  { "Multi",        false, 43, 1,  0, 0, nullptr,     nullptr,     nullptr      },
+  { "Preset Nav",   false, 44, 3,  0, 0, nullptr,     nullptr,     varPresetNav },
 };
 inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]); // 17
 
@@ -332,6 +359,7 @@ struct FSButton {
   uint8_t fsChannel  = 0xFF;  // 0xFF=global; in Keyboard mode: KEY_MOD_* bitmask
   uint8_t ccLow      = 0;     // value sent on CC release / latch-off
   uint8_t ccHigh     = 127;   // value sent on CC press / latch-on
+  uint8_t velocity   = 100;   // Note On velocity
 
   FootswitchMode mode = FootswitchMode::MomentaryPC;
   ModeInfo modMode = { FootswitchMode::MomentaryPC, false,true,false,false,false,false,
@@ -462,7 +490,7 @@ struct FSButton {
     if(isNote) {
       isActivated = pressed;
       _setLED(pressed);
-      sendNote(ch, midiNumber, pressed);
+      sendNote(ch, midiNumber, pressed, velocity);
       if(displayCallback) displayCallback(*this);
       return;
     }
@@ -508,6 +536,16 @@ struct FSButton {
     if(displayCallback) displayCallback(*this);
   }
 
+  // Fire the RELEASE extra action.
+  // Always clears switchPressed first so press() is never blocked by prior state
+  // (e.g. primary-mode modulation or an earlier release that left it set).
+  void _fireReleaseAction(uint8_t ch, MidiCCModulator &modulator,
+                          void (*displayCallback)(FSButton &)) {
+    modulator.switchPressed = false;
+    _applyExtraAction(2, true, ch, modulator, displayCallback);
+    modulator.switchPressed = false;  // clear after so the next release also fires
+  }
+
   void _applyExtraAction(uint8_t t, bool pressed, uint8_t ch,
                          MidiCCModulator &modulator,
                          void (*displayCallback)(FSButton &)) {
@@ -519,13 +557,13 @@ struct FSButton {
 
     // Save primary config
     uint8_t  sv_mi=modeIndex; FootswitchMode sv_mo=mode; ModeInfo sv_mm=modMode;
-    uint8_t  sv_mn=midiNumber, sv_fc=fsChannel, sv_cl=ccLow, sv_cH=ccHigh;
+    uint8_t  sv_mn=midiNumber, sv_fc=fsChannel, sv_cl=ccLow, sv_cH=ccHigh, sv_vel=velocity;
     uint32_t sv_ru=rampUpMs, sv_rd=rampDownMs;
     bool sv_lat=isLatching, sv_pc=isPC, sv_nt=isNote, sv_ms=isModSwitch;
     bool sv_sc=isScene, sv_ss=isSceneScroll, sv_sy=isSystem, sv_kb=isKeyboard;
 
     modeIndex=act.modeIndex; midiNumber=act.midiNumber; fsChannel=act.fsChannel;
-    ccLow=act.ccLow; ccHigh=act.ccHigh;
+    ccLow=act.ccLow; ccHigh=act.ccHigh; velocity=act.velocity;
     rampUpMs=act.rampUpMs; rampDownMs=act.rampDownMs;
     mode=mi.mode; modMode=mi;
     isLatching=mi.isLatching; isPC=mi.isPC; isNote=mi.isNote;
@@ -535,7 +573,7 @@ struct FSButton {
     _applyPressState(pressed, ach, modulator, displayCallback);
 
     modeIndex=sv_mi; mode=sv_mo; modMode=sv_mm;
-    midiNumber=sv_mn; fsChannel=sv_fc; ccLow=sv_cl; ccHigh=sv_cH;
+    midiNumber=sv_mn; fsChannel=sv_fc; ccLow=sv_cl; ccHigh=sv_cH; velocity=sv_vel;
     rampUpMs=sv_ru; rampDownMs=sv_rd;
     isLatching=sv_lat; isPC=sv_pc; isNote=sv_nt; isModSwitch=sv_ms;
     isScene=sv_sc; isSceneScroll=sv_ss; isSystem=sv_sy; isKeyboard=sv_kb;
@@ -545,9 +583,9 @@ struct FSButton {
                         void (*displayCallback)(FSButton &) = nullptr) {
     unsigned long now = millis();
     const uint8_t ch  = effectiveChannel(midiChannel);
-    bool hasLong    = extraActions[0].enabled;
-    bool hasDouble  = extraActions[1].enabled;
-    bool hasRelease = extraActions[2].enabled;
+    bool hasLong    = extraActions[0].enabled && extraActions[0].modeIndex != 0;
+    bool hasDouble  = extraActions[1].enabled && extraActions[1].modeIndex != 0;
+    bool hasRelease = extraActions[2].enabled && extraActions[2].modeIndex != 0;
 
     // Debounced edge detection
     bool edgeDetected = false;
@@ -571,7 +609,7 @@ struct FSButton {
         } else {
           pressStartMs = now;
           longFired    = false;
-          if(!hasDouble) {
+          if(!hasDouble && !hasLong) {
             _applyPressState(true, ch, modulator, displayCallback);
             pressPhase = PressPhase::PRESS_ACTIVE;
           } else {
@@ -580,15 +618,23 @@ struct FSButton {
         }
       } else {
         // Release edge
-        if(hasRelease) _applyExtraAction(2, true, ch, modulator, displayCallback);
         switch(pressPhase) {
           case PressPhase::WAIT:
-            // Released before long or double — start double-tap window
-            releaseMs  = now;
-            pressPhase = PressPhase::PENDING_DBL;
+            if(hasDouble) {
+              // Released before long or double — start double-tap window
+              releaseMs  = now;
+              pressPhase = PressPhase::PENDING_DBL;
+            } else {
+              // HOLD configured but released before timeout — fire PRESS now
+              _applyPressState(true, ch, modulator, displayCallback);
+              _applyPressState(false, ch, modulator, displayCallback);
+              if(hasRelease) _fireReleaseAction(ch, modulator, displayCallback);
+              pressPhase = PressPhase::IDLE;
+            }
             break;
           case PressPhase::PRESS_ACTIVE:
             _applyPressState(false, ch, modulator, displayCallback);
+            if(hasRelease) _fireReleaseAction(ch, modulator, displayCallback);
             pressPhase = PressPhase::IDLE;
             break;
           case PressPhase::LONG_ACTIVE:
@@ -623,6 +669,7 @@ struct FSButton {
     if(pressPhase == PressPhase::PENDING_DBL && (now - releaseMs) >= FS_DBL_WIN_MS) {
       _applyPressState(true, ch, modulator, displayCallback);
       _applyPressState(false, ch, modulator, displayCallback);
+      if(hasRelease) _fireReleaseAction(ch, modulator, displayCallback);
       pressPhase = PressPhase::IDLE;
     }
   }
@@ -660,6 +707,25 @@ struct FSButton {
     return m.name;
   }
 };
+
+// ── Mode property helpers ─────────────────────────────────────────────────────
+
+// Returns true if this mode needs a value-entry submenu (level 4) in mode select.
+inline bool modeNeedsValueEntry(uint8_t modeIdx) {
+  if(modeIdx >= NUM_MODES) return false;
+  FootswitchMode m = modes[modeIdx].mode;
+  return m != FootswitchMode::NoAction
+      && m != FootswitchMode::TapTempo
+      && m != FootswitchMode::PresetUp
+      && m != FootswitchMode::PresetDown
+      && m != FootswitchMode::Multi;
+}
+
+// Returns true if this mode also needs a velocity entry (level 5) — Note mode only.
+inline bool modeNeedsVelocity(uint8_t modeIdx) {
+  if(modeIdx >= NUM_MODES) return false;
+  return modes[modeIdx].isNote;
+}
 
 // ── Free mode-application helpers ────────────────────────────────────────────
 

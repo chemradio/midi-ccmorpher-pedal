@@ -260,111 +260,6 @@ inline void displayMenuRouting(PedalState &pedal) {
   display.display();
 }
 
-// ── Preset Action sub-menu display ────────────────────────────────────────────
-
-inline void displayPresetActionMenu(PedalState &pedal) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.invertDisplay(false);
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.print(F("P"));
-  display.print(activePreset + 1);
-  display.print(F(" Load Action"));
-  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
-
-  const FSActionPersisted &la = presets[activePreset].loadAction;
-  uint8_t sel = pedal.menuRoutingIdx;
-
-  // 5 items: On, Mode, MIDI#, Channel, Back
-  struct { const char *lbl; String rhs; } rows[5] = {
-    { "On:",      la.enabled ? String(F("ON")) : String(F("OFF")) },
-    { "Mode:",    la.enabled && la.modeIndex < NUM_MODES
-                    ? String(modes[la.modeIndex].name) : String(F("---")) },
-    { "MIDI#:",   la.enabled ? String(la.midiNumber + 1) : String(F("---")) },
-    { "Channel:", la.fsChannel == 0xFF
-                    ? String(F("Global"))
-                    : String(F("Ch")) + String(la.fsChannel + 1) },
-    { "Back",     String() }
-  };
-
-  for(uint8_t i = 0; i < 5; i++) {
-    int y = 11 + i * 10;
-    display.setCursor(0, y);
-    display.print(i == sel ? '>' : ' ');
-    display.print(rows[i].lbl);
-    if(rows[i].rhs.length() > 0) {
-      int x = 128 - (int)rows[i].rhs.length() * 6;
-      if(x > 36) { display.setCursor(x, y); display.print(rows[i].rhs); }
-    }
-  }
-  display.display();
-}
-
-inline void displayEditingPAMode(PedalState &pedal) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.invertDisplay(false);
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.print(F("Mode"));
-  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
-  const FSActionPersisted &la = presets[activePreset].loadAction;
-  uint8_t mi = la.modeIndex < NUM_MODES ? la.modeIndex : 0;
-  display.setTextSize(2);
-  display.setCursor(0, 20);
-  display.print(modes[mi].name);
-  display.setTextSize(1);
-  display.setCursor(2, 56);
-  display.print(F("Scroll / Press=OK"));
-  display.display();
-}
-
-inline void displayEditingPANum(PedalState &pedal) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.invertDisplay(false);
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.print(F("MIDI # (1-128)"));
-  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
-  const FSActionPersisted &la = presets[activePreset].loadAction;
-  display.setTextSize(3);
-  display.setCursor(0, 18);
-  display.print(la.midiNumber + 1);
-  display.setTextSize(1);
-  display.setCursor(2, 56);
-  display.print(F("Scroll / Press=OK"));
-  display.display();
-}
-
-inline void displayEditingPACh(PedalState &pedal) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.invertDisplay(false);
-  display.setTextColor(SSD1306_WHITE);
-  display.setTextSize(1);
-  display.setCursor(0, 0);
-  display.print(F("Channel"));
-  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
-  const FSActionPersisted &la = presets[activePreset].loadAction;
-  display.setTextSize(2);
-  display.setCursor(0, 22);
-  if(la.fsChannel == 0xFF) display.print(F("Global"));
-  else { display.print(F("Ch ")); display.print(la.fsChannel + 1); }
-  display.setTextSize(1);
-  display.setCursor(2, 56);
-  display.print(F("Scroll / Press=OK"));
-  display.display();
-}
-
 inline void displayMenuLockConfirm(PedalState &pedal) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
@@ -463,40 +358,13 @@ inline void handleMenuRotate(PedalState &pedal, int delta) {
     pedal.menuRoutingIdx = (pedal.menuRoutingIdx == 0) ? 1 : 0;
     displayMenuLockConfirm(pedal);
     break;
-  case MenuState::PRESET_ACTION: {
-    int next = constrain((int)pedal.menuRoutingIdx + delta, 0, 4);
-    pedal.menuRoutingIdx = (uint8_t)next;
-    displayPresetActionMenu(pedal);
-    break;
-  }
-  case MenuState::EDITING_PA_MODE: {
-    FSActionPersisted &la = presets[activePreset].loadAction;
-    int mi = constrain((int)la.modeIndex + delta, 0, NUM_MODES - 1);
-    la.modeIndex = (uint8_t)mi;
-    displayEditingPAMode(pedal);
-    break;
-  }
-  case MenuState::EDITING_PA_NUM: {
-    FSActionPersisted &la = presets[activePreset].loadAction;
-    int mn = constrain((int)la.midiNumber + delta, 0, 127);
-    la.midiNumber = (uint8_t)mn;
-    displayEditingPANum(pedal);
-    break;
-  }
-  case MenuState::EDITING_PA_CH: {
-    FSActionPersisted &la = presets[activePreset].loadAction;
-    int cur = (la.fsChannel == 0xFF) ? -1 : (int)la.fsChannel;
-    cur = constrain(cur + delta, -1, 15);
-    la.fsChannel = (cur == -1) ? 0xFF : (uint8_t)cur;
-    displayEditingPACh(pedal);
-    break;
-  }
   default:
     break;
   }
 }
 
-inline void handleMenuPress(PedalState &pedal) {
+inline void handleMenuPress(PedalState &pedal,
+    void (*displayModeSelectFn)(const char *, uint8_t, uint8_t, uint8_t, uint8_t)) {
   switch(pedal.menuState) {
   case MenuState::ROOT:
     switch(pedal.menuItemIdx) {
@@ -553,11 +421,39 @@ inline void handleMenuPress(PedalState &pedal) {
       displayMenuRoot(pedal);
       break;
     }
-    case MENU_PRESET_ACTION:
-      pedal.menuState = MenuState::PRESET_ACTION;
-      pedal.menuRoutingIdx = 0;
-      displayPresetActionMenu(pedal);
+    case MENU_PRESET_ACTION: {
+      // Init loadActionEditBtn from saved load action, then enter mode select
+      const FSActionPersisted &la = presets[activePreset].loadAction;
+      FSButton &lb = pedal.loadActionEditBtn;
+      if(la.enabled && la.modeIndex < NUM_MODES) {
+        applyModeIndex(lb, la.modeIndex, &pedal.modulators[0]);
+        lb.midiNumber = la.midiNumber;
+        lb.fsChannel  = la.fsChannel;
+        lb.ccLow      = la.ccLow;
+        lb.ccHigh     = (la.ccHigh == 0) ? 127 : la.ccHigh;
+        lb.velocity   = (la.velocity == 0) ? 100 : la.velocity;
+        lb.rampUpMs   = la.rampUpMs;
+        lb.rampDownMs = la.rampDownMs;
+      } else {
+        applyModeIndex(lb, 0, &pedal.modulators[0]);
+        lb.midiNumber = 0;
+        lb.fsChannel  = 0xFF;
+        lb.ccLow      = 0;
+        lb.ccHigh     = 127;
+        lb.velocity   = 100;
+      }
+      pedal.menuState                  = MenuState::NONE;
+      pedal.inModeSelect               = true;
+      pedal.modeSelectLevel            = 0;
+      pedal.modeSelectFSIdx            = 6; // FS_LOAD_ACTION_IDX
+      pedal.modeSelectCatIdx           = categoryForModeIndex(la.enabled ? la.modeIndex : 0);
+      pedal.modeSelectVarIdx           = 0;
+      pedal.modeSelectSubVarIdx        = 0;
+      pedal.modeSelectFromActionSelect = false;
+      pedal.modeSelectExtraActionType  = -1;
+      displayModeSelectFn(lb.name, pedal.modeSelectCatIdx, 0, 0, 0);
       break;
+    }
     case MENU_LOCK:
       pedal.menuState = MenuState::LOCK_CONFIRM;
       pedal.menuRoutingIdx = 0;
@@ -570,42 +466,6 @@ inline void handleMenuPress(PedalState &pedal) {
     default:
       break;
     }
-    break;
-
-  case MenuState::PRESET_ACTION: {
-    FSActionPersisted &la = presets[activePreset].loadAction;
-    switch(pedal.menuRoutingIdx) {
-    case 0:  // toggle enabled
-      la.enabled = la.enabled ? 0 : 1;
-      saveAllPresets();
-      displayPresetActionMenu(pedal);
-      break;
-    case 1:  // edit mode
-      pedal.menuState = MenuState::EDITING_PA_MODE;
-      displayEditingPAMode(pedal);
-      break;
-    case 2:  // edit MIDI#
-      pedal.menuState = MenuState::EDITING_PA_NUM;
-      displayEditingPANum(pedal);
-      break;
-    case 3:  // edit channel
-      pedal.menuState = MenuState::EDITING_PA_CH;
-      displayEditingPACh(pedal);
-      break;
-    default:  // back
-      saveAllPresets();
-      pedal.menuState = MenuState::ROOT;
-      displayMenuRoot(pedal);
-      break;
-    }
-    break;
-  }
-  case MenuState::EDITING_PA_MODE:
-  case MenuState::EDITING_PA_NUM:
-  case MenuState::EDITING_PA_CH:
-    saveAllPresets();
-    pedal.menuState = MenuState::PRESET_ACTION;
-    displayPresetActionMenu(pedal);
     break;
 
   case MenuState::EDITING:
@@ -641,14 +501,6 @@ inline void handleMenuPress(PedalState &pedal) {
 
 inline void handleMenuLongPress(PedalState &pedal) {
   if(pedal.menuState == MenuState::ROUTING) {
-    pedal.menuState = MenuState::ROOT;
-    displayMenuRoot(pedal);
-  }
-  if(pedal.menuState == MenuState::PRESET_ACTION ||
-     pedal.menuState == MenuState::EDITING_PA_MODE ||
-     pedal.menuState == MenuState::EDITING_PA_NUM ||
-     pedal.menuState == MenuState::EDITING_PA_CH) {
-    saveAllPresets();
     pedal.menuState = MenuState::ROOT;
     displayMenuRoot(pedal);
   }

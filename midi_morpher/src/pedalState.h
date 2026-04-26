@@ -19,13 +19,15 @@ struct PedalState
     // Saved CC variant (0=Momentary, 1=Latching) during the CC Hi/Lo config levels
     uint8_t modeSelectCCVariant = 0;
 
-    // Three-level mode select (category → sub-group → variant)
+    // Three-level mode select (category → sub-group → variant → value → velocity)
     bool    inModeSelect        = false;
-    uint8_t modeSelectLevel     = 0;   // 0=category, 1=sub-group/variant, 2=variant within sub-group
+    uint8_t modeSelectLevel     = 0;   // 0=cat, 1=sub/var, 2=var/CChi, 3=CClo, 4=value, 5=velocity
     uint8_t modeSelectCatIdx    = 0;
-    uint8_t modeSelectVarIdx    = 0;   // sub-group idx at level 1+  (or direct variant if no sub-groups)
+    uint8_t modeSelectVarIdx    = 0;   // sub-group idx at level 1+ / value at level 4
     uint8_t modeSelectSubVarIdx = 0;   // variant within sub-group at level 2
-    int8_t  modeSelectFSIdx     = -1;
+    int8_t  modeSelectFSIdx     = -1;  // -1=none; 0-5=FS index; 6=load action edit
+    uint8_t modeSelectFinalIdx  = 0;   // tentative mode index when entering level 4+
+    uint8_t modeSelectVelocity  = 100; // velocity scratch at level 5
 
     // Action selector (FS+encBtn → pick which press-type to configure)
     bool    inActionSelect            = false;
@@ -49,6 +51,23 @@ struct PedalState
     // when per-FS mode is disabled (single-modulator / baud-safe mode).
     MidiCCModulator& modForFS(int idx) {
         return globalSettings.perFsModulator ? modulators[idx] : modulators[0];
+    }
+
+    // Virtual button used when editing the preset load action via mode select.
+    FSButton loadActionEditBtn = FSButton(255, 255, "Load Act", 0);
+
+    // Returns the FSButton being edited in mode select (loadActionEditBtn when FSIdx==6).
+    FSButton& modeSelectBtn() {
+        return (modeSelectFSIdx == 6)
+            ? loadActionEditBtn
+            : buttons[(uint8_t)modeSelectFSIdx];
+    }
+
+    // Returns the modulator to use for mode select (modulators[0] for load action).
+    MidiCCModulator& modeSelectMod() {
+        return (modeSelectFSIdx == 6)
+            ? modulators[0]
+            : (globalSettings.perFsModulator ? modulators[(uint8_t)modeSelectFSIdx] : modulators[0]);
     }
 
     std::array<FSButton, 6> buttons = {

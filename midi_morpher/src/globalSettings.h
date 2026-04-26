@@ -33,10 +33,6 @@ enum class MenuState : uint8_t {
     EDITING,
     ROUTING,
     LOCK_CONFIRM,
-    PRESET_ACTION,       // submenu: enabled / mode / MIDI# / channel / back
-    EDITING_PA_MODE,     // scrolling through all 39 modes
-    EDITING_PA_NUM,      // scrolling MIDI number 0-127
-    EDITING_PA_CH        // scrolling channel (Global / Ch 1-16)
 };
 
 // ── Persisted global settings (not per-preset) ────────────────────────────────

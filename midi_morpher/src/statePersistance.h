@@ -13,23 +13,23 @@ struct FSActionPersisted {
     uint8_t  fsChannel;
     uint8_t  ccLow;
     uint8_t  ccHigh;
-    uint8_t  _pad[2];    // align rampUpMs to 4 bytes
+    uint8_t  velocity;   // Note On velocity (default 100)
+    uint8_t  _pad;       // align rampUpMs to 4 bytes
     uint32_t rampUpMs;
     uint32_t rampDownMs;
 };  // 16 bytes
 
 // ── Persisted button record (64 bytes) ────────────────────────────────────────
-// Primary action: first 16 bytes (legacy layout preserved).
-// Extra actions: 3 × FSActionPersisted (48 bytes). NVS size change resets presets.
+// Extra actions: 3 × FSActionPersisted (48 bytes). Size change resets presets.
 struct FSButtonPersisted {
     uint8_t  modeIndex;
     uint8_t  midiNumber;
     uint32_t rampUpMs;
     uint32_t rampDownMs;
-    uint8_t  fsChannel;  // 0xFF = follow global; 0–15 = per-FS override; keyboard: modifier bitmask
-    uint8_t  ccLow;      // value sent on CC release / latch-off (default 0)
-    uint8_t  ccHigh;     // value sent on CC press / latch-on (default 127; 0 = treat as 127)
-    uint8_t  _pad;
+    uint8_t  fsChannel;  // 0xFF = follow global; keyboard: modifier bitmask
+    uint8_t  ccLow;
+    uint8_t  ccHigh;
+    uint8_t  velocity;   // Note On velocity (replaces _pad)
     FSActionPersisted extraActions[FS_NUM_EXTRA];  // LONG, DOUBLE, RELEASE
 };
 
@@ -53,7 +53,7 @@ inline void markStateDirty() {
 // ── NVS helpers ───────────────────────────────────────────────────────────────
 
 inline void saveAllPresets() {
-    File f = SPIFFS.open("/presets.bin", "w");
+    File f = SPIFFS.open("/presets3.bin", "w");
     if(f) { f.write((const uint8_t*)presets, sizeof(presets)); f.close(); }
     prefs.begin("presets", false);
     prefs.putUChar("act", activePreset);
@@ -76,7 +76,7 @@ inline void saveCurrentPreset(const PedalState &state) {
         pb.fsChannel  = btn.fsChannel;
         pb.ccLow      = btn.ccLow;
         pb.ccHigh     = btn.ccHigh;
-        pb._pad       = 0;
+        pb.velocity   = btn.velocity;
         for(int t = 0; t < (int)FS_NUM_EXTRA; t++) {
             const FSAction &act = btn.extraActions[t];
             FSActionPersisted &ap = pb.extraActions[t];
@@ -86,8 +86,8 @@ inline void saveCurrentPreset(const PedalState &state) {
             ap.fsChannel  = act.fsChannel;
             ap.ccLow      = act.ccLow;
             ap.ccHigh     = act.ccHigh;
-            ap._pad[0]    = 0;
-            ap._pad[1]    = 0;
+            ap.velocity   = act.velocity;
+            ap._pad       = 0;
             ap.rampUpMs   = (uint32_t)act.rampUpMs;
             ap.rampDownMs = (uint32_t)act.rampDownMs;
         }
@@ -106,6 +106,7 @@ inline void _fireLoadAction(const FSActionPersisted &act, PedalState &state) {
     tmp.fsChannel  = act.fsChannel;
     tmp.ccLow      = act.ccLow;
     tmp.ccHigh     = (act.ccHigh == 0) ? 127 : act.ccHigh;
+    tmp.velocity   = (act.velocity == 0) ? 100 : act.velocity;
     tmp.rampUpMs   = act.rampUpMs;
     tmp.rampDownMs = act.rampDownMs;
     uint8_t ch = (tmp.fsChannel == 0xFF) ? state.midiChannel : tmp.fsChannel;
@@ -128,6 +129,7 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
         btn.fsChannel    = pb.fsChannel;
         btn.ccLow        = pb.ccLow;
         btn.ccHigh       = (pb.ccHigh == 0) ? 127 : pb.ccHigh;
+        btn.velocity     = (pb.velocity == 0) ? 100 : pb.velocity;
         uint8_t mi       = pb.modeIndex < NUM_MODES ? pb.modeIndex : 0;
         applyModeFlags(btn, mi);
         // Load extra actions
@@ -140,6 +142,7 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
             act.fsChannel  = ap.fsChannel;
             act.ccLow      = ap.ccLow;
             act.ccHigh     = ap.ccHigh != 0 ? ap.ccHigh : 127;
+            act.velocity   = (ap.velocity == 0) ? 100 : ap.velocity;
             act.rampUpMs   = ap.rampUpMs;
             act.rampDownMs = ap.rampDownMs;
         }
@@ -180,8 +183,8 @@ inline void loadGlobalSettings(PedalState &state) {
 // Loads /presets.bin if present and correctly sized; otherwise factory defaults.
 inline void loadAllPresets(PedalState &state) {
     bool loaded = false;
-    if(SPIFFS.exists("/presets.bin")) {
-        File f = SPIFFS.open("/presets.bin", "r");
+    if(SPIFFS.exists("/presets3.bin")) {
+        File f = SPIFFS.open("/presets3.bin", "r");
         if(f && (size_t)f.size() == sizeof(presets)) {
             f.read((uint8_t*)presets, sizeof(presets));
             loaded = true;
@@ -193,7 +196,7 @@ inline void loadAllPresets(PedalState &state) {
             presets[p].midiChannel = 0;
             presets[p].bpm         = DEFAULT_BPM;
             for(int i = 0; i < 6; i++)
-                presets[p].buttons[i] = {1, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 0};
+                presets[p].buttons[i] = {1, 0, DEFAULT_RAMP_SPEED, DEFAULT_RAMP_SPEED, 0xFF, 0, 127, 100};
         }
         saveAllPresets();
     }

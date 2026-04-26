@@ -11,6 +11,88 @@ inline void initEncoderButton() {
   pinMode(encBtn.pin, INPUT_PULLUP);
 }
 
+static constexpr int8_t FS_LOAD_ACTION_IDX = 6;
+
+inline FSButton& _modeSelectBtn(PedalState &pedal) { return pedal.modeSelectBtn(); }
+inline MidiCCModulator& _modeSelectMod(PedalState &pedal) { return pedal.modeSelectMod(); }
+
+// If extra action slot xt currently holds a modulation mode, stop it immediately.
+inline void _stopExtraModIfNeeded(FSButton &btn, int8_t xt, MidiCCModulator &mod) {
+  if(xt < 0 || (uint8_t)xt >= FS_NUM_EXTRA) return;
+  uint8_t mi = btn.extraActions[(uint8_t)xt].modeIndex;
+  if(mi < NUM_MODES && modes[mi].isModSwitch) mod.reset();
+}
+
+inline void _saveLoadAction(PedalState &pedal) {
+  const FSButton &lb = pedal.loadActionEditBtn;
+  FSActionPersisted &la = presets[activePreset].loadAction;
+  la.enabled    = (lb.modeIndex != 0);
+  la.modeIndex  = lb.modeIndex;
+  la.midiNumber = lb.midiNumber;
+  la.fsChannel  = lb.fsChannel;
+  la.ccLow      = lb.ccLow;
+  la.ccHigh     = lb.ccHigh;
+  la.velocity   = lb.velocity;
+  la.rampUpMs   = lb.rampUpMs;
+  la.rampDownMs = lb.rampDownMs;
+  la._pad       = 0;
+  saveAllPresets();
+  markStateDirty();
+}
+
+// After applying mode (and optionally Hi/Lo for CC), transition to value entry
+// (level 4) or exit mode select if no value is needed.
+// newIdx       = the fully-determined mode index
+// isExtraAction = true if editing an extra action slot
+// Returns true if entering level 4; caller should return after this.
+inline bool _transitionToValueEntry(
+    PedalState &pedal, FSButton &btn,
+    uint8_t newIdx, bool isExtraAction,
+    void (*displayModeSelect)(const char *, uint8_t, uint8_t, uint8_t, uint8_t),
+    void (*displayModeChange)(FSButton &),
+    void (*displayActionSelect)(FSButton &, uint8_t))
+{
+  if(!modeNeedsValueEntry(newIdx)) {
+    // No value entry needed — exit mode select
+    markStateDirty();
+    pedal.inModeSelect = false;
+    if(isExtraAction) {
+      pedal.modeSelectFromActionSelect = false;
+      pedal.inActionSelect = true;
+      displayActionSelect(btn, pedal.actionSelectSlot);
+    } else if(pedal.modeSelectFSIdx == FS_LOAD_ACTION_IDX) {
+      _saveLoadAction(pedal);
+      pedal.menuState   = MenuState::ROOT;
+      pedal.menuItemIdx = MENU_PRESET_ACTION;
+      displayMenuRoot(pedal);
+    } else {
+      displayModeChange(btn);
+    }
+    return false;
+  }
+  // Enter level 4
+  pedal.modeSelectFinalIdx = newIdx;
+  uint8_t curMidi = isExtraAction
+      ? btn.extraActions[(uint8_t)pedal.modeSelectExtraActionType].midiNumber
+      : btn.midiNumber;
+  // Clamp initial value to valid range
+  if(newIdx < NUM_MODES) {
+    const ModeInfo &mi = modes[newIdx];
+    if(mi.isSystem)        curMidi = min(curMidi, (uint8_t)(NUM_SYS_CMDS - 1));
+    else if(mi.isKeyboard) curMidi = min(curMidi, (uint8_t)(NUM_HID_KEYS - 1));
+    else if(mi.isScene)    curMidi = min(curMidi, mi.sceneMaxVal);
+    else if(mi.mode == FootswitchMode::PresetNum) {
+      uint8_t maxP = pedal.globalSettings.presetCount > 0 ? pedal.globalSettings.presetCount - 1 : 0;
+      curMidi = min(curMidi, maxP);
+    }
+    // modSwitch: PB_SENTINEL is valid, otherwise keep as-is (will be clamped on scroll)
+  }
+  pedal.modeSelectVarIdx = curMidi;
+  pedal.modeSelectLevel  = 4;
+  displayModeSelect(btn.name, pedal.modeSelectCatIdx, 4, curMidi, newIdx);
+  return true;
+}
+
 inline bool          encBtnPressing      = false;
 inline bool          encBtnHandled       = false;
 inline bool          encBtnDidPresetNav  = false;
@@ -46,7 +128,7 @@ inline void handleEncoderButton(PedalState &pedal,
     if(!encBtnHandled) {
       // ── Main menu ─────────────────────────────────────────────────────────
       if(pedal.menuState != MenuState::NONE) {
-        handleMenuPress(pedal);
+        handleMenuPress(pedal, displayModeSelect);
         return;
       }
 
@@ -66,7 +148,16 @@ inline void handleEncoderButton(PedalState &pedal,
           pedal.actionSelectSlot = 0;
           displayActionSelect(btn, 0);
         } else if(expanded && slot == 4) {
-          // COLLAPSE: disable all extra actions
+          // COLLAPSE: stop any running modulation, then disable all extra actions
+          MidiCCModulator &colMod = _modeSelectMod(pedal);
+          for(uint8_t t = 0; t < FS_NUM_EXTRA; t++) {
+            if(btn.extraActions[t].enabled &&
+               btn.extraActions[t].modeIndex < NUM_MODES &&
+               modes[btn.extraActions[t].modeIndex].isModSwitch) {
+              colMod.reset();
+              break;
+            }
+          }
           for(uint8_t t = 0; t < FS_NUM_EXTRA; t++)
             btn.extraActions[t].enabled = false;
           markStateDirty();
@@ -99,28 +190,24 @@ inline void handleEncoderButton(PedalState &pedal,
       }
 
       if(pedal.inModeSelect) {
-        FSButton &btn = pedal.buttons[pedal.modeSelectFSIdx];
+        FSButton &btn = _modeSelectBtn(pedal);
         const ModeCategory &cat = modeCategories[pedal.modeSelectCatIdx];
 
         if(pedal.modeSelectLevel == 0) {
           // ── Confirm category ──────────────────────────────────────────────
           if(cat.autoSelect) {
+            uint8_t finalIdx = cat.firstIdx;
             int8_t _xt = pedal.modeSelectExtraActionType;
-            if(pedal.modeSelectFromActionSelect && _xt >= 0) {
-              btn.extraActions[_xt].modeIndex = cat.firstIdx;
+            bool isExtra = (pedal.modeSelectFromActionSelect && _xt >= 0);
+            if(isExtra) {
+              _stopExtraModIfNeeded(btn, _xt, _modeSelectMod(pedal));
+              btn.extraActions[_xt].modeIndex = finalIdx;
               btn.extraActions[_xt].enabled   = true;
             } else {
-              applyModeIndex(btn, cat.firstIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
+              applyModeIndex(btn, finalIdx, &_modeSelectMod(pedal));
             }
-            markStateDirty();
-            pedal.inModeSelect = false;
-            if(pedal.modeSelectFromActionSelect) {
-              pedal.modeSelectFromActionSelect = false;
-              pedal.inActionSelect = true;
-              displayActionSelect(btn, pedal.actionSelectSlot);
-            } else {
-              displayModeChange(btn);
-            }
+            _transitionToValueEntry(pedal, btn, finalIdx, isExtra,
+                                    displayModeSelect, displayModeChange, displayActionSelect);
           } else {
             // Multi category: jump to scene-select level, or bail if no scenes
             bool isMultiCat = (cat.firstIdx < NUM_MODES &&
@@ -168,11 +255,12 @@ inline void handleEncoderButton(PedalState &pedal,
           if(isMultiCat) {
             int8_t _xt = pedal.modeSelectExtraActionType;
             if(pedal.modeSelectFromActionSelect && _xt >= 0) {
+              _stopExtraModIfNeeded(btn, _xt, _modeSelectMod(pedal));
               btn.extraActions[_xt].modeIndex  = cat.firstIdx;
               btn.extraActions[_xt].midiNumber = pedal.modeSelectVarIdx;
               btn.extraActions[_xt].enabled    = true;
             } else {
-              applyModeIndex(btn, cat.firstIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
+              applyModeIndex(btn, cat.firstIdx, &_modeSelectMod(pedal));
               btn.midiNumber = pedal.modeSelectVarIdx;
             }
             markStateDirty();
@@ -208,70 +296,59 @@ inline void handleEncoderButton(PedalState &pedal,
               displayModeSelect(btn.name, pedal.modeSelectCatIdx, 2,
                                 pedal.modeSelectVarIdx, pedal.modeSelectCCVariant);
             } else {
-              // All other flat categories: apply immediately
+              // All other flat categories: apply mode, then enter value entry or exit
               int8_t _xt = pedal.modeSelectExtraActionType;
-              if(pedal.modeSelectFromActionSelect && _xt >= 0) {
+              bool isExtra = (pedal.modeSelectFromActionSelect && _xt >= 0);
+              if(isExtra) {
+                _stopExtraModIfNeeded(btn, _xt, _modeSelectMod(pedal));
                 btn.extraActions[_xt].modeIndex = tentIdx;
                 btn.extraActions[_xt].enabled   = true;
               } else {
-                applyModeIndex(btn, tentIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
+                applyModeIndex(btn, tentIdx, &_modeSelectMod(pedal));
               }
-              markStateDirty();
-              pedal.inModeSelect = false;
-              if(pedal.modeSelectFromActionSelect) {
-                pedal.modeSelectFromActionSelect = false;
-                pedal.inActionSelect = true;
-                displayActionSelect(btn, pedal.actionSelectSlot);
-              } else {
-                displayModeChange(btn);
-              }
+              _transitionToValueEntry(pedal, btn, tentIdx, isExtra,
+                                      displayModeSelect, displayModeChange, displayActionSelect);
             }
           }
 
         } else if(pedal.modeSelectLevel == 2) {
           if(cat.subGroupCount > 0) {
-            // ── Level 2: confirm variant within sub-group → apply ─────────
+            // ── Level 2: confirm variant within sub-group → apply + value entry ─
             uint8_t newIdx = cat.firstIdx
                            + pedal.modeSelectVarIdx    * cat.subGroupSize
                            + pedal.modeSelectSubVarIdx;
             int8_t _xt = pedal.modeSelectExtraActionType;
-            if(pedal.modeSelectFromActionSelect && _xt >= 0) {
+            bool isExtra = (pedal.modeSelectFromActionSelect && _xt >= 0);
+            if(isExtra) {
+              _stopExtraModIfNeeded(btn, _xt, _modeSelectMod(pedal));
               btn.extraActions[_xt].modeIndex = newIdx;
               btn.extraActions[_xt].enabled   = true;
             } else {
-              applyModeIndex(btn, newIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
+              applyModeIndex(btn, newIdx, &_modeSelectMod(pedal));
             }
-            markStateDirty();
-            pedal.inModeSelect = false;
-            if(pedal.modeSelectFromActionSelect) {
-              pedal.modeSelectFromActionSelect = false;
-              pedal.inActionSelect = true;
-              displayActionSelect(btn, pedal.actionSelectSlot);
-            } else {
-              displayModeChange(btn);
-            }
+            _transitionToValueEntry(pedal, btn, newIdx, isExtra,
+                                    displayModeSelect, displayModeChange, displayActionSelect);
           } else {
             uint8_t ccModeIdx = cat.firstIdx + pedal.modeSelectCCVariant;
             if(ccModeIdx < NUM_MODES && modes[ccModeIdx].mode == FootswitchMode::SingleCC) {
-              // ── Level 2 Single CC: value confirmed → apply ────────────────
+              // ── Level 2 Single CC: value confirmed → apply + enter CC# ───
               int8_t _xt = pedal.modeSelectExtraActionType;
-              if(pedal.modeSelectFromActionSelect && _xt >= 0) {
+              bool isExtra = (pedal.modeSelectFromActionSelect && _xt >= 0);
+              if(isExtra) {
+                _stopExtraModIfNeeded(btn, _xt, _modeSelectMod(pedal));
                 btn.extraActions[_xt].modeIndex = ccModeIdx;
                 btn.extraActions[_xt].ccHigh    = pedal.modeSelectVarIdx;
                 btn.extraActions[_xt].enabled   = true;
               } else {
-                applyModeIndex(btn, ccModeIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
+                applyModeIndex(btn, ccModeIdx, &_modeSelectMod(pedal));
                 btn.ccHigh = pedal.modeSelectVarIdx;
               }
-              markStateDirty();
-              pedal.inModeSelect = false;
-              if(pedal.modeSelectFromActionSelect) {
-                pedal.modeSelectFromActionSelect = false;
-                pedal.inActionSelect = true;
-                displayActionSelect(btn, pedal.actionSelectSlot);
-              } else {
-                displayModeChange(btn);
-              }
+              // Enter level 4 for CC#
+              pedal.modeSelectFinalIdx = ccModeIdx;
+              uint8_t curCC = isExtra ? btn.extraActions[_xt].midiNumber : btn.midiNumber;
+              pedal.modeSelectVarIdx = curCC;
+              pedal.modeSelectLevel  = 4;
+              displayModeSelect(btn.name, pedal.modeSelectCatIdx, 4, curCC, ccModeIdx);
             } else {
               // ── Level 2 CC: Hi confirmed → enter Lo config ────────────────
               int8_t _xt3 = pedal.modeSelectExtraActionType;
@@ -283,26 +360,85 @@ inline void handleEncoderButton(PedalState &pedal,
             }
           }
 
-        } else {
-          // ── Level 3 CC: Lo confirmed → apply mode + Hi + Lo ──────────────
+        } else if(pedal.modeSelectLevel == 3) {
+          // ── Level 3 CC: Lo confirmed → apply mode + Hi + Lo → enter CC# ──
           uint8_t newIdx = cat.firstIdx + pedal.modeSelectCCVariant;
           int8_t _xt = pedal.modeSelectExtraActionType;
-          if(pedal.modeSelectFromActionSelect && _xt >= 0) {
+          bool isExtra = (pedal.modeSelectFromActionSelect && _xt >= 0);
+          if(isExtra) {
+            _stopExtraModIfNeeded(btn, _xt, _modeSelectMod(pedal));
             btn.extraActions[_xt].modeIndex = newIdx;
             btn.extraActions[_xt].ccHigh    = pedal.modeSelectVarIdx;
             btn.extraActions[_xt].ccLow     = pedal.modeSelectSubVarIdx;
             btn.extraActions[_xt].enabled   = true;
           } else {
-            applyModeIndex(btn, newIdx, &pedal.modForFS(pedal.modeSelectFSIdx));
+            applyModeIndex(btn, newIdx, &_modeSelectMod(pedal));
             btn.ccHigh = pedal.modeSelectVarIdx;
             btn.ccLow  = pedal.modeSelectSubVarIdx;
           }
+          // Enter level 4 for CC#
+          pedal.modeSelectFinalIdx = newIdx;
+          uint8_t curCC = isExtra ? btn.extraActions[_xt].midiNumber : btn.midiNumber;
+          pedal.modeSelectVarIdx = curCC;
+          pedal.modeSelectLevel  = 4;
+          displayModeSelect(btn.name, pedal.modeSelectCatIdx, 4, curCC, newIdx);
+
+        } else if(pedal.modeSelectLevel == 4) {
+          // ── Level 4: primary value confirmed → set midiNumber ────────────
+          uint8_t fi   = pedal.modeSelectFinalIdx;
+          uint8_t newMidi = pedal.modeSelectVarIdx;
+          int8_t _xt = pedal.modeSelectExtraActionType;
+          bool isExtra = (pedal.modeSelectFromActionSelect && _xt >= 0);
+          if(isExtra) {
+            btn.extraActions[_xt].midiNumber = newMidi;
+          } else {
+            applyModeIndex(btn, fi, &_modeSelectMod(pedal));
+            btn.midiNumber = newMidi;
+          }
+          markStateDirty();
+          if(modeNeedsVelocity(fi)) {
+            uint8_t curVel = (isExtra && _xt >= 0)
+                ? btn.extraActions[(uint8_t)_xt].velocity
+                : btn.velocity;
+            pedal.modeSelectVelocity = curVel;
+            pedal.modeSelectLevel    = 5;
+            displayModeSelect(btn.name, pedal.modeSelectCatIdx, 5,
+                              pedal.modeSelectVelocity, fi);
+          } else {
+            pedal.inModeSelect = false;
+            if(isExtra) {
+              pedal.modeSelectFromActionSelect = false;
+              pedal.inActionSelect = true;
+              displayActionSelect(btn, pedal.actionSelectSlot);
+            } else if(pedal.modeSelectFSIdx == FS_LOAD_ACTION_IDX) {
+              _saveLoadAction(pedal);
+              pedal.menuState   = MenuState::ROOT;
+              pedal.menuItemIdx = MENU_PRESET_ACTION;
+              displayMenuRoot(pedal);
+            } else {
+              displayModeChange(btn);
+            }
+          }
+
+        } else {
+          // ── Level 5: velocity confirmed → done ───────────────────────────
+          int8_t _xt5 = pedal.modeSelectExtraActionType;
+          bool isExtra5 = (pedal.modeSelectFromActionSelect && _xt5 >= 0);
+          if(isExtra5)
+            btn.extraActions[(uint8_t)_xt5].velocity = pedal.modeSelectVelocity;
+          else
+            btn.velocity = pedal.modeSelectVelocity;
           markStateDirty();
           pedal.inModeSelect = false;
-          if(pedal.modeSelectFromActionSelect) {
+          if(isExtra5) {
             pedal.modeSelectFromActionSelect = false;
             pedal.inActionSelect = true;
             displayActionSelect(btn, pedal.actionSelectSlot);
+          } else if(pedal.modeSelectFSIdx == FS_LOAD_ACTION_IDX) {
+            _saveLoadAction(pedal);
+            pedal.menuState   = MenuState::ROOT;
+            pedal.menuItemIdx = MENU_PRESET_ACTION;
+            displayMenuRoot(pedal);
           } else {
             displayModeChange(btn);
           }
