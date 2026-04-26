@@ -44,6 +44,8 @@ struct PresetData {
 inline PresetData presets[NUM_PRESETS];
 inline uint8_t   activePreset = 0;
 inline bool      presetDirty  = false;
+// Last-saved load action for the active preset. Used to revert unsaved changes on preset switch.
+inline FSActionPersisted _loadActionSaved = {};
 
 // ── Dirty flag — replaces auto-save; callers unchanged ────────────────────────
 inline void markStateDirty() {
@@ -93,6 +95,7 @@ inline void saveCurrentPreset(const PedalState &state) {
         }
     }
     saveAllPresets();
+    _loadActionSaved = presets[activePreset].loadAction;
     presetDirty = false;
 }
 
@@ -155,6 +158,9 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
         state.modulators[i].restingHigh = false;
         state.modulators[i].reset();
     }
+    // Revert any unsaved load action changes on the old preset, then snapshot the new one.
+    presets[activePreset].loadAction = _loadActionSaved;
+    _loadActionSaved = presets[idx].loadAction;
     activePreset = idx;
     presetDirty  = false;
     _fireLoadAction(p.loadAction, state);
@@ -203,5 +209,6 @@ inline void loadAllPresets(PedalState &state) {
     prefs.begin("presets", true);
     activePreset = constrain(prefs.getUChar("act", 0), 0, NUM_PRESETS - 1);
     prefs.end();
+    _loadActionSaved = presets[activePreset].loadAction;
     applyPreset(activePreset, state);
 }

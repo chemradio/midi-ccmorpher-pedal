@@ -36,7 +36,6 @@ inline void _saveLoadAction(PedalState &pedal) {
   la.rampUpMs   = lb.rampUpMs;
   la.rampDownMs = lb.rampDownMs;
   la._pad       = 0;
-  saveAllPresets();
   markStateDirty();
 }
 
