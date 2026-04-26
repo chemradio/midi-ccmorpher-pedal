@@ -170,6 +170,18 @@ inline static void _printNoteName(uint8_t note) {
   display.print((int)(note / 12) - 1);
 }
 
+inline static void _displayRampSpeed(uint32_t raw) {
+  if(raw & CLOCK_SYNC_FLAG) {
+    uint8_t ni = (uint8_t)(raw & 0xFF);
+    if(ni >= NUM_NOTE_VALUES) ni = NUM_NOTE_VALUES - 1;
+    display.print(noteValueNames[ni]);
+  } else {
+    float s = raw / 1000.0f;
+    display.print(s, 2);
+    display.print(F("s"));
+  }
+}
+
 inline static int _displayModeName(const char *modeName, int y) {
   bool big = strlen(modeName) <= 10;
   display.setTextSize(big ? 2 : 1);
@@ -712,12 +724,15 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
   // baseDepth = selection steps before value entry
   uint8_t baseDepth = cat.autoSelect ? 1 : (isMultiCat2 ? 2 : (cat.subGroupCount > 0 ? 3 : (isCCCat ? (level >= 2 && idx2 == 2 ? 3 : 4) : 2)));
   bool hasValEntry = (!cat.autoSelect && !isMultiCat2);
-  bool hasVel = (level >= 4 && idx2 < NUM_MODES) ? modeNeedsVelocity(idx2) : false;
-  uint8_t totalDepth = baseDepth + (hasValEntry ? 1 : 0) + (hasVel ? 1 : 0);
+  bool hasVel  = (level >= 4 && level < 6 && idx2 < NUM_MODES) ? modeNeedsVelocity(idx2)  : false;
+  bool hasRamp = (level >= 6) ? true : ((level >= 4 && level < 6 && idx2 < NUM_MODES) ? modeNeedsRampEntry(idx2) : false);
+  uint8_t totalDepth = baseDepth + (hasValEntry ? 1 : 0) + (hasVel ? 1 : 0) + (hasRamp ? 2 : 0);
   uint8_t stepNum;
-  if(level < 4)      stepNum = level + 1;
+  if(level < 4)       stepNum = level + 1;
   else if(level == 4) stepNum = baseDepth + 1;
-  else               stepNum = baseDepth + 2; // level 5
+  else if(level == 5) stepNum = baseDepth + 2;
+  else if(level == 6) stepNum = baseDepth + 1 + (hasVel ? 1 : 0) + 1;
+  else               stepNum = totalDepth; // level 7 = last step
 
   // ── Inverted header bar ────────────────────────────────────────────────────
   display.fillRect(0, 0, 128, 10, SSD1306_WHITE);
@@ -874,6 +889,37 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
     display.setTextSize(3);
     display.setCursor(0, 26);
     display.print(idx1);
+    display.setTextSize(1);
+    display.setCursor(0, 56);
+    display.print(F("Turn=value  Press=OK"));
+    display.display();
+    return;
+  } else if(level == 6) {
+    // Level 6: Up Speed — idx1 = speed table index
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 12);
+    display.print(F("Up Speed:"));
+    display.setTextSize(2);
+    display.setCursor(0, 24);
+    _displayRampSpeed(speedIdxToRampRaw(idx1));
+    display.setTextSize(1);
+    display.setCursor(0, 56);
+    display.print(F("Turn=value  Press=OK"));
+    display.display();
+    return;
+  } else if(level == 7) {
+    // Level 7: Down Speed — idx1 = dn speed index, idx2 = up speed index (for reference)
+    display.setTextColor(SSD1306_WHITE);
+    display.setTextSize(1);
+    display.setCursor(0, 12);
+    display.print(F("Up: "));
+    _displayRampSpeed(speedIdxToRampRaw(idx2));
+    display.setCursor(0, 22);
+    display.print(F("Dn Speed:"));
+    display.setTextSize(2);
+    display.setCursor(0, 32);
+    _displayRampSpeed(speedIdxToRampRaw(idx1));
     display.setTextSize(1);
     display.setCursor(0, 56);
     display.print(F("Turn=value  Press=OK"));

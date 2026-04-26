@@ -32,6 +32,30 @@ inline const float noteValueMul[NUM_NOTE_VALUES] = {
   8.0f         // 2/1
 };
 
+// ── Ramp speed encoder table ──────────────────────────────────────────────────
+// Index 0..RAMP_MS_TABLE_SIZE-1  → plain ms (0, 100, 200 … 5000)
+// Index RAMP_MS_TABLE_SIZE..RAMP_SPEED_TABLE_SIZE-1 → note-value sync
+static constexpr uint8_t RAMP_MS_TABLE_SIZE    = 51;           // 0–5000 in 100 ms steps
+static constexpr uint8_t RAMP_SPEED_TABLE_SIZE = RAMP_MS_TABLE_SIZE + NUM_NOTE_VALUES; // 68
+
+inline uint8_t rampRawToSpeedIdx(uint32_t raw) {
+  if(raw & CLOCK_SYNC_FLAG) {
+    uint8_t ni = (uint8_t)(raw & 0xFF);
+    if(ni >= NUM_NOTE_VALUES) ni = NUM_NOTE_VALUES - 1;
+    return RAMP_MS_TABLE_SIZE + ni;
+  }
+  // Clamp to 0–5000, round to nearest 100 ms step
+  uint32_t ms = raw > 5000 ? 5000 : raw;
+  return (uint8_t)((ms + 50) / 100);
+}
+
+inline uint32_t speedIdxToRampRaw(uint8_t idx) {
+  if(idx < RAMP_MS_TABLE_SIZE) return (uint32_t)idx * 100;
+  uint8_t ni = idx - RAMP_MS_TABLE_SIZE;
+  if(ni >= NUM_NOTE_VALUES) ni = NUM_NOTE_VALUES - 1;
+  return CLOCK_SYNC_FLAG | ni;
+}
+
 // ── MidiClock ────────────────────────────────────────────────────────────────
 // Internal/external MIDI clock generator and tap tempo tracker.
 // 24 pulses per quarter note. Tempo LED pulses on the beat (50 ms flash).

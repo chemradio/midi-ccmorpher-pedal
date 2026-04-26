@@ -404,6 +404,14 @@ inline void handleEncoderButton(PedalState &pedal,
             pedal.modeSelectLevel    = 5;
             displayModeSelect(btn.name, pedal.modeSelectCatIdx, 5,
                               pedal.modeSelectVelocity, fi);
+          } else if(!isExtra && pedal.modeSelectFSIdx != FS_LOAD_ACTION_IDX
+                    && modeNeedsRampEntry(fi)) {
+            // Mod-switch mode: enter Up Speed submenu
+            pedal.modeSelectRampUp   = btn.rampUpMs;
+            pedal.modeSelectRampDown = btn.rampDownMs;
+            pedal.modeSelectLevel    = 6;
+            displayModeSelect(btn.name, pedal.modeSelectCatIdx, 6,
+                              rampRawToSpeedIdx(pedal.modeSelectRampUp), 0);
           } else {
             pedal.inModeSelect = false;
             if(isExtra) {
@@ -420,7 +428,7 @@ inline void handleEncoderButton(PedalState &pedal,
             }
           }
 
-        } else {
+        } else if(pedal.modeSelectLevel == 5) {
           // ── Level 5: velocity confirmed → done ───────────────────────────
           int8_t _xt5 = pedal.modeSelectExtraActionType;
           bool isExtra5 = (pedal.modeSelectFromActionSelect && _xt5 >= 0);
@@ -442,6 +450,22 @@ inline void handleEncoderButton(PedalState &pedal,
           } else {
             displayModeChange(btn);
           }
+
+        } else if(pedal.modeSelectLevel == 6) {
+          // ── Level 6: Up Speed confirmed → default Down = Up, enter Down ─
+          pedal.modeSelectRampDown = pedal.modeSelectRampUp;
+          pedal.modeSelectLevel    = 7;
+          displayModeSelect(btn.name, pedal.modeSelectCatIdx, 7,
+                            rampRawToSpeedIdx(pedal.modeSelectRampDown),
+                            rampRawToSpeedIdx(pedal.modeSelectRampUp));
+
+        } else {
+          // ── Level 7: Down Speed confirmed → apply both and exit ───────────
+          btn.rampUpMs   = pedal.modeSelectRampUp;
+          btn.rampDownMs = pedal.modeSelectRampDown;
+          markStateDirty();
+          pedal.inModeSelect = false;
+          displayModeChange(btn);
         }
 
       } else {

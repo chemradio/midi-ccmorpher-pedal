@@ -147,12 +147,25 @@ inline void handleEncoder(PedalState &pedal,
       }
       displayModeSelect(fsName, pedal.modeSelectCatIdx, 4,
                         pedal.modeSelectVarIdx, pedal.modeSelectFinalIdx);
-    } else {
+    } else if(pedal.modeSelectLevel == 5) {
       // Level 5: velocity (1-127, acceleration applies)
       int next = constrain((int)pedal.modeSelectVelocity + delta * accelMult, 1, 127);
       pedal.modeSelectVelocity = (uint8_t)next;
       displayModeSelect(fsName, pedal.modeSelectCatIdx, 5,
                         pedal.modeSelectVelocity, pedal.modeSelectFinalIdx);
+    } else if(pedal.modeSelectLevel == 6) {
+      // Level 6: Up Speed — scroll through 51 ms steps + 17 note-value entries
+      uint8_t cur  = rampRawToSpeedIdx(pedal.modeSelectRampUp);
+      int     next = constrain((int)cur + delta, 0, (int)RAMP_SPEED_TABLE_SIZE - 1);
+      pedal.modeSelectRampUp = speedIdxToRampRaw((uint8_t)next);
+      displayModeSelect(fsName, pedal.modeSelectCatIdx, 6, (uint8_t)next, 0);
+    } else {
+      // Level 7: Down Speed
+      uint8_t cur  = rampRawToSpeedIdx(pedal.modeSelectRampDown);
+      int     next = constrain((int)cur + delta, 0, (int)RAMP_SPEED_TABLE_SIZE - 1);
+      pedal.modeSelectRampDown = speedIdxToRampRaw((uint8_t)next);
+      uint8_t upIdx = rampRawToSpeedIdx(pedal.modeSelectRampUp);
+      displayModeSelect(fsName, pedal.modeSelectCatIdx, 7, (uint8_t)next, upIdx);
     }
     return;
   }

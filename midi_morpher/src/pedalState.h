@@ -28,6 +28,8 @@ struct PedalState
     int8_t  modeSelectFSIdx     = -1;  // -1=none; 0-5=FS index; 6=load action edit
     uint8_t modeSelectFinalIdx  = 0;   // tentative mode index when entering level 4+
     uint8_t modeSelectVelocity  = 100; // velocity scratch at level 5
+    uint32_t modeSelectRampUp   = DEFAULT_RAMP_SPEED; // ramp speed scratch at levels 6/7
+    uint32_t modeSelectRampDown = DEFAULT_RAMP_SPEED;
 
     // Action selector (FS+encBtn → pick which press-type to configure)
     bool    inActionSelect            = false;

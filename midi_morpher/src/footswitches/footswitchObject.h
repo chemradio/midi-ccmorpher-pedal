@@ -727,6 +727,12 @@ inline bool modeNeedsVelocity(uint8_t modeIdx) {
   return modes[modeIdx].isNote;
 }
 
+// Returns true if this mode shows the Up/Down speed submenus (levels 6/7).
+inline bool modeNeedsRampEntry(uint8_t modeIdx) {
+  if(modeIdx >= NUM_MODES) return false;
+  return modes[modeIdx].isModSwitch;
+}
+
 // ── Free mode-application helpers ────────────────────────────────────────────
 
 inline void applyModeFlags(FSButton &btn, uint8_t idx) {
