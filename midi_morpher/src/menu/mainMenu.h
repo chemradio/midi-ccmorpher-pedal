@@ -363,8 +363,7 @@ inline void handleMenuRotate(PedalState &pedal, int delta) {
   }
 }
 
-inline void handleMenuPress(PedalState &pedal,
-    void (*displayModeSelectFn)(const char *, uint8_t, uint8_t, uint8_t, uint8_t)) {
+inline void handleMenuPress(PedalState &pedal) {
   switch(pedal.menuState) {
   case MenuState::ROOT:
     switch(pedal.menuItemIdx) {
@@ -422,7 +421,7 @@ inline void handleMenuPress(PedalState &pedal,
       break;
     }
     case MENU_PRESET_ACTION: {
-      // Init loadActionEditBtn from saved load action, then enter mode select
+      // Populate loadActionEditBtn from saved load action, then open cursor edit menu
       const FSActionPersisted &la = presets[activePreset].loadAction;
       FSButton &lb = pedal.loadActionEditBtn;
       if(la.enabled && la.modeIndex < NUM_MODES) {
@@ -442,16 +441,13 @@ inline void handleMenuPress(PedalState &pedal,
         lb.ccHigh     = 127;
         lb.velocity   = 100;
       }
-      pedal.menuState                  = MenuState::NONE;
-      pedal.inModeSelect               = true;
-      pedal.modeSelectLevel            = 0;
-      pedal.modeSelectFSIdx            = 6; // FS_LOAD_ACTION_IDX
-      pedal.modeSelectCatIdx           = categoryForModeIndex(la.enabled ? la.modeIndex : 0);
-      pedal.modeSelectVarIdx           = 0;
-      pedal.modeSelectSubVarIdx        = 0;
-      pedal.modeSelectFromActionSelect = false;
-      pedal.modeSelectExtraActionType  = -1;
-      displayModeSelectFn(lb.name, pedal.modeSelectCatIdx, 0, 0, 0);
+      pedal.menuState      = MenuState::NONE;
+      pedal.inFSEdit       = true;
+      pedal.fsEditFSIdx    = FS_LOAD_ACTION_IDX;
+      pedal.fsEditExtraType = -1;
+      pedal.fsEditCursor   = 0;
+      pedal.fsEditEditing  = false;
+      displayFSEditMenu(pedal);
       break;
     }
     case MENU_LOCK:

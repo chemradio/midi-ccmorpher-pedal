@@ -110,10 +110,13 @@ void loop() {
       }
       // Any FS press exits config / menu and returns to home screen
       if(pedal.inModeSelect || pedal.inActionSelect ||
-         pedal.inChannelSelect || pedal.menuState != MenuState::NONE) {
+         pedal.inChannelSelect || pedal.inFSEdit ||
+         pedal.menuState != MenuState::NONE) {
         pedal.inModeSelect               = false;
         pedal.inActionSelect             = false;
         pedal.inChannelSelect            = false;
+        pedal.inFSEdit                   = false;
+        pedal.fsEditEditing              = false;
         pedal.modeSelectFromActionSelect = false;
         pedal.menuState                  = MenuState::NONE;
         g_homeFSNeedsDraw                = false;
@@ -159,7 +162,10 @@ void loop() {
   }
 
   handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage, displayFSChannel, displayTapTempo, displayModeSelectScreen, displayActionSelect);
-  handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage, displayFSChannel, displayModeSelectScreen, displayActionSelect);
+  handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage, displayFSChannel, displayModeSelectScreen, displayActionSelect, [](){
+    triggerPresetSaveBlink();
+    displayPresetSaved(activePreset);
+  });
 
   // Preset button (short press = next preset, long press = save)
   handlePresetButton(pedal);

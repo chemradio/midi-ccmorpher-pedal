@@ -5,6 +5,8 @@
 #include "midiCCModulator.h"
 #include "sharedTypes.h"
 
+static constexpr uint8_t FS_LOAD_ACTION_IDX = 6;
+
 struct PedalState
 {
     // pedal globals
@@ -36,6 +38,28 @@ struct PedalState
     uint8_t actionSelectSlot          = 0;   // highlighted slot
     bool    modeSelectFromActionSelect = false; // return-to-selector after mode select
     int8_t  modeSelectExtraActionType = -1;  // -1=PRESS, 0/1/2=extraActions[t]
+
+    // FS cursor edit menu
+    bool    inFSEdit        = false;
+    uint8_t fsEditFSIdx     = 0;      // 0-5=FS; FS_LOAD_ACTION_IDX=load action
+    int8_t  fsEditExtraType = -1;     // -1=PRESS; 0=HOLD; 1=DBL; 2=RELEASE
+    uint8_t fsEditCursor    = 0;
+    bool    fsEditEditing   = false;
+
+    FSButton& fsEditTarget() {
+        return (fsEditExtraType >= 0 || fsEditFSIdx == FS_LOAD_ACTION_IDX)
+            ? loadActionEditBtn : buttons[fsEditFSIdx];
+    }
+    MidiCCModulator& fsEditMod() {
+        if(fsEditFSIdx == FS_LOAD_ACTION_IDX) return modulators[0];
+        return modForFS((int)fsEditFSIdx);
+    }
+    void fsEditApplyMode(uint8_t newModeIdx) {
+        if(fsEditFSIdx == FS_LOAD_ACTION_IDX || fsEditExtraType >= 0)
+            applyModeIndex(loadActionEditBtn, newModeIdx, nullptr);
+        else
+            applyModeIndex(buttons[fsEditFSIdx], newModeIdx, &fsEditMod());
+    }
 
     // Main menu state
     MenuState menuState      = MenuState::NONE;

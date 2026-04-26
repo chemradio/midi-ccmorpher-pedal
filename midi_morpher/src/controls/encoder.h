@@ -71,6 +71,184 @@ inline void handleEncoder(PedalState &pedal,
     return;
   }
 
+  // ── FS cursor edit menu ────────────────────────────────────────────────────
+  if(pedal.inFSEdit) {
+    FSButton &btn = pedal.fsEditTarget();
+    FSEditRow rows[MAX_FS_EDIT_ROWS];
+    uint8_t rowCount = buildFSEditRows(btn, rows);
+    if(pedal.fsEditCursor >= rowCount) pedal.fsEditCursor = rowCount - 1;
+
+    if(!pedal.fsEditEditing) {
+      int next = constrain((int)pedal.fsEditCursor + delta, 0, (int)rowCount - 1);
+      pedal.fsEditCursor = (uint8_t)next;
+    } else {
+      FSEditRow row = rows[pedal.fsEditCursor];
+      uint8_t mi = btn.modeIndex;
+      switch(row) {
+        case FSEditRow::CATEGORY: {
+          int ci  = (int)categoryForModeIndex(mi);
+          int nci = constrain(ci + delta, 0, (int)NUM_CATEGORIES - 1);
+          if(nci != ci) {
+            uint8_t newMi = modeCategories[(uint8_t)nci].firstIdx;
+            pedal.fsEditApplyMode(newMi);
+            _syncFSEditTarget(pedal);
+            markStateDirty();
+            // Clamp cursor after row rebuild
+            FSEditRow nr[MAX_FS_EDIT_ROWS]; uint8_t nc = buildFSEditRows(pedal.fsEditTarget(), nr);
+            if(pedal.fsEditCursor >= nc) pedal.fsEditCursor = 0;
+          }
+          break;
+        }
+        case FSEditRow::CC_TRIGGER: {
+          uint8_t v = (mi >= 2 && mi <= 4) ? (mi - 2) : 0;
+          int nv = constrain((int)v + delta, 0, 2);
+          if(nv != (int)v) {
+            pedal.fsEditApplyMode((uint8_t)(2 + nv));
+            _syncFSEditTarget(pedal);
+            markStateDirty();
+            FSEditRow nr[MAX_FS_EDIT_ROWS]; uint8_t nc = buildFSEditRows(pedal.fsEditTarget(), nr);
+            if(pedal.fsEditCursor >= nc) pedal.fsEditCursor = 0;
+          }
+          break;
+        }
+        case FSEditRow::RAMP_SHAPE: {
+          if(mi >= 6 && mi <= 17) {
+            uint8_t sh=(mi-6)/4, di=((mi-6)/2)%2, tr=(mi-6)%2;
+            int ns = constrain((int)sh + delta, 0, 2);
+            pedal.fsEditApplyMode((uint8_t)(6 + ns*4 + di*2 + tr));
+            _syncFSEditTarget(pedal); markStateDirty();
+          }
+          break;
+        }
+        case FSEditRow::MOD_DIR: {
+          uint8_t newMi = mi;
+          if(mi >= 6  && mi <= 17) { uint8_t sh=(mi-6)/4,di=((mi-6)/2)%2,tr=(mi-6)%2; newMi=6+sh*4+(1-di)*2+tr; }
+          else if(mi >= 24 && mi <= 27) { uint8_t di=((mi-24)/2)%2,tr=(mi-24)%2; newMi=24+(1-di)*2+tr; }
+          else if(mi >= 28 && mi <= 31) { uint8_t di=((mi-28)/2)%2,tr=(mi-28)%2; newMi=28+(1-di)*2+tr; }
+          if(newMi != mi) { pedal.fsEditApplyMode(newMi); _syncFSEditTarget(pedal); markStateDirty(); }
+          break;
+        }
+        case FSEditRow::MOD_TRIG: {
+          uint8_t newMi = mi;
+          if(mi >= 6  && mi <= 17) { uint8_t sh=(mi-6)/4,di=((mi-6)/2)%2,tr=(mi-6)%2; newMi=6+sh*4+di*2+(1-tr); }
+          else if(mi >= 18 && mi <= 23) { uint8_t wa=(mi-18)/2,tr=(mi-18)%2; newMi=18+wa*2+(1-tr); }
+          else if(mi >= 24 && mi <= 27) { uint8_t di=((mi-24)/2)%2,tr=(mi-24)%2; newMi=24+di*2+(1-tr); }
+          else if(mi >= 28 && mi <= 31) { uint8_t di=((mi-28)/2)%2,tr=(mi-28)%2; newMi=28+di*2+(1-tr); }
+          if(newMi != mi) { pedal.fsEditApplyMode(newMi); _syncFSEditTarget(pedal); markStateDirty(); }
+          break;
+        }
+        case FSEditRow::LFO_WAVE: {
+          if(mi >= 18 && mi <= 23) {
+            uint8_t wa=(mi-18)/2, tr=(mi-18)%2;
+            int nw = constrain((int)wa + delta, 0, 2);
+            pedal.fsEditApplyMode((uint8_t)(18 + nw*2 + tr));
+            _syncFSEditTarget(pedal); markStateDirty();
+          }
+          break;
+        }
+        case FSEditRow::SCENE_UNIT: {
+          if(mi >= 32 && mi <= 39) {
+            uint8_t un=(mi-32)/2, sc=(mi-32)%2;
+            int nu = constrain((int)un + delta, 0, 3);
+            pedal.fsEditApplyMode((uint8_t)(32 + nu*2 + sc));
+            _syncFSEditTarget(pedal); markStateDirty();
+          }
+          break;
+        }
+        case FSEditRow::SCENE_STYLE: {
+          if(mi >= 32 && mi <= 39) {
+            uint8_t un=(mi-32)/2, sc=(mi-32)%2;
+            pedal.fsEditApplyMode((uint8_t)(32 + un*2 + (1-sc)));
+            _syncFSEditTarget(pedal); markStateDirty();
+          }
+          break;
+        }
+        case FSEditRow::PRESET_DIR: {
+          if(mi >= 44 && mi <= 46) {
+            int nd = constrain((int)(mi-44) + delta, 0, 2);
+            pedal.fsEditApplyMode((uint8_t)(44 + nd));
+            _syncFSEditTarget(pedal); markStateDirty();
+            FSEditRow nr[MAX_FS_EDIT_ROWS]; uint8_t nc = buildFSEditRows(pedal.fsEditTarget(), nr);
+            if(pedal.fsEditCursor >= nc) pedal.fsEditCursor = 0;
+          }
+          break;
+        }
+        case FSEditRow::NUMBER: {
+          if(btn.isModSwitch) {
+            int cur = (btn.midiNumber == PB_SENTINEL) ? -1 : (int)btn.midiNumber;
+            int nxt = constrain(cur + delta * accelMult, -1, 127);
+            btn.midiNumber = (nxt < 0) ? PB_SENTINEL : (uint8_t)nxt;
+          } else if(btn.isNote || btn.isPC) {
+            btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta * accelMult, 0, 127);
+          } else if(btn.isScene) {
+            btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta, 0, (int)btn.modMode.sceneMaxVal);
+          } else if(btn.isSystem) {
+            btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta, 0, NUM_SYS_CMDS - 1);
+          } else if(btn.isKeyboard) {
+            btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta, 0, (int)(NUM_HID_KEYS - 1));
+          } else if(btn.mode == FootswitchMode::PresetNum) {
+            uint8_t maxP = pedal.globalSettings.presetCount > 0 ? pedal.globalSettings.presetCount - 1 : 0;
+            btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta, 0, (int)maxP);
+          } else if(btn.mode == FootswitchMode::Multi) {
+            int step = (delta > 0) ? 1 : -1;
+            int nxt  = (int)btn.midiNumber + step;
+            while(nxt >= 0 && nxt < (int)MAX_MULTI_SCENES && multiScenes[nxt].name[0] == '\0') nxt += step;
+            if(nxt >= 0 && nxt < (int)MAX_MULTI_SCENES && multiScenes[nxt].name[0] != '\0')
+              btn.midiNumber = (uint8_t)nxt;
+          } else {
+            btn.midiNumber = (uint8_t)constrain((int)btn.midiNumber + delta * accelMult, 0, 127);
+          }
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        }
+        case FSEditRow::CC_HI:
+          btn.ccHigh = (uint8_t)constrain((int)btn.ccHigh + delta * accelMult, 0, 127);
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        case FSEditRow::CC_LO:
+          btn.ccLow = (uint8_t)constrain((int)btn.ccLow + delta * accelMult, 0, 127);
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        case FSEditRow::CC_VAL:
+          btn.ccHigh = (uint8_t)constrain((int)btn.ccHigh + delta * accelMult, 0, 127);
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        case FSEditRow::VELOCITY:
+          btn.velocity = (uint8_t)constrain((int)btn.velocity + delta * accelMult, 1, 127);
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        case FSEditRow::KB_MOD: {
+          uint8_t cur = (btn.fsChannel == 0xFF) ? 0 : btn.fsChannel;
+          btn.fsChannel = (uint8_t)(((int)cur + delta + 16) % 16);
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        }
+        case FSEditRow::RAMP_UP: {
+          uint8_t cur = rampRawToSpeedIdx(btn.rampUpMs);
+          btn.rampUpMs = speedIdxToRampRaw((uint8_t)constrain((int)cur + delta, 0, RAMP_SPEED_TABLE_SIZE - 1));
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        }
+        case FSEditRow::RAMP_DN: {
+          uint8_t cur = rampRawToSpeedIdx(btn.rampDownMs);
+          btn.rampDownMs = speedIdxToRampRaw((uint8_t)constrain((int)cur + delta, 0, RAMP_SPEED_TABLE_SIZE - 1));
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        }
+        case FSEditRow::CHANNEL: {
+          int cur = (btn.fsChannel == 0xFF) ? 0 : (int)(btn.fsChannel + 1);
+          int nxt = constrain(cur + delta, 0, 16);
+          btn.fsChannel = (nxt == 0) ? 0xFF : (uint8_t)(nxt - 1);
+          _syncFSEditTarget(pedal); markStateDirty();
+          break;
+        }
+        default: break;
+      }
+    }
+    displayFSEditMenu(pedal);
+    return;
+  }
+
   // ── Three-level mode select (category / sub-group / variant / CC Hi+Lo) ────
   if(pedal.inModeSelect) {
     const ModeCategory &cat = modeCategories[pedal.modeSelectCatIdx];

@@ -11,8 +11,6 @@ inline void initEncoderButton() {
   pinMode(encBtn.pin, INPUT_PULLUP);
 }
 
-static constexpr int8_t FS_LOAD_ACTION_IDX = 6;
-
 inline FSButton& _modeSelectBtn(PedalState &pedal) { return pedal.modeSelectBtn(); }
 inline MidiCCModulator& _modeSelectMod(PedalState &pedal) { return pedal.modeSelectMod(); }
 
@@ -107,7 +105,8 @@ inline void handleEncoderButton(PedalState &pedal,
                                  void (*displayLockedMessage)(String),
                                  void (*displayFSChannel)(FSButton &),
                                  void (*displayModeSelect)(const char *, uint8_t, uint8_t, uint8_t, uint8_t),
-                                 void (*displayActionSelect)(FSButton &, uint8_t)) {
+                                 void (*displayActionSelect)(FSButton &, uint8_t),
+                                 void (*onPresetSave)()) {
   bool reading = digitalRead(encBtn.pin);
   unsigned long now = millis();
 
@@ -125,9 +124,15 @@ inline void handleEncoderButton(PedalState &pedal,
     }
 
     if(!encBtnHandled) {
+      if(pedal.inFSEdit) {
+        pedal.fsEditEditing = !pedal.fsEditEditing;
+        displayFSEditMenu(pedal);
+        return;
+      }
+
       // ── Main menu ─────────────────────────────────────────────────────────
       if(pedal.menuState != MenuState::NONE) {
-        handleMenuPress(pedal, displayModeSelect);
+        handleMenuPress(pedal);
         return;
       }
 
@@ -138,10 +143,9 @@ inline void handleEncoderButton(PedalState &pedal,
 
         if(!expanded && slot == 1) {
           // +EXPAND: enable all 3 extra actions with NoAction mode
-          uint8_t noActIdx = 0; // NoAction is index 0
           for(uint8_t t = 0; t < FS_NUM_EXTRA; t++) {
             btn.extraActions[t].enabled   = true;
-            btn.extraActions[t].modeIndex = noActIdx;
+            btn.extraActions[t].modeIndex = 0;
           }
           markStateDirty();
           pedal.actionSelectSlot = 0;
@@ -153,8 +157,7 @@ inline void handleEncoderButton(PedalState &pedal,
             if(btn.extraActions[t].enabled &&
                btn.extraActions[t].modeIndex < NUM_MODES &&
                modes[btn.extraActions[t].modeIndex].isModSwitch) {
-              colMod.reset();
-              break;
+              colMod.reset(); break;
             }
           }
           for(uint8_t t = 0; t < FS_NUM_EXTRA; t++)
@@ -163,7 +166,7 @@ inline void handleEncoderButton(PedalState &pedal,
           pedal.actionSelectSlot = 0;
           displayActionSelect(btn, 0);
         } else if(slot <= 3) {
-          // Enter mode select for the chosen slot
+          // Enter cursor edit menu for chosen slot
           // slot 0=PRESS(-1), slot 1=RELEASE(t=2), slot 2=HOLD(t=0), slot 3=DBL(t=1)
           int8_t extraType;
           if(slot == 0)      extraType = -1;
@@ -171,19 +174,27 @@ inline void handleEncoderButton(PedalState &pedal,
           else if(slot == 2) extraType = 0;
           else               extraType = 1;
 
-          uint8_t curModeIdx = (extraType < 0)
-              ? btn.modeIndex
-              : btn.extraActions[(uint8_t)extraType].modeIndex;
+          pedal.inActionSelect  = false;
+          pedal.inFSEdit        = true;
+          pedal.fsEditFSIdx     = (uint8_t)pedal.modeSelectFSIdx;
+          pedal.fsEditExtraType = extraType;
+          pedal.fsEditCursor    = 0;
+          pedal.fsEditEditing   = false;
 
-          pedal.modeSelectFromActionSelect = true;
-          pedal.modeSelectExtraActionType  = extraType;
-          pedal.inActionSelect             = false;
-          pedal.inModeSelect               = true;
-          pedal.modeSelectLevel            = 0;
-          pedal.modeSelectCatIdx           = categoryForModeIndex(curModeIdx);
-          pedal.modeSelectVarIdx           = 0;
-          pedal.modeSelectSubVarIdx        = 0;
-          displayModeSelect(btn.name, pedal.modeSelectCatIdx, 0, 0, 0);
+          // Populate loadActionEditBtn for extra action edits
+          if(extraType >= 0) {
+            const FSAction &act = btn.extraActions[(uint8_t)extraType];
+            FSButton &lb = pedal.loadActionEditBtn;
+            applyModeIndex(lb, act.modeIndex < NUM_MODES ? act.modeIndex : 0, nullptr);
+            lb.midiNumber = act.midiNumber;
+            lb.fsChannel  = act.fsChannel;
+            lb.ccLow      = act.ccLow;
+            lb.ccHigh     = act.ccHigh;
+            lb.velocity   = act.velocity;
+            lb.rampUpMs   = act.rampUpMs;
+            lb.rampDownMs = act.rampDownMs;
+          }
+          displayFSEditMenu(pedal);
         }
         return;
       }
@@ -538,6 +549,17 @@ inline void handleEncoderButton(PedalState &pedal,
     if(pedal.menuState == MenuState::ROUTING
        && (now - encBtnPressStart) >= CHANNEL_SELECT_HOLD_MS) {
       handleMenuLongPress(pedal);
+      encBtnHandled = true;
+      return;
+    }
+
+    if(!pedal.inChannelSelect && !pedal.inModeSelect && !pedal.inActionSelect && !pedal.inFSEdit
+       && pedal.menuState == MenuState::NONE
+       && activeIdx < 0
+       && !pedal.settingsLocked
+       && (now - encBtnPressStart) >= PRESET_SAVE_HOLD_MS) {
+      saveCurrentPreset(pedal);
+      onPresetSave();
       encBtnHandled = true;
       return;
     }
