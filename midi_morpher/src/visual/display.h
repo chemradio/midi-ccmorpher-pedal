@@ -27,7 +27,7 @@ inline int8_t        g_homeFSIdx      = -1;
 inline FSButton     *g_homeFSBtn      = nullptr;
 inline unsigned long g_homeFSMs       = 0;
 inline bool          g_homeFSNeedsDraw = false;
-static const uint32_t FS_INFO_LINGER_MS = 1000;
+static const uint32_t FS_INFO_LINGER_MS = GLOBAL_TIMEOUT_MS;
 
 // Set and persist the display contrast level (0–100 %). Call whenever brightness
 // changes — also used to restore brightness after a timeout dim.
@@ -289,7 +289,7 @@ inline void displayHomeScreen(PedalState &pedal) {
   display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
 
   if(fsInfo) {
-    // ── Compact P + BPM (size 1) ──────────────────────────────────────────
+    // ── Compact P + BPM row ───────────────────────────────────────────────
     display.setTextSize(1);
     display.setCursor(0, 11);
     display.print(F("P:"));
@@ -304,18 +304,17 @@ inline void displayHomeScreen(PedalState &pedal) {
 
     display.drawFastHLine(0, 20, 128, SSD1306_WHITE);
 
-    // ── Mode name + MIDI number ───────────────────────────────────────────
+    // ── Sent command: mode name + MIDI number ────────────────────────────
     int y = _displayModeName(g_homeFSBtn->modMode.name, 23);
     _displayNumber(*g_homeFSBtn, y);
     if(g_homeFSBtn->fsChannel != 0xFF) {
       char chBuf[5];
       snprintf(chBuf, sizeof(chBuf), "c%d", g_homeFSBtn->fsChannel + 1);
-      display.setCursor(128 - (int)strlen(chBuf) * 6, y);
+      display.setCursor(128 - (int)strlen(chBuf) * 6, 56);
       display.print(chBuf);
     }
   } else {
     // ── Big preset number + BPM ───────────────────────────────────────────
-    // Small labels row
     display.setTextSize(1);
     display.setCursor(0, 12);
     display.print('P');
@@ -328,32 +327,21 @@ inline void displayHomeScreen(PedalState &pedal) {
 
     // Preset digit — size 4 (32px tall)
     display.setTextSize(4);
-    display.setCursor(0, 20);
+    display.setCursor(0, 22);
     display.print(activePreset + 1);
     if(presetDirty) {
       display.setTextSize(2);
-      display.setCursor(26, 20);
+      display.setCursor(26, 22);
       display.print('*');
     }
 
-    // BPM — size 3 (24px tall), right-aligned
+    // BPM — size 2 (16px tall), right-aligned
     char bpmBuf[5];
     snprintf(bpmBuf, sizeof(bpmBuf), "%d", (int)midiClock.bpm);
-    int bpmX = 128 - (int)strlen(bpmBuf) * 18;
-    display.setTextSize(3);
-    display.setCursor(bpmX, 24);
+    int bpmX = 128 - (int)strlen(bpmBuf) * 12;
+    display.setTextSize(2);
+    display.setCursor(bpmX, 26);
     display.print(bpmBuf);
-  }
-
-  // ── FS block LEDs ─────────────────────────────────────────────────────────
-  // 6 blocks: x=5,25,45,65,85,105  w=18  y=54  h=9
-  for(int i = 0; i < (int)pedal.buttons.size(); i++) {
-    int bx = 5 + i * 20;
-    bool active = pedal.buttons[i].isActivated || pedal.buttons[i].isPressed;
-    if(active)
-      display.fillRect(bx, 54, 18, 9, SSD1306_WHITE);
-    else
-      display.drawRect(bx, 54, 18, 9, SSD1306_WHITE);
   }
 
   display.display();

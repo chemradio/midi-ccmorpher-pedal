@@ -54,8 +54,6 @@ void setup() {
   analogReadResolution(12);
   initAnalogPots();
 
-  // Preset button and tempo LED
-  pinMode(PRESET_BTN_PIN, INPUT_PULLUP);
   pinMode(TEMPO_LED_PIN, OUTPUT);
   digitalWrite(TEMPO_LED_PIN, LOW);
 
@@ -169,9 +167,6 @@ void loop() {
     triggerPresetSaveBlink();
     displayPresetSaved(activePreset);
   });
-
-  // Preset button (short press = next preset, long press = save)
-  handlePresetButton(pedal);
 
   // Combined footswitch actions for preset navigation
   handleCombinedActions(pedal);
