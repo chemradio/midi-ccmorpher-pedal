@@ -1,36 +1,40 @@
 #pragma once
 #include "../analogInOut/expInput.h"
 #include "../clock/midiClock.h"
-#include "../controls/pots.h"
 #include "../globalSettings.h"
 #include "../pedalState.h"
 #include "../statePersistance.h"
 #include "../visual/display.h"
 
 // ── Menu item indices ──────────────────────────────────────────────────────────
-#define MENU_MIDI_CH 0
-#define MENU_ROUTINGS 1
-#define MENU_POT1_CC 2
-#define MENU_POT2_CC 3
-#define MENU_EXP_CC 4
-#define MENU_EXP_CAL 5
-#define MENU_EXP_WAKE 6
-#define MENU_LEDS 7
-#define MENU_TEMPO_LED 8
-#define MENU_NEOPIXEL 9
-#define MENU_PER_FS_MOD 10
-#define MENU_CLOCK_GEN  11
-#define MENU_CLOCK_OUT  12
-#define MENU_BRIGHTNESS    13
-#define MENU_TIMEOUT       14
-#define MENU_PRESET_COUNT  15
-#define MENU_PRESET_ACTION 16
-#define MENU_LOCK          17
-#define MENU_EXIT          18
-#define MENU_COUNT         19
+#define MENU_MIDI_CH       0
+#define MENU_ROUTINGS      1
+#define MENU_ENC_ACTION    2
+#define MENU_ENC_CC        3
+#define MENU_ENC_KEY_R     4
+#define MENU_ENC_KEY_L     5
+#define MENU_EXP_CC        6
+#define MENU_EXP_CAL       7
+#define MENU_EXP_WAKE      8
+#define MENU_LEDS          9
+#define MENU_TEMPO_LED     10
+#define MENU_NEOPIXEL      11
+#define MENU_PER_FS_MOD    12
+#define MENU_CLOCK_GEN     13
+#define MENU_CLOCK_OUT     14
+#define MENU_BRIGHTNESS    15
+#define MENU_TIMEOUT       16
+#define MENU_PRESET_COUNT  17
+#define MENU_PRESET_ACTION 18
+#define MENU_LOCK          19
+#define MENU_EXIT          20
+#define MENU_COUNT         21
 
 static const char *menuItemNames[] = {
-    "MIDI Channel", "Routings", "Pot 1 CC", "Pot 2 CC", "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel", "Poly Mod", "Clock Gen", "Clock Out", "Brightness", "Screen ON", "Presets", "Preset Action", "Lock", "Exit"};
+    "MIDI Channel", "Routings", "Enc Action", "Enc CC#", "Enc > Key", "Enc < Key",
+    "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel",
+    "Poly Mod", "Clock Gen", "Clock Out", "Brightness", "Screen ON",
+    "Presets", "Preset Action", "Lock", "Exit"};
 
 static const char *ledModeNames[] = {"On", "Cnsrv", "Off"};
 
@@ -45,19 +49,24 @@ static const uint8_t routingBits[] = {
 
 inline void applyGlobalSettings(PedalState &pedal) {
   applyDisplayContrast(pedal.globalSettings.displayBrightness);
-  analogPots[0].midiCCNumber = pedal.globalSettings.pot1CC;
-  analogPots[1].midiCCNumber = pedal.globalSettings.pot2CC;
 }
 
-inline uint8_t stepPotCC(uint8_t current, int delta) {
-  if(current == POT_CC_OFF)
-    return (delta > 0) ? 0 : POT_CC_OFF;
-  int next = (int)current + delta;
-  if(next < 0)
-    return POT_CC_OFF;
-  if(next > 127)
-    return 127;
-  return (uint8_t)next;
+static const char *encActionNames[] = {"Tempo", "CC", "Key"};
+
+inline bool menuItemVisible(uint8_t item, const PedalState &pedal) {
+  if(item == MENU_ENC_CC)
+    return pedal.globalSettings.encoderAction == EncoderAction::CC;
+  if(item == MENU_ENC_KEY_R || item == MENU_ENC_KEY_L)
+    return pedal.globalSettings.encoderAction == EncoderAction::KEY;
+  return true;
+}
+
+// Build a list of currently-visible menu item indices. Returns count.
+inline uint8_t buildVisibleMenu(const PedalState &pedal, uint8_t *out) {
+  uint8_t n = 0;
+  for(uint8_t i = 0; i < MENU_COUNT; i++)
+    if(menuItemVisible(i, pedal)) out[n++] = i;
+  return n;
 }
 
 // Right-side status string shown in the root menu list.
@@ -65,14 +74,20 @@ inline String _menuItemRhs(const PedalState &pedal, uint8_t item) {
   switch(item) {
   case MENU_MIDI_CH:
     return String(pedal.midiChannel + 1);
-  case MENU_POT1_CC:
-    return pedal.globalSettings.pot1CC == POT_CC_OFF
-               ? String(F("Off"))
-               : String(F("CC")) + String(pedal.globalSettings.pot1CC + 1);
-  case MENU_POT2_CC:
-    return pedal.globalSettings.pot2CC == POT_CC_OFF
-               ? String(F("Off"))
-               : String(F("CC")) + String(pedal.globalSettings.pot2CC + 1);
+  case MENU_ENC_ACTION: {
+    uint8_t a = (uint8_t)pedal.globalSettings.encoderAction;
+    return String(a < 3 ? encActionNames[a] : encActionNames[0]);
+  }
+  case MENU_ENC_CC:
+    return String(F("CC")) + String(pedal.globalSettings.encoderCCNum + 1);
+  case MENU_ENC_KEY_R: {
+    uint8_t k = pedal.globalSettings.encoderKeyRight;
+    return String(k < NUM_HID_KEYS ? hidKeys[k].name : "?");
+  }
+  case MENU_ENC_KEY_L: {
+    uint8_t k = pedal.globalSettings.encoderKeyLeft;
+    return String(k < NUM_HID_KEYS ? hidKeys[k].name : "?");
+  }
   case MENU_EXP_CC:
     return pedal.globalSettings.expCC == POT_CC_OFF
                 ? String(F("Off"))
@@ -128,20 +143,25 @@ inline void displayMenuRoot(PedalState &pedal) {
   display.print(F("-- MENU --"));
   display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
 
-  uint8_t idx = pedal.menuItemIdx;
-  int8_t start = (int8_t)idx - 2;
-  if(start < 0)
-    start = 0;
-  if(start > (int8_t)(MENU_COUNT - 5))
-    start = (int8_t)(MENU_COUNT - 5);
+  uint8_t vis[MENU_COUNT];
+  uint8_t visCnt = buildVisibleMenu(pedal, vis);
+
+  // Find cursor position in the visible list
+  uint8_t visIdx = 0;
+  for(uint8_t i = 0; i < visCnt; i++)
+    if(vis[i] == pedal.menuItemIdx) { visIdx = i; break; }
+
+  int8_t start = (int8_t)visIdx - 2;
+  if(start < 0) start = 0;
+  if(start > (int8_t)visCnt - 5) start = (visCnt >= 5) ? (int8_t)(visCnt - 5) : 0;
 
   for(uint8_t i = 0; i < 5; i++) {
-    uint8_t item = (uint8_t)start + i;
-    if(item >= MENU_COUNT)
-      break;
+    int8_t vi = start + (int8_t)i;
+    if(vi < 0 || vi >= (int8_t)visCnt) break;
+    uint8_t item = vis[vi];
     int y = 11 + i * 10;
     display.setCursor(0, y);
-    display.print(item == idx ? '>' : ' ');
+    display.print(item == pedal.menuItemIdx ? '>' : ' ');
     display.print(menuItemNames[item]);
 
     String rhs = _menuItemRhs(pedal, item);
@@ -170,19 +190,28 @@ inline void displayMenuEditing(PedalState &pedal) {
     display.setCursor(0, 18);
     display.print(pedal.midiChannel + 1);
     break;
-  case MENU_POT1_CC:
-  case MENU_POT2_CC: {
-    uint8_t cc = (pedal.menuItemIdx == MENU_POT1_CC)
-                     ? pedal.globalSettings.pot1CC
-                     : pedal.globalSettings.pot2CC;
+  case MENU_ENC_ACTION: {
+    uint8_t a = (uint8_t)pedal.globalSettings.encoderAction;
     display.setTextSize(2);
     display.setCursor(0, 22);
-    if(cc == POT_CC_OFF)
-      display.print(F("Off"));
-    else {
-      display.print(F("CC "));
-      display.print(cc + 1);
-    }
+    display.print(a < 3 ? encActionNames[a] : encActionNames[0]);
+    break;
+  }
+  case MENU_ENC_CC: {
+    display.setTextSize(2);
+    display.setCursor(0, 22);
+    display.print(F("CC "));
+    display.print(pedal.globalSettings.encoderCCNum + 1);
+    break;
+  }
+  case MENU_ENC_KEY_R:
+  case MENU_ENC_KEY_L: {
+    uint8_t k = (pedal.menuItemIdx == MENU_ENC_KEY_R)
+                    ? pedal.globalSettings.encoderKeyRight
+                    : pedal.globalSettings.encoderKeyLeft;
+    display.setTextSize(2);
+    display.setCursor(0, 22);
+    display.print(k < NUM_HID_KEYS ? hidKeys[k].name : "?");
     break;
   }
   case MENU_EXP_CC: {
@@ -286,8 +315,14 @@ inline void displayMenuLockConfirm(PedalState &pedal) {
 inline void handleMenuRotate(PedalState &pedal, int delta) {
   switch(pedal.menuState) {
   case MenuState::ROOT: {
-    int next = constrain((int)pedal.menuItemIdx + delta, 0, MENU_COUNT - 1);
-    pedal.menuItemIdx = (uint8_t)next;
+    uint8_t vis[MENU_COUNT];
+    uint8_t visCnt = buildVisibleMenu(pedal, vis);
+    // Find cursor in visible list, move by delta steps through visible items only
+    int8_t visIdx = 0;
+    for(uint8_t i = 0; i < visCnt; i++)
+      if(vis[i] == pedal.menuItemIdx) { visIdx = (int8_t)i; break; }
+    visIdx = (int8_t)constrain((int)visIdx + delta, 0, (int)visCnt - 1);
+    pedal.menuItemIdx = vis[visIdx];
     displayMenuRoot(pedal);
     break;
   }
@@ -300,20 +335,37 @@ inline void handleMenuRotate(PedalState &pedal, int delta) {
       displayMenuEditing(pedal);
       break;
     }
-    case MENU_POT1_CC:
-      pedal.globalSettings.pot1CC = stepPotCC(pedal.globalSettings.pot1CC, delta);
-      analogPots[0].midiCCNumber = pedal.globalSettings.pot1CC;
+    case MENU_ENC_ACTION: {
+      int a = constrain((int)pedal.globalSettings.encoderAction + delta, 0, 2);
+      pedal.globalSettings.encoderAction = (EncoderAction)a;
       displayMenuEditing(pedal);
       break;
-    case MENU_POT2_CC:
-      pedal.globalSettings.pot2CC = stepPotCC(pedal.globalSettings.pot2CC, delta);
-      analogPots[1].midiCCNumber = pedal.globalSettings.pot2CC;
+    }
+    case MENU_ENC_CC: {
+      int cc = constrain((int)pedal.globalSettings.encoderCCNum + delta, 0, 127);
+      pedal.globalSettings.encoderCCNum = (uint8_t)cc;
       displayMenuEditing(pedal);
       break;
-    case MENU_EXP_CC:
-      pedal.globalSettings.expCC = stepPotCC(pedal.globalSettings.expCC, delta);
+    }
+    case MENU_ENC_KEY_R: {
+      int k = constrain((int)pedal.globalSettings.encoderKeyRight + delta, 0, NUM_HID_KEYS - 1);
+      pedal.globalSettings.encoderKeyRight = (uint8_t)k;
       displayMenuEditing(pedal);
       break;
+    }
+    case MENU_ENC_KEY_L: {
+      int k = constrain((int)pedal.globalSettings.encoderKeyLeft + delta, 0, NUM_HID_KEYS - 1);
+      pedal.globalSettings.encoderKeyLeft = (uint8_t)k;
+      displayMenuEditing(pedal);
+      break;
+    }
+    case MENU_EXP_CC: {
+      uint8_t cur = pedal.globalSettings.expCC;
+      int next = (cur == POT_CC_OFF) ? (delta > 0 ? 0 : -1) : ((int)cur + delta);
+      pedal.globalSettings.expCC = (next < 0) ? POT_CC_OFF : (uint8_t)constrain(next, 0, 127);
+      displayMenuEditing(pedal);
+      break;
+    }
     case MENU_LEDS: {
       int m = constrain((int)pedal.globalSettings.ledMode + delta, 0, 2);
       pedal.globalSettings.ledMode = (uint8_t)m;
@@ -368,8 +420,10 @@ inline void handleMenuPress(PedalState &pedal) {
   case MenuState::ROOT:
     switch(pedal.menuItemIdx) {
     case MENU_MIDI_CH:
-    case MENU_POT1_CC:
-    case MENU_POT2_CC:
+    case MENU_ENC_ACTION:
+    case MENU_ENC_CC:
+    case MENU_ENC_KEY_R:
+    case MENU_ENC_KEY_L:
     case MENU_EXP_CC:
     case MENU_LEDS:
     case MENU_BRIGHTNESS:

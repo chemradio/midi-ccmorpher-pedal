@@ -30,8 +30,6 @@
 #define ENC_BTN 11
 
 // ── Analog inputs ─────────────────────────────────────────────────────────────
-#define POT1_PIN 1 // UP speed / CC pot
-#define POT2_PIN 2 // DOWN speed / CC pot
 #define EXP_IN 5   // Expression pedal input
 
 // ── I2C display (SSD1306 OLED) ────────────────────────────────────────────────
@@ -57,10 +55,6 @@
 
 // ── Sentinel ──────────────────────────────────────────────────────────────────
 #define NO_LED_PIN 255 // Marker for controls without a status LED
-
-// ── MIDI CC assignments ───────────────────────────────────────────────────────
-#define POT1_CC 20 // CC sent by UP pot in send-CC mode
-#define POT2_CC 21 // CC sent by DOWN pot in send-CC mode
 
 // ── Modulation ────────────────────────────────────────────────────────────────
 #define DEFAULT_RAMP_SPEED 1000    // ms — per-footswitch ramp time on first boot

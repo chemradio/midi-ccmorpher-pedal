@@ -1,36 +1,23 @@
 #pragma once
-#include "../controls/pots.h"
+#include "../config.h"
 #include <Adafruit_NeoPixel.h>
 
 inline Adafruit_NeoPixel pixel(NEOPIXEL_COUNT, RGB_PIN, NEO_GRB + NEO_KHZ800);
 
 void initNeoPixel() {
   pixel.begin();
-  pixel.setBrightness(1); // Adjust brightness (0-255)
+  pixel.setBrightness(1);
 }
 
-void updateNeoPixel(uint8_t midiValue, AnalogPot *pots, bool enabled) {
+void updateNeoPixel(uint8_t midiValue, bool enabled) {
   if(!enabled) {
     pixel.clear();
     pixel.show();
     return;
   }
-  uint8_t target = midiValue;
-
-  for(int i = 0; i < 2; i++) {
-    if(pots[i].ccDisplayDirty) {
-      target = pots[i].lastMidiValue;
-      if((millis() - pots[i].ccLastDisplayDirty) > 1000) {
-        pots[i].ccDisplayDirty = false;
-      }
-      break;
-    }
-  }
-
-  uint16_t hue = map(target, 0, 127, 43690, 65535);
-  // Convert HSV to RGB and set LED color
+  uint16_t hue = map(midiValue, 0, 127, 43690, 65535);
   uint32_t color = pixel.gamma32(pixel.ColorHSV(hue));
   pixel.setPixelColor(0, color);
-  pixel.setBrightness(map(target, 0, 127, 1, 20));
+  pixel.setBrightness(map(midiValue, 0, 127, 1, 20));
   pixel.show();
 }

@@ -5,7 +5,6 @@
 #include "src/config.h"
 #include "src/controls/encoder.h"
 #include "src/controls/encoderButton.h"
-#include "src/controls/pots.h"
 #include "src/hidKeyboard.h"
 #include "src/menu/mainMenu.h"
 #include "src/midi/midiRouter.h"
@@ -52,7 +51,6 @@ void setup() {
   initEncoder();
   initEncoderButton();
   analogReadResolution(12);
-  initAnalogPots();
 
   pinMode(TEMPO_LED_PIN, OUTPUT);
   digitalWrite(TEMPO_LED_PIN, LOW);
@@ -158,10 +156,6 @@ void loop() {
 
   syncClockRamps(pedal);
 
-  for(auto &pot : analogPots) {
-    handleAnalogPot(pot, pedal, displayPotValue, displayLockedMessage);
-  }
-
   handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage, displayFSChannel, displayTapTempo, displayModeSelectScreen, displayActionSelect);
   handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage, displayFSChannel, displayModeSelectScreen, displayActionSelect, []() {
     triggerPresetSaveBlink();
@@ -177,7 +171,7 @@ void loop() {
   uint16_t neoVal = (pedal.lastActiveFSIndex >= 0)
                         ? pedal.modForFS(pedal.lastActiveFSIndex).currentValue
                         : 0;
-  updateNeoPixel(neoVal, analogPots, pedal.globalSettings.neoPixelEnabled);
+  updateNeoPixel(neoVal, pedal.globalSettings.neoPixelEnabled);
   handleExpInput(pedal);
 
   handleWebServer(pedal);

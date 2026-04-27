@@ -10,8 +10,15 @@
 #define ROUTE_BLE_USB  0x20
 #define ROUTE_ALL      0x3F
 
-// ── Pot CC "disabled" sentinel ─────────────────────────────────────────────────
+// ── Pot CC "disabled" sentinel (kept for expression pedal) ────────────────────
 #define POT_CC_OFF 0xFF
+
+// ── Encoder action modes ──────────────────────────────────────────────────────
+enum class EncoderAction : uint8_t {
+    TEMPO = 0,
+    CC    = 1,
+    KEY   = 2,
+};
 
 // ── LED modes ─────────────────────────────────────────────────────────────────
 #define LED_MODE_ON           0  // always full on
@@ -43,8 +50,10 @@ struct GlobalSettings {
     bool    neoPixelEnabled   = true;
     uint8_t displayBrightness = 78;           // percent 0–100
     uint8_t displayTimeoutIdx = DISP_TIMEOUT_DEF_IDX;
-    uint8_t pot1CC            = 20;           // 0–127 = CC num; POT_CC_OFF = disabled
-    uint8_t pot2CC            = 21;
+    EncoderAction encoderAction  = EncoderAction::TEMPO;
+    uint8_t       encoderCCNum   = 0;         // CC number used when encoderAction = CC (0 = CC 1)
+    uint8_t       encoderKeyRight = 13;       // HID key index for right (CW) turn  — Right arrow
+    uint8_t       encoderKeyLeft  = 12;       // HID key index for left (CCW) turn  — Left arrow
     uint8_t  expCC            = 20;           // expression input CC number (0–127)
     bool     expWakesDisplay  = true;         // show exp value on OLED when pedal moves
     uint16_t expCalMin        = 0xFFFF;       // 0xFFFF = not calibrated (auto-cal takes over)

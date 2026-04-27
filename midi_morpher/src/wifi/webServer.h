@@ -5,6 +5,7 @@
 #include "../footswitches/footswitchObject.h"
 #include "../pedalState.h"
 #include "../statePersistance.h"
+#include "../hidKeyboard.h"
 #include "webUI.h"
 #include <DNSServer.h>
 #include <ESPmDNS.h>
@@ -336,10 +337,14 @@ inline String buildBackupJson() {
   j += gs.displayBrightness;
   j += F(",\"displayTimeoutIdx\":");
   j += gs.displayTimeoutIdx;
-  j += F(",\"pot1CC\":");
-  j += (gs.pot1CC == POT_CC_OFF) ? -1 : (int)gs.pot1CC;
-  j += F(",\"pot2CC\":");
-  j += (gs.pot2CC == POT_CC_OFF) ? -1 : (int)gs.pot2CC;
+  j += F(",\"encoderAction\":");
+  j += (uint8_t)gs.encoderAction;
+  j += F(",\"encoderCCNum\":");
+  j += gs.encoderCCNum;
+  j += F(",\"encoderKeyRight\":");
+  j += gs.encoderKeyRight;
+  j += F(",\"encoderKeyLeft\":");
+  j += gs.encoderKeyLeft;
   j += F(",\"expCC\":");
   j += (gs.expCC == POT_CC_OFF) ? -1 : (int)gs.expCC;
   j += F(",\"expWakesDisplay\":");
@@ -643,25 +648,6 @@ inline void handlePostButtonAction(int idx) {
   webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 
-inline void handlePostPot() {
-  addCORS();
-  if(!_webPedal) {
-    webServer.send(500);
-    return;
-  }
-  const String &body = webServer.arg("plain");
-  int id = jsonInt(body, "id");
-  int value = jsonInt(body, "value");
-  if(id < 0 || id > 1 || value < 0 || value > 127) {
-    webServer.send(400);
-    return;
-  }
-  uint8_t cc = (id == 0) ? _webPedal->globalSettings.pot1CC
-                         : _webPedal->globalSettings.pot2CC;
-  if(cc != POT_CC_OFF)
-    sendMIDI(_webPedal->midiChannel, false, cc, (uint8_t)value);
-  webServer.send(200, F("application/json"), F("{\"ok\":true}"));
-}
 
 // ── Global settings ────────────────────────────────────────────────────────────
 
@@ -681,10 +667,14 @@ inline String buildGlobalJson() {
   j += gs.displayBrightness;
   j += F(",\"timeoutIdx\":");
   j += gs.displayTimeoutIdx;
-  j += F(",\"pot1CC\":");
-  j += (gs.pot1CC == POT_CC_OFF) ? -1 : (int)gs.pot1CC;
-  j += F(",\"pot2CC\":");
-  j += (gs.pot2CC == POT_CC_OFF) ? -1 : (int)gs.pot2CC;
+  j += F(",\"encoderAction\":");
+  j += (uint8_t)gs.encoderAction;
+  j += F(",\"encoderCCNum\":");
+  j += gs.encoderCCNum;
+  j += F(",\"encoderKeyRight\":");
+  j += gs.encoderKeyRight;
+  j += F(",\"encoderKeyLeft\":");
+  j += gs.encoderKeyLeft;
   j += F(",\"expCC\":");
   j += (gs.expCC == POT_CC_OFF) ? -1 : (int)gs.expCC;
   j += F(",\"expWake\":");
@@ -733,22 +723,18 @@ inline void handlePostGlobal() {
   v = jsonInt(body, "timeoutIdx");
   if(v >= 0 && v < NUM_DISP_TIMEOUTS)
     gs.displayTimeoutIdx = (uint8_t)v;
-  v = jsonInt(body, "pot1CC");
-  if(v == -1) {
-    gs.pot1CC = POT_CC_OFF;
-    analogPots[0].midiCCNumber = POT_CC_OFF;
-  } else if(v >= 0 && v <= 127) {
-    gs.pot1CC = (uint8_t)v;
-    analogPots[0].midiCCNumber = gs.pot1CC;
-  }
-  v = jsonInt(body, "pot2CC");
-  if(v == -1) {
-    gs.pot2CC = POT_CC_OFF;
-    analogPots[1].midiCCNumber = POT_CC_OFF;
-  } else if(v >= 0 && v <= 127) {
-    gs.pot2CC = (uint8_t)v;
-    analogPots[1].midiCCNumber = gs.pot2CC;
-  }
+  v = jsonInt(body, "encoderAction");
+  if(v >= 0 && v <= 2)
+    gs.encoderAction = (EncoderAction)v;
+  v = jsonInt(body, "encoderCCNum");
+  if(v >= 0 && v <= 127)
+    gs.encoderCCNum = (uint8_t)v;
+  v = jsonInt(body, "encoderKeyRight");
+  if(v >= 0 && v < NUM_HID_KEYS)
+    gs.encoderKeyRight = (uint8_t)v;
+  v = jsonInt(body, "encoderKeyLeft");
+  if(v >= 0 && v < NUM_HID_KEYS)
+    gs.encoderKeyLeft = (uint8_t)v;
   v = jsonInt(body, "expCC");
   if(v >= 0 && v <= 127)
     gs.expCC = (uint8_t)v;
@@ -985,22 +971,18 @@ inline void handlePostRestore() {
         v = jsonInt(gs, "displayTimeoutIdx");
         if(v >= 0 && v < NUM_DISP_TIMEOUTS)
           g.displayTimeoutIdx = (uint8_t)v;
-        v = jsonInt(gs, "pot1CC");
-        if(v == -1) {
-          g.pot1CC = POT_CC_OFF;
-          analogPots[0].midiCCNumber = POT_CC_OFF;
-        } else if(v >= 0 && v <= 127) {
-          g.pot1CC = (uint8_t)v;
-          analogPots[0].midiCCNumber = g.pot1CC;
-        }
-        v = jsonInt(gs, "pot2CC");
-        if(v == -1) {
-          g.pot2CC = POT_CC_OFF;
-          analogPots[1].midiCCNumber = POT_CC_OFF;
-        } else if(v >= 0 && v <= 127) {
-          g.pot2CC = (uint8_t)v;
-          analogPots[1].midiCCNumber = g.pot2CC;
-        }
+        v = jsonInt(gs, "encoderAction");
+        if(v >= 0 && v <= 2)
+          g.encoderAction = (EncoderAction)v;
+        v = jsonInt(gs, "encoderCCNum");
+        if(v >= 0 && v <= 127)
+          g.encoderCCNum = (uint8_t)v;
+        v = jsonInt(gs, "encoderKeyRight");
+        if(v >= 0 && v < NUM_HID_KEYS)
+          g.encoderKeyRight = (uint8_t)v;
+        v = jsonInt(gs, "encoderKeyLeft");
+        if(v >= 0 && v < NUM_HID_KEYS)
+          g.encoderKeyLeft = (uint8_t)v;
         v = jsonInt(gs, "expCC");
         if(v >= 0 && v <= 127)
           g.expCC = (uint8_t)v;
@@ -1441,8 +1423,6 @@ inline void initWebServer(PedalState &pedal) {
   webServer.on("/api/bpm", HTTP_OPTIONS, handleOPTIONS);
   webServer.on("/api/poll", HTTP_GET, handleGetPoll);
   webServer.on("/api/poll", HTTP_OPTIONS, handleOPTIONS);
-  webServer.on("/api/pot", HTTP_POST, handlePostPot);
-  webServer.on("/api/pot", HTTP_OPTIONS, handleOPTIONS);
   webServer.on("/api/global", HTTP_GET, handleGetGlobal);
   webServer.on("/api/global", HTTP_POST, handlePostGlobal);
   webServer.on("/api/global", HTTP_OPTIONS, handleOPTIONS);

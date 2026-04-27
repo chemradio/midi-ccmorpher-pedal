@@ -393,11 +393,33 @@ inline void handleEncoder(PedalState &pedal,
     presetNavDirect    = (int8_t)next;
     encBtnDidPresetNav = true;
   } else {
-    // Bare rotate → adjust tempo. Acceleration applies (range 20–300).
-    float newBpm = midiClock.bpm + (float)(delta * accelMult);
-    midiClock.setBpm(newBpm);
-    midiClock.externalSync = false;   // manual override breaks ext sync
-    displayBpmCallback(midiClock.bpm);
+    switch(pedal.globalSettings.encoderAction) {
+      case EncoderAction::TEMPO:
+      default: {
+        float newBpm = midiClock.bpm + (float)(delta * accelMult);
+        midiClock.setBpm(newBpm);
+        midiClock.externalSync = false;
+        displayBpmCallback(midiClock.bpm);
+        break;
+      }
+      case EncoderAction::CC: {
+        static int16_t ccVal = 0;
+        ccVal = (int16_t)constrain((int)ccVal + delta * accelMult, 0, 127);
+        uint8_t ccNum = pedal.globalSettings.encoderCCNum;
+        sendMIDI(pedal.midiChannel, false, ccNum, (uint8_t)ccVal);
+        displayEncoderCC(ccNum + 1, (uint8_t)ccVal);
+        break;
+      }
+      case EncoderAction::KEY: {
+        uint8_t keyIdx = (delta > 0) ? pedal.globalSettings.encoderKeyRight
+                                     : pedal.globalSettings.encoderKeyLeft;
+        if(keyIdx < NUM_HID_KEYS) {
+          sendKeyDown(keyIdx, 0);
+          sendKeyUp();
+        }
+        break;
+      }
+    }
   }
 
   markStateDirty();

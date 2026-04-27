@@ -965,47 +965,6 @@ inline void encoderButtonFSModeChange(FSButton &button) {
   display.display();
 }
 
-inline void displayPotRampSpeed(String potName, uint32_t rampRaw) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0, 0);
-  display.println(potName);
-  display.println("");
-  if(rampRaw & CLOCK_SYNC_FLAG) {
-    uint8_t idx = rampRaw & 0xFF;
-    if(idx >= NUM_NOTE_VALUES)
-      idx = NUM_NOTE_VALUES - 1;
-    display.print(noteValueNames[idx]);
-  } else {
-    float seconds = rampRaw / 1000.0f;
-    display.print(seconds, 2);
-    display.println(F("s"));
-  }
-  display.display();
-}
-
-inline void displayPotCC(String potName, uint8_t midiScaled) {
-  displayMode = DISPLAY_PARAM;
-  lastInteraction = millis();
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0, 0);
-  display.println(potName);
-  display.println("");
-  display.print("Value: ");
-  display.println(midiScaled);
-  display.display();
-}
-
-inline void displayPotValue(String potName, bool isMidiCC, uint8_t midiScaled, uint32_t rampRaw = 0) {
-  if(isMidiCC)
-    displayPotCC(potName, midiScaled);
-  else
-    displayPotRampSpeed(potName, rampRaw);
-}
-
 inline void displayTapTempo(float bpm) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
@@ -1021,6 +980,26 @@ inline void displayTapTempo(float bpm) {
   display.setTextSize(1);
   display.setCursor(0, 52);
   display.print(F("BPM"));
+  display.display();
+}
+
+inline void displayEncoderCC(uint8_t ccNum, uint8_t val) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(F("Enc CC"));
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+  display.setTextSize(2);
+  display.setCursor(0, 14);
+  display.print(F("CC:"));
+  display.print(ccNum);
+  display.setTextSize(3);
+  display.setCursor(0, 34);
+  display.print(val);
   display.display();
 }
 
