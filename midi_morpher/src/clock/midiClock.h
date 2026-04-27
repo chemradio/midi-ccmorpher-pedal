@@ -6,42 +6,41 @@
 // Used for both the ramp-speed display and converting note indices to ms.
 // Index matches what gets packed into rampUpMs/rampDownMs low byte when
 // CLOCK_SYNC_FLAG is set. Order: shortest → longest.
-inline const char * const noteValueNames[NUM_NOTE_VALUES] = {
-  "1/32T", "1/32",  "1/16T", "1/32.", "1/16",  "1/8T", "1/16.", "1/8",
-  "1/4T",  "1/8.",  "1/4",   "1/2T",  "1/4.",  "1/2",  "1/2.",  "1/1",  "2/1"
-};
+inline const char *const noteValueNames[NUM_NOTE_VALUES] = {
+    "1/32T", "1/32", "1/16T", "1/32.", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.", "1/4", "1/2T", "1/4.", "1/2", "1/2.", "1/1", "2/1"};
 
 // Multiplier relative to a quarter note. 1.0 = 1/4 note.
 inline const float noteValueMul[NUM_NOTE_VALUES] = {
-  1.0f/12.0f,  // 1/32T
-  1.0f/8.0f,   // 1/32
-  1.0f/6.0f,   // 1/16T
-  3.0f/16.0f,  // 1/32.
-  1.0f/4.0f,   // 1/16
-  1.0f/3.0f,   // 1/8T
-  3.0f/8.0f,   // 1/16.
-  1.0f/2.0f,   // 1/8
-  2.0f/3.0f,   // 1/4T
-  3.0f/4.0f,   // 1/8.
-  1.0f,        // 1/4
-  4.0f/3.0f,   // 1/2T
-  3.0f/2.0f,   // 1/4.
-  2.0f,        // 1/2
-  3.0f,        // 1/2.
-  4.0f,        // 1/1
-  8.0f         // 2/1
+    1.0f / 12.0f, // 1/32T
+    1.0f / 8.0f,  // 1/32
+    1.0f / 6.0f,  // 1/16T
+    3.0f / 16.0f, // 1/32.
+    1.0f / 4.0f,  // 1/16
+    1.0f / 3.0f,  // 1/8T
+    3.0f / 8.0f,  // 1/16.
+    1.0f / 2.0f,  // 1/8
+    2.0f / 3.0f,  // 1/4T
+    3.0f / 4.0f,  // 1/8.
+    1.0f,         // 1/4
+    4.0f / 3.0f,  // 1/2T
+    3.0f / 2.0f,  // 1/4.
+    2.0f,         // 1/2
+    3.0f,         // 1/2.
+    4.0f,         // 1/1
+    8.0f          // 2/1
 };
 
 // ── Ramp speed encoder table ──────────────────────────────────────────────────
 // Index 0..RAMP_MS_TABLE_SIZE-1  → plain ms (0, 100, 200 … 5000)
 // Index RAMP_MS_TABLE_SIZE..RAMP_SPEED_TABLE_SIZE-1 → note-value sync
-static constexpr uint8_t RAMP_MS_TABLE_SIZE    = 51;           // 0–5000 in 100 ms steps
+static constexpr uint8_t RAMP_MS_TABLE_SIZE = 51;                                      // 0–5000 in 100 ms steps
 static constexpr uint8_t RAMP_SPEED_TABLE_SIZE = RAMP_MS_TABLE_SIZE + NUM_NOTE_VALUES; // 68
 
 inline uint8_t rampRawToSpeedIdx(uint32_t raw) {
   if(raw & CLOCK_SYNC_FLAG) {
     uint8_t ni = (uint8_t)(raw & 0xFF);
-    if(ni >= NUM_NOTE_VALUES) ni = NUM_NOTE_VALUES - 1;
+    if(ni >= NUM_NOTE_VALUES)
+      ni = NUM_NOTE_VALUES - 1;
     return RAMP_MS_TABLE_SIZE + ni;
   }
   // Clamp to 0–5000, round to nearest 100 ms step
@@ -50,9 +49,11 @@ inline uint8_t rampRawToSpeedIdx(uint32_t raw) {
 }
 
 inline uint32_t speedIdxToRampRaw(uint8_t idx) {
-  if(idx < RAMP_MS_TABLE_SIZE) return (uint32_t)idx * 100;
+  if(idx < RAMP_MS_TABLE_SIZE)
+    return (uint32_t)idx * 100;
   uint8_t ni = idx - RAMP_MS_TABLE_SIZE;
-  if(ni >= NUM_NOTE_VALUES) ni = NUM_NOTE_VALUES - 1;
+  if(ni >= NUM_NOTE_VALUES)
+    ni = NUM_NOTE_VALUES - 1;
   return CLOCK_SYNC_FLAG | ni;
 }
 
@@ -60,27 +61,29 @@ inline uint32_t speedIdxToRampRaw(uint8_t idx) {
 // Internal/external MIDI clock generator and tap tempo tracker.
 // 24 pulses per quarter note. Tempo LED pulses on the beat (50 ms flash).
 struct MidiClock {
-  float         bpm            = DEFAULT_BPM;
-  bool          externalSync   = false;
-  bool          ledEnabled     = true;
-  bool          clockGenerate  = true;
-  bool          clockOutput    = true;
+  float bpm = DEFAULT_BPM;
+  bool externalSync = false;
+  bool ledEnabled = true;
+  bool clockGenerate = true;
+  bool clockOutput = true;
   unsigned long tickIntervalUs = (unsigned long)(60000000.0f / (DEFAULT_BPM * 24.0f));
-  unsigned long lastTickUs     = 0;
+  unsigned long lastTickUs = 0;
   unsigned long lastExternalMs = 0;
   unsigned long lastExtPulseUs = 0;
-  uint8_t       pulseCount     = 0;   // 0–23, advances each 0xF8
-  unsigned long ledOnMs        = 0;
+  uint8_t pulseCount = 0; // 0–23, advances each 0xF8
+  unsigned long ledOnMs = 0;
 
   // Tap tempo averaging window (last N taps).
   static constexpr uint8_t TAP_HISTORY = 4;
   unsigned long tapHistory[TAP_HISTORY] = {0};
-  uint8_t       tapIdx   = 0;
-  uint8_t       tapCount = 0;
+  uint8_t tapIdx = 0;
+  uint8_t tapCount = 0;
 
   void setBpm(float b) {
-    if(b < BPM_MIN) b = BPM_MIN;
-    if(b > BPM_MAX) b = BPM_MAX;
+    if(b < BPM_MIN)
+      b = BPM_MIN;
+    if(b > BPM_MAX)
+      b = BPM_MAX;
     bpm = b;
     tickIntervalUs = (unsigned long)(60000000.0f / (bpm * 24.0f));
   }
@@ -90,9 +93,11 @@ struct MidiClock {
     if(pulseCount == 0 && ledEnabled) {
       digitalWrite(TEMPO_LED_PIN, HIGH);
       ledOnMs = millis();
-      if(ledOnMs == 0) ledOnMs = 1;   // 0 is the "LED off" sentinel
+      if(ledOnMs == 0)
+        ledOnMs = 1; // 0 is the "LED off" sentinel
     }
-    if(++pulseCount >= 24) pulseCount = 0;
+    if(++pulseCount >= 24)
+      pulseCount = 0;
   }
 
   // Call once per main loop iteration.
@@ -101,10 +106,10 @@ struct MidiClock {
     unsigned long nowMs = millis();
 
     // Revert to internal clock if no external pulses for N ms.
-    if(externalSync && (nowMs - lastExternalMs) > CLOCK_SYNC_TIMEOUT_MS) {
+    if(externalSync && (nowMs - lastExternalMs) > GLOBAL_TIMEOUT_MS) {
       externalSync = false;
-      pulseCount   = 0;
-      lastTickUs   = nowUs;
+      pulseCount = 0;
+      lastTickUs = nowUs;
     }
 
     // Internal clock generator — only runs when not externally synced.
@@ -112,8 +117,10 @@ struct MidiClock {
       if(nowUs - lastTickUs >= tickIntervalUs) {
         lastTickUs += tickIntervalUs;
         // If we fell far behind (blocking display/i2c call), resync.
-        if(nowUs - lastTickUs > tickIntervalUs * 4) lastTickUs = nowUs;
-        if(clockGenerate && clockOutput) sendClockTick();
+        if(nowUs - lastTickUs > tickIntervalUs * 4)
+          lastTickUs = nowUs;
+        if(clockGenerate && clockOutput)
+          sendClockTick();
         onPulse();
       }
     }
@@ -132,9 +139,9 @@ struct MidiClock {
     unsigned long nowUs = micros();
 
     if(!externalSync) {
-      externalSync    = true;
-      pulseCount      = 0;
-      lastExtPulseUs  = 0;       // reset BPM estimate on (re)sync
+      externalSync = true;
+      pulseCount = 0;
+      lastExtPulseUs = 0; // reset BPM estimate on (re)sync
     }
 
     if(lastExtPulseUs != 0) {
@@ -161,24 +168,25 @@ struct MidiClock {
       unsigned long lastTap = tapHistory[(tapIdx + TAP_HISTORY - 1) % TAP_HISTORY];
       if((now - lastTap) > 2000) {
         tapCount = 0;
-        tapIdx   = 0;
+        tapIdx = 0;
       }
     }
     tapHistory[tapIdx] = now;
     tapIdx = (tapIdx + 1) % TAP_HISTORY;
-    if(tapCount < TAP_HISTORY) tapCount++;
+    if(tapCount < TAP_HISTORY)
+      tapCount++;
 
     if(tapCount >= 2) {
       unsigned long oldest = tapHistory[(tapIdx + TAP_HISTORY - tapCount) % TAP_HISTORY];
       unsigned long newest = tapHistory[(tapIdx + TAP_HISTORY - 1) % TAP_HISTORY];
-      unsigned long span   = newest - oldest;
+      unsigned long span = newest - oldest;
       if(span > 0) {
         float newBpm = 60000.0f * (float)(tapCount - 1) / (float)span;
         if(newBpm >= BPM_MIN && newBpm <= BPM_MAX) {
           setBpm(newBpm);
           externalSync = false;
-          pulseCount   = 0;
-          lastTickUs   = micros();
+          pulseCount = 0;
+          lastTickUs = micros();
         }
       }
     }
@@ -188,11 +196,14 @@ struct MidiClock {
   // A quarter note at 120 BPM = 500 ms.
   unsigned long syncToMs(uint32_t rampRaw) const {
     uint8_t idx = rampRaw & 0xFF;
-    if(idx >= NUM_NOTE_VALUES) idx = NUM_NOTE_VALUES - 1;
+    if(idx >= NUM_NOTE_VALUES)
+      idx = NUM_NOTE_VALUES - 1;
     float quarterMs = 60000.0f / bpm;
-    float ms        = quarterMs * noteValueMul[idx];
-    if(ms < 1.0f)    ms = 1.0f;
-    if(ms > 30000.0f) ms = 30000.0f;
+    float ms = quarterMs * noteValueMul[idx];
+    if(ms < 1.0f)
+      ms = 1.0f;
+    if(ms > 30000.0f)
+      ms = 30000.0f;
     return (unsigned long)ms;
   }
 };

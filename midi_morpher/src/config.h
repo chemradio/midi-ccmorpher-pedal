@@ -51,10 +51,9 @@
 #define MIDI_RX 36
 
 // ── Timing ────────────────────────────────────────────────────────────────────
-#define DEBOUNCE_DELAY 80          // ms — footswitch & button debounce
-#define DISPLAY_TIMEOUT 2000       // ms — temp screen hold before home screen returns
-#define CHANNEL_SELECT_HOLD_MS 600 // ms — encoder button hold time to enter per-FS channel select
-#define UNLOCK_HOLD_MS 3000        // ms — encoder button hold time to unlock settings
+#define DEBOUNCE_DELAY 80    // ms — footswitch & button debounce
+#define DISPLAY_TIMEOUT 2000 // ms — temp screen hold before home screen returns
+#define UNLOCK_HOLD_MS 3000  // ms — encoder button hold time to unlock settings
 
 // ── Sentinel ──────────────────────────────────────────────────────────────────
 #define NO_LED_PIN 255 // Marker for controls without a status LED
@@ -102,3 +101,8 @@ static constexpr uint8_t DISPLAY_FS_ROWS = 4;
 // GPIO 46 is a strapping pin but defaults LOW at reset, which is compatible
 // with a standard LED wired anode→pin, cathode→resistor→GND.
 #define TEMPO_LED_PIN 46
+
+// Global timeout
+// Try to unify all other timeouts to this value for the pedal interaction
+// to feel consistent.
+#define GLOBAL_TIMEOUT_MS 2000

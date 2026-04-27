@@ -1,24 +1,24 @@
 #include "src/analogInOut/expInput.h"
 #include "src/ble/bleMidi.h"
-#include "src/clock/midiClock.h"
 #include "src/clock/clockSync.h"
+#include "src/clock/midiClock.h"
 #include "src/config.h"
 #include "src/controls/encoder.h"
 #include "src/controls/encoderButton.h"
 #include "src/controls/pots.h"
+#include "src/hidKeyboard.h"
 #include "src/menu/mainMenu.h"
 #include "src/midi/midiRouter.h"
 #include "src/midiOut.h"
 #include "src/pedalState.h"
+#include "src/presets.h"
 #include "src/statePersistance.h"
 #include "src/visual/display.h"
-#include "src/presets.h"
 #include "src/visual/neopx.h"
 #include "src/wifi/webServer.h"
 #include <USB.h>
-#include <USBMIDI.h>
 #include <USBHIDKeyboard.h>
-#include "src/hidKeyboard.h"
+#include <USBMIDI.h>
 
 // initialize global state
 USBMIDI midi;
@@ -30,7 +30,6 @@ PedalState pedal;
 void bleMidiOnClockTick() { midiClock.receiveClock(); }
 
 void setup() {
-  // Serial.begin(115200);
   Serial1.begin(31250, SERIAL_8N1, -1, MIDI_TX);
   Serial2.begin(31250, SERIAL_8N1, MIDI_RX, -1);
   USB.VID(0x303A);
@@ -44,7 +43,8 @@ void setup() {
   delay(1000);
 
   if(!initDisplay()) {
-    while(1) delay(1000);
+    while(1)
+      delay(1000);
   }
 
   initExpInput();
@@ -55,7 +55,7 @@ void setup() {
   initAnalogPots();
 
   // Preset button and activity LED
-  pinMode(PRESET_BTN_PIN,  INPUT_PULLUP);
+  pinMode(PRESET_BTN_PIN, INPUT_PULLUP);
   pinMode(ACTIVITY_LED_PIN, OUTPUT);
   digitalWrite(ACTIVITY_LED_PIN, LOW);
   pinMode(TEMPO_LED_PIN, OUTPUT);
@@ -81,11 +81,12 @@ void setup() {
 }
 
 void loop() {
-  midiClock.ledEnabled     = pedal.globalSettings.tempoLedEnabled;
-  midiClock.clockGenerate  = pedal.globalSettings.clockGenerate;
-  midiClock.clockOutput    = pedal.globalSettings.clockOutput;
+  midiClock.ledEnabled = pedal.globalSettings.tempoLedEnabled;
+  midiClock.clockGenerate = pedal.globalSettings.clockGenerate;
+  midiClock.clockOutput = pedal.globalSettings.clockOutput;
   midiClock.tick();
-  for(auto &mod : pedal.modulators) mod.update();
+  for(auto &mod : pedal.modulators)
+    mod.update();
 
   // Sync display state before any input handlers run so encoder/button logic
   // always sees consistent state (inModeSelect cleared when display reverts).
@@ -93,8 +94,8 @@ void loop() {
 
   // Process footswitches, tracking which was last pressed for the activity LED.
   for(int i = 0; i < (int)pedal.buttons.size(); i++) {
-    bool wasPressedBefore  = pedal.buttons[i].isPressed;
-    bool prevNeedsDraw     = g_homeFSNeedsDraw;
+    bool wasPressedBefore = pedal.buttons[i].isPressed;
+    bool prevNeedsDraw = g_homeFSNeedsDraw;
 
     pedal.buttons[i].handleFootswitch(pedal.midiChannel, pedal.modForFS(i), displayFSUpdateHome);
 
@@ -112,14 +113,14 @@ void loop() {
       if(pedal.inModeSelect || pedal.inActionSelect ||
          pedal.inChannelSelect || pedal.inFSEdit ||
          pedal.menuState != MenuState::NONE) {
-        pedal.inModeSelect               = false;
-        pedal.inActionSelect             = false;
-        pedal.inChannelSelect            = false;
-        pedal.inFSEdit                   = false;
-        pedal.fsEditEditing              = false;
+        pedal.inModeSelect = false;
+        pedal.inActionSelect = false;
+        pedal.inChannelSelect = false;
+        pedal.inFSEdit = false;
+        pedal.fsEditEditing = false;
         pedal.modeSelectFromActionSelect = false;
-        pedal.menuState                  = MenuState::NONE;
-        g_homeFSNeedsDraw                = false;
+        pedal.menuState = MenuState::NONE;
+        g_homeFSNeedsDraw = false;
         displayHomeScreen(pedal);
         lastInteraction = millis();
       }
@@ -133,8 +134,8 @@ void loop() {
     presetNavDirect = -1;
   } else if(presetNavRequest != 0) {
     uint8_t next = (presetNavRequest > 0)
-      ? (activePreset + 1) % NUM_PRESETS
-      : (activePreset == 0 ? NUM_PRESETS - 1 : activePreset - 1);
+                       ? (activePreset + 1) % NUM_PRESETS
+                       : (activePreset == 0 ? NUM_PRESETS - 1 : activePreset - 1);
     applyPreset(next, pedal);
     displayPresetLoad(activePreset);
     presetNavRequest = 0;
@@ -151,8 +152,12 @@ void loop() {
   {
     bool anyKbPressed = false;
     for(const auto &b : pedal.buttons)
-      if(b.isKeyboard && b.isPressed) { anyKbPressed = true; break; }
-    if(!anyKbPressed && tud_mounted()) hidKeyboard.releaseAll();
+      if(b.isKeyboard && b.isPressed) {
+        anyKbPressed = true;
+        break;
+      }
+    if(!anyKbPressed && tud_mounted())
+      hidKeyboard.releaseAll();
   }
 
   syncClockRamps(pedal);
@@ -162,7 +167,7 @@ void loop() {
   }
 
   handleEncoder(pedal, displayEncoderFSTurn, displayMidiChannel, displayLockedMessage, displayFSChannel, displayTapTempo, displayModeSelectScreen, displayActionSelect);
-  handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage, displayFSChannel, displayModeSelectScreen, displayActionSelect, [](){
+  handleEncoderButton(pedal, encoderButtonFSModeChange, displayLockedMessage, displayFSChannel, displayModeSelectScreen, displayActionSelect, []() {
     triggerPresetSaveBlink();
     displayPresetSaved(activePreset);
   });
@@ -178,7 +183,8 @@ void loop() {
   updateActivityLed(pedal);
 
   uint16_t neoVal = (pedal.lastActiveFSIndex >= 0)
-      ? pedal.modForFS(pedal.lastActiveFSIndex).currentValue : 0;
+                        ? pedal.modForFS(pedal.lastActiveFSIndex).currentValue
+                        : 0;
   updateNeoPixel(neoVal, analogPots, pedal.globalSettings.neoPixelEnabled);
   handleExpInput(pedal);
 
