@@ -74,7 +74,7 @@ footer{text-align:center;padding:24px;font-size:.64rem;color:#333}.km{display:fl
 </main><footer>http://midimorpher.local/ &nbsp;|&nbsp; 192.168.4.1</footer>
 <script>
 var M=["PC","CC","CC Latch","CC Single","Note","Ramp","Ramp Latch","Ramp Inv","Ramp Inv L","LFO Sine","LFO Sine L","LFO Tri","LFO Tri L","LFO Sq","LFO Sq L","Step","Step Latch","Step Inv","Step Inv L","Random","Random L","Random Inv","Random Inv L","Helix Snap","Helix Scrl","QC Scene","QC Scrl","Fractal Scene","Fract Scrl","Kemper Slot","Kemper Scrl","Tap Tempo","System","Keyboard","Multi","Preset Nav","Preset Up","Preset Down","Preset #"];
-var MG=[{l:"Basic",s:0,c:5},{l:"Ramp",s:5,c:4},{l:"LFO",s:9,c:6},{l:"Stepper",s:15,c:4},{l:"Random",s:19,c:4},{l:"Helix",s:23,c:2},{l:"Quad Cortex",s:25,c:2},{l:"Fractal",s:27,c:2},{l:"Kemper",s:29,c:2},{l:"Utility",s:31,c:3},{l:"Multi",s:34,c:1},{l:"Preset",s:36,c:3}];
+var MG=[{l:"Basic",s:0,c:5},{l:"Ramp",s:5,c:4},{l:"LFO",s:9,c:6},{l:"Stepper",s:15,c:4},{l:"Random",s:19,c:4},{l:"Scene/Snap",s:23,c:8},{l:"Utility",s:31,c:3},{l:"Multi",s:34,c:1},{l:"Preset",s:36,c:3}];
 var ML=35,mlD=[];
 var MOD=new Set([5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22]);
 var LAT=new Set([2,6,8,10,12,14,16,18,20,22]);

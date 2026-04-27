@@ -770,7 +770,7 @@ inline void displayModeSelectScreen(const char *fsName, uint8_t catIdx,
       value = (si < MAX_MULTI_SCENES && multiScenes[si].name[0] != '\0')
               ? multiScenes[si].name : "?";
     } else if(cat.subGroupCount > 0) {
-      label    = (cat.subGroupCount >= 3) ? "Wave:" : "Direction:";
+      label    = (cat.subGroupCount == 3) ? "Wave:" : (cat.subGroupCount == 2) ? "Direction:" : "Unit:";
       value    = cat.subGroupNames ? cat.subGroupNames[idx1] : "?";
       noteLine = cat.subGroupNotes ? cat.subGroupNotes[idx1] : nullptr;
     } else {

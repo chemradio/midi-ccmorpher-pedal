@@ -280,32 +280,27 @@ inline constexpr const char *sgLfoNotes[]   = { "smooth",   "linear",   "on/off"
 inline constexpr const char *varMomLatch[]     = { "Momentary","Latching"  };
 inline constexpr const char *varCC[]           = { "Momentary","Latching","Single" };
 inline constexpr const char *varPresetNav[]    = { "Up",       "Down",     "Preset #" };
-inline constexpr const char *varHelix[]     = { "Snapshot", "Scroll"    };
-inline constexpr const char *varQC[]        = { "Scene",    "Scroll"    };
-inline constexpr const char *varFractal[]   = { "Scene",    "Scroll"    };
-inline constexpr const char *varKemper[]    = { "Slot",     "Scroll"    };
+inline constexpr const char *sgSceneUnits[] = { "Helix", "QC", "Fractal", "Kemper" };
+inline constexpr const char *varSnapScroll[]= { "Snapshot", "Scroll" };
 
 inline constexpr ModeCategory modeCategories[] = {
-  //  name,         auto,  first,count, sgCnt,sgSz, sgNames,    sgNotes,    varNames
-  { "No Action",    true,  0,  1,  0, 0, nullptr,     nullptr,     nullptr      },
-  { "PC",           true,  1,  1,  0, 0, nullptr,     nullptr,     nullptr      },
-  { "CC",           false, 2,  3,  0, 0, nullptr,     nullptr,     varCC        },
-  { "Note",         true,  5,  1,  0, 0, nullptr,     nullptr,     nullptr      },
-  { "Ramp",         false, 6,  12, 6, 2, sgRampWave,  sgRampNotes, varMomLatch  },
-  { "LFO",          false, 18, 6,  3, 2, sgLfoWave,   sgLfoNotes,  varMomLatch  },
-  { "Stepper",      false, 24, 4,  2, 2, sgNormalInv, sgNormNotes, varMomLatch  },
-  { "Random",       false, 28, 4,  2, 2, sgNormalInv, sgNormNotes, varMomLatch  },
-  { "Helix",        false, 32, 2,  0, 0, nullptr,     nullptr,     varHelix     },
-  { "Quad Cortex",  false, 34, 2,  0, 0, nullptr,     nullptr,     varQC        },
-  { "Fractal",      false, 36, 2,  0, 0, nullptr,     nullptr,     varFractal   },
-  { "Kemper",       false, 38, 2,  0, 0, nullptr,     nullptr,     varKemper    },
-  { "Tap Tempo",    true,  40, 1,  0, 0, nullptr,     nullptr,     nullptr      },
+  //  name,         auto,  first,count, sgCnt,sgSz, sgNames,      sgNotes,     varNames
+  { "No Action",    true,  0,  1,  0, 0, nullptr,       nullptr,     nullptr      },
+  { "PC",           true,  1,  1,  0, 0, nullptr,       nullptr,     nullptr      },
+  { "CC",           false, 2,  3,  0, 0, nullptr,       nullptr,     varCC        },
+  { "Note",         true,  5,  1,  0, 0, nullptr,       nullptr,     nullptr      },
+  { "Ramp",         false, 6,  12, 6, 2, sgRampWave,    sgRampNotes, varMomLatch  },
+  { "LFO",          false, 18, 6,  3, 2, sgLfoWave,     sgLfoNotes,  varMomLatch  },
+  { "Stepper",      false, 24, 4,  2, 2, sgNormalInv,   sgNormNotes, varMomLatch  },
+  { "Random",       false, 28, 4,  2, 2, sgNormalInv,   sgNormNotes, varMomLatch  },
+  { "Scene/Snap",   false, 32, 8,  4, 2, sgSceneUnits,  nullptr,     varSnapScroll},
+  { "Tap Tempo",    true,  40, 1,  0, 0, nullptr,       nullptr,     nullptr      },
   { "System",       true,  41, 1,  0, 0, nullptr,     nullptr,     nullptr      },
   { "Keyboard",     true,  42, 1,  0, 0, nullptr,     nullptr,     nullptr      },
   { "Multi",        false, 43, 1,  0, 0, nullptr,     nullptr,     nullptr      },
   { "Preset Nav",   false, 44, 3,  0, 0, nullptr,     nullptr,     varPresetNav },
 };
-inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]); // 17
+inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]); // 14
 
 // Set to +1 (PresetUp) or -1 (PresetDown) on press; cleared by the main loop.
 inline int8_t presetNavRequest = 0;
