@@ -63,21 +63,11 @@ inline void handlePresetButton(PedalState &pedal) {
 
 // ── LED output functions ───────────────────────────────────────────────────────
 
-// Preset LEDs are off — 128 presets can't be meaningfully shown on 6 LEDs.
-inline void updatePresetLEDs(const PedalState &pedal) {
-    for(int i = 0; i < 6; i++) analogWrite(pedal.buttons[i].ledPin, 0);
-}
-
-// Drive the activity LED: reflects the logical ledState of the last-pressed footswitch.
-inline void updateActivityLed(const PedalState &pedal) {
-    if(pedal.globalSettings.ledMode == LED_MODE_OFF) {
-        digitalWrite(ACTIVITY_LED_PIN, LOW);
-        return;
+inline void updateFSLEDs(const PedalState &pedal) {
+    for(int i = 0; i < 6; i++) {
+        bool on = (pedal.globalSettings.ledMode != LED_MODE_OFF) && pedal.buttons[i].ledState;
+        analogWrite(pedal.buttons[i].ledPin, on ? 255 : 0);
     }
-    bool active = false;
-    if(pedal.lastActiveFSIndex >= 0)
-        active = pedal.buttons[pedal.lastActiveFSIndex].ledState;
-    digitalWrite(ACTIVITY_LED_PIN, active ? HIGH : LOW);
 }
 
 // ── Combined footswitch actions for preset navigation ───────────────────────────

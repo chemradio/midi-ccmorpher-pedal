@@ -54,10 +54,8 @@ void setup() {
   analogReadResolution(12);
   initAnalogPots();
 
-  // Preset button and activity LED
+  // Preset button and tempo LED
   pinMode(PRESET_BTN_PIN, INPUT_PULLUP);
-  pinMode(ACTIVITY_LED_PIN, OUTPUT);
-  digitalWrite(ACTIVITY_LED_PIN, LOW);
   pinMode(TEMPO_LED_PIN, OUTPUT);
   digitalWrite(TEMPO_LED_PIN, LOW);
 
@@ -77,7 +75,7 @@ void setup() {
 
   // Show the home screen immediately after startup
   displayHomeScreen(pedal);
-  updatePresetLEDs(pedal);
+  updateFSLEDs(pedal);
 }
 
 void loop() {
@@ -92,7 +90,7 @@ void loop() {
   // always sees consistent state (inModeSelect cleared when display reverts).
   resetDisplayTimeout(pedal);
 
-  // Process footswitches, tracking which was last pressed for the activity LED.
+  // Process footswitches.
   for(int i = 0; i < (int)pedal.buttons.size(); i++) {
     bool wasPressedBefore = pedal.buttons[i].isPressed;
     bool prevNeedsDraw = g_homeFSNeedsDraw;
@@ -178,9 +176,8 @@ void loop() {
   // Combined footswitch actions for preset navigation
   handleCombinedActions(pedal);
 
-  // Drive LEDs: FS LEDs show active preset; activity LED shows last-pressed FS state.
-  updatePresetLEDs(pedal);
-  updateActivityLed(pedal);
+  // Drive FS LEDs from each footswitch's active state.
+  updateFSLEDs(pedal);
 
   uint16_t neoVal = (pedal.lastActiveFSIndex >= 0)
                         ? pedal.modForFS(pedal.lastActiveFSIndex).currentValue
