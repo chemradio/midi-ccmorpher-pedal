@@ -18,21 +18,20 @@
 #define MENU_EXP_WAKE      8
 #define MENU_LEDS          9
 #define MENU_TEMPO_LED     10
-#define MENU_NEOPIXEL      11
-#define MENU_PER_FS_MOD    12
-#define MENU_CLOCK_GEN     13
-#define MENU_CLOCK_OUT     14
-#define MENU_BRIGHTNESS    15
-#define MENU_TIMEOUT       16
-#define MENU_PRESET_COUNT  17
-#define MENU_PRESET_ACTION 18
-#define MENU_LOCK          19
-#define MENU_EXIT          20
-#define MENU_COUNT         21
+#define MENU_PER_FS_MOD    11
+#define MENU_CLOCK_GEN     12
+#define MENU_CLOCK_OUT     13
+#define MENU_BRIGHTNESS    14
+#define MENU_TIMEOUT       15
+#define MENU_PRESET_COUNT  16
+#define MENU_PRESET_ACTION 17
+#define MENU_LOCK          18
+#define MENU_EXIT          19
+#define MENU_COUNT         20
 
 static const char *menuItemNames[] = {
     "MIDI Channel", "Routings", "Enc Action", "Enc CC#", "Enc > Key", "Enc < Key",
-    "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED", "NeoPixel",
+    "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED",
     "Poly Mod", "Clock Gen", "Clock Out", "Brightness", "Screen ON",
     "Presets", "Preset Action", "Lock", "Exit"};
 
@@ -102,8 +101,6 @@ inline String _menuItemRhs(const PedalState &pedal, uint8_t item) {
   }
   case MENU_TEMPO_LED:
     return String(pedal.globalSettings.tempoLedEnabled ? F("ON") : F("OFF"));
-  case MENU_NEOPIXEL:
-    return String(pedal.globalSettings.neoPixelEnabled ? F("ON") : F("OFF"));
   case MENU_PER_FS_MOD:
     return String(pedal.globalSettings.perFsModulator ? F("ON") : F("OFF"));
   case MENU_CLOCK_GEN:
@@ -450,11 +447,6 @@ inline void handleMenuPress(PedalState &pedal) {
       break;
     case MENU_TEMPO_LED:
       pedal.globalSettings.tempoLedEnabled = !pedal.globalSettings.tempoLedEnabled;
-      saveGlobalSettings(pedal);
-      displayMenuRoot(pedal);
-      break;
-    case MENU_NEOPIXEL:
-      pedal.globalSettings.neoPixelEnabled = !pedal.globalSettings.neoPixelEnabled;
       saveGlobalSettings(pedal);
       displayMenuRoot(pedal);
       break;

@@ -331,8 +331,6 @@ inline String buildBackupJson() {
   j += gs.ledMode;
   j += F(",\"tempoLedEnabled\":");
   j += gs.tempoLedEnabled ? F("true") : F("false");
-  j += F(",\"neoPixelEnabled\":");
-  j += gs.neoPixelEnabled ? F("true") : F("false");
   j += F(",\"displayBrightness\":");
   j += gs.displayBrightness;
   j += F(",\"displayTimeoutIdx\":");
@@ -661,8 +659,6 @@ inline String buildGlobalJson() {
   j += gs.ledMode;
   j += F(",\"tempoLed\":");
   j += gs.tempoLedEnabled ? F("true") : F("false");
-  j += F(",\"neoPixel\":");
-  j += gs.neoPixelEnabled ? F("true") : F("false");
   j += F(",\"brightness\":");
   j += gs.displayBrightness;
   j += F(",\"timeoutIdx\":");
@@ -715,8 +711,6 @@ inline void handlePostGlobal() {
     gs.ledMode = (uint8_t)v;
   if(jsonBool(body, "tempoLed", b))
     gs.tempoLedEnabled = b;
-  if(jsonBool(body, "neoPixel", b))
-    gs.neoPixelEnabled = b;
   v = jsonInt(body, "brightness");
   if(v >= 0 && v <= 100)
     gs.displayBrightness = (uint8_t)v;
@@ -963,8 +957,6 @@ inline void handlePostRestore() {
           g.ledMode = (uint8_t)v;
         if(jsonBool(gs, "tempoLedEnabled", b))
           g.tempoLedEnabled = b;
-        if(jsonBool(gs, "neoPixelEnabled", b))
-          g.neoPixelEnabled = b;
         v = jsonInt(gs, "displayBrightness");
         if(v >= 0 && v <= 100)
           g.displayBrightness = (uint8_t)v;

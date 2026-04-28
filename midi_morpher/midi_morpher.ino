@@ -62,7 +62,6 @@ void setup() {
 
   initWebServer(pedal);
   initBleMidi();
-  initNeoPixel();
   initFSLeds();
   showStartupScreen();
   delay(2000);
@@ -164,11 +163,6 @@ void loop() {
   handleCombinedActions(pedal);
 
   updateFSLeds(pedal, midiClock.tempoLedOn);
-
-  uint16_t neoVal = (pedal.lastActiveFSIndex >= 0)
-                        ? pedal.modForFS(pedal.lastActiveFSIndex).currentValue
-                        : 0;
-  updateNeoPixel(neoVal, pedal.globalSettings.neoPixelEnabled);
   handleExpInput(pedal);
 
   handleWebServer(pedal);

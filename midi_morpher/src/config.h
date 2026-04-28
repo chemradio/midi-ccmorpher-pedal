@@ -16,7 +16,7 @@
 
 // ── FS + Tempo NeoPixel chain ─────────────────────────────────────────────────
 // 7-pixel WS2812B chain: pixels 0–5 = FS1–FS6, pixel 6 = tempo flash.
-#define FS_LEDS_PIN   38
+#define FS_LEDS_PIN 38
 #define FS_LEDS_COUNT 7
 
 // ── Encoder ───────────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@
 #define ENC_BTN 11
 
 // ── Analog inputs ─────────────────────────────────────────────────────────────
-#define EXP_IN 5   // Expression pedal input
+#define EXP_IN 5 // Expression pedal input
 
 // ── I2C display (SSD1306 OLED) ────────────────────────────────────────────────
 #define SDA_PIN 41
@@ -34,10 +34,6 @@
 #define SCREEN_HEIGHT 64
 #define OLED_RESET -1
 #define OLED_ADDRESS 0x3C
-
-// ── Status LED (onboard NeoPixel) ─────────────────────────────────────────────
-#define RGB_PIN 48
-#define NEOPIXEL_COUNT 1
 
 // ── MIDI serial ───────────────────────────────────────────────────────────────
 #define MIDI_TX 43
@@ -56,7 +52,6 @@
 // ── Presets ───────────────────────────────────────────────────────────────────
 // GPIO 19/20 are the ESP32-S3 USB D-/D+ lines and cannot be used as GPIO when
 // USB is active — moved to GPIO 44 / 45.
-#define PRESET_BTN_PIN 13   // Momentary preset select / save button (U0RXD, UART0 unused)
 #define NUM_PRESETS 128
 #define PRESET_SAVE_HOLD_MS 1500 // ms — hold to save current state to active preset
 

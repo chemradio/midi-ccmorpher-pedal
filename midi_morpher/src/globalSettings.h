@@ -47,7 +47,6 @@ struct GlobalSettings {
     uint8_t routingFlags      = ROUTE_ALL;
     uint8_t ledMode           = LED_MODE_ON;  // LED_MODE_ON / _CONSERVATIVE / _OFF
     bool    tempoLedEnabled   = true;
-    bool    neoPixelEnabled   = true;
     uint8_t displayBrightness = 78;           // percent 0–100
     uint8_t displayTimeoutIdx = DISP_TIMEOUT_DEF_IDX;
     EncoderAction encoderAction  = EncoderAction::TEMPO;
