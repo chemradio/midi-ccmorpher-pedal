@@ -14,15 +14,10 @@
 #define EXTFS1_PIN 17
 #define EXTFS2_PIN 8
 
-// ── Preset LEDs ──────────────────────────────────────────────────────────────
-// Physically mounted next to each footswitch, but logically they indicate the
-// currently active preset slot (P1–P6), not footswitch state.
-#define PRESET1_LED 38
-#define PRESET2_LED 7
-#define PRESET3_LED 15
-#define PRESET4_LED 21
-#define PRESET5_LED 18
-#define PRESET6_LED 3
+// ── FS + Tempo NeoPixel chain ─────────────────────────────────────────────────
+// 7-pixel WS2812B chain: pixels 0–5 = FS1–FS6, pixel 6 = tempo flash.
+#define FS_LEDS_PIN   38
+#define FS_LEDS_COUNT 7
 
 // ── Encoder ───────────────────────────────────────────────────────────────────
 #define ENC_A 9
@@ -52,9 +47,6 @@
 #define DEBOUNCE_DELAY 80    // ms — footswitch & button debounce
 #define DISPLAY_TIMEOUT 2000 // ms — temp screen hold before home screen returns
 #define UNLOCK_HOLD_MS 3000  // ms — encoder button hold time to unlock settings
-
-// ── Sentinel ──────────────────────────────────────────────────────────────────
-#define NO_LED_PIN 255 // Marker for controls without a status LED
 
 // ── Modulation ────────────────────────────────────────────────────────────────
 #define DEFAULT_RAMP_SPEED 1000    // ms — per-footswitch ramp time on first boot
@@ -88,12 +80,6 @@ static constexpr uint8_t DISPLAY_FS_ROWS = 4;
 // Standard BLE MIDI service — Apple spec, accepted by iOS/macOS/Windows/
 // Linux/Android. Advertised name is what the central sees when scanning.
 #define BLE_DEVICE_NAME "MIDI Morpher"
-
-// ── Tempo LED ─────────────────────────────────────────────────────────────────
-// GPIOs 33–37 are reserved for octal PSRAM on N16R8 — never use.
-// GPIO 46 is a strapping pin but defaults LOW at reset, which is compatible
-// with a standard LED wired anode→pin, cathode→resistor→GND.
-#define TEMPO_LED_PIN 46
 
 // Global timeout
 // Try to unify all other timeouts to this value for the pedal interaction

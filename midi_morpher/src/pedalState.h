@@ -73,14 +73,15 @@ struct PedalState
     unsigned long rampMaxSpeedMs = RAMP_DURATIONS_MAX_MS;
     MidiCCModulator modulators[6];
 
-    // Returns the modulator for footswitch idx, or the shared modulator[0]
-    // when per-FS mode is disabled (single-modulator / baud-safe mode).
     MidiCCModulator& modForFS(int idx) {
+        return globalSettings.perFsModulator ? modulators[idx] : modulators[0];
+    }
+    const MidiCCModulator& modForFS(int idx) const {
         return globalSettings.perFsModulator ? modulators[idx] : modulators[0];
     }
 
     // Virtual button used when editing the preset load action via mode select.
-    FSButton loadActionEditBtn = FSButton(255, 255, "Load Act", 0);
+    FSButton loadActionEditBtn = FSButton(255, "Load Act", 0);
 
     // Returns the FSButton being edited in mode select (loadActionEditBtn when FSIdx==6).
     FSButton& modeSelectBtn() {
@@ -97,12 +98,12 @@ struct PedalState
     }
 
     std::array<FSButton, 6> buttons = {
-        FSButton(FS1_PIN,    PRESET1_LED, "FS 1",    0),
-        FSButton(FS2_PIN,    PRESET2_LED, "FS 2",    0),
-        FSButton(FS3_PIN,    PRESET3_LED, "FS 3",    0),
-        FSButton(FS4_PIN,    PRESET4_LED, "FS 4",    0),
-        FSButton(EXTFS1_PIN, PRESET5_LED, "Ext FS 1", 0),
-        FSButton(EXTFS2_PIN, PRESET6_LED, "Ext FS 2", 0)};
+        FSButton(FS1_PIN,    "FS 1",     0),
+        FSButton(FS2_PIN,    "FS 2",     0),
+        FSButton(FS3_PIN,    "FS 3",     0),
+        FSButton(FS4_PIN,    "FS 4",     0),
+        FSButton(EXTFS1_PIN, "Ext FS 1", 0),
+        FSButton(EXTFS2_PIN, "Ext FS 2", 0)};
 
     void setMidiChannel(uint8_t mc)
     {

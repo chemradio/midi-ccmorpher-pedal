@@ -16,15 +16,6 @@ inline void triggerPresetSaveBlink() {
   presetSaveBlinkUntil = millis() + PRESET_SAVE_BLINK_DUR;
 }
 
-// ── LED output functions ───────────────────────────────────────────────────────
-
-inline void updateFSLEDs(const PedalState &pedal) {
-  for(int i = 0; i < 6; i++) {
-    bool on = (pedal.globalSettings.ledMode != LED_MODE_OFF) && pedal.buttons[i].ledState;
-    analogWrite(pedal.buttons[i].ledPin, on ? 255 : 0);
-  }
-}
-
 // ── Combined footswitch actions for preset navigation ───────────────────────────
 // FS1 + FS2 simultaneous press → preset down (previous preset)
 // FS3 + FS4 simultaneous press → preset up (next preset)

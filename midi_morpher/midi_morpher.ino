@@ -52,9 +52,6 @@ void setup() {
   initEncoderButton();
   analogReadResolution(12);
 
-  pinMode(TEMPO_LED_PIN, OUTPUT);
-  digitalWrite(TEMPO_LED_PIN, LOW);
-
   // Load presets + global settings, then apply global settings to live state
   SPIFFS.begin(true);
   loadAllPresets(pedal);
@@ -66,12 +63,13 @@ void setup() {
   initWebServer(pedal);
   initBleMidi();
   initNeoPixel();
+  initFSLeds();
   showStartupScreen();
   delay(2000);
 
   // Show the home screen immediately after startup
   displayHomeScreen(pedal);
-  updateFSLEDs(pedal);
+  updateFSLeds(pedal, false);
 }
 
 void loop() {
@@ -165,8 +163,7 @@ void loop() {
   // Combined footswitch actions for preset navigation
   handleCombinedActions(pedal);
 
-  // Drive FS LEDs from each footswitch's active state.
-  updateFSLEDs(pedal);
+  updateFSLeds(pedal, midiClock.tempoLedOn);
 
   uint16_t neoVal = (pedal.lastActiveFSIndex >= 0)
                         ? pedal.modForFS(pedal.lastActiveFSIndex).currentValue

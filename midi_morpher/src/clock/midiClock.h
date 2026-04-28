@@ -64,6 +64,7 @@ struct MidiClock {
   float bpm = DEFAULT_BPM;
   bool externalSync = false;
   bool ledEnabled = true;
+  bool tempoLedOn = false;
   bool clockGenerate = true;
   bool clockOutput = true;
   unsigned long tickIntervalUs = (unsigned long)(60000000.0f / (DEFAULT_BPM * 24.0f));
@@ -91,10 +92,10 @@ struct MidiClock {
   // Advance beat counter and flash the tempo LED on the downbeat.
   void onPulse() {
     if(pulseCount == 0 && ledEnabled) {
-      digitalWrite(TEMPO_LED_PIN, HIGH);
+      tempoLedOn = true;
       ledOnMs = millis();
       if(ledOnMs == 0)
-        ledOnMs = 1; // 0 is the "LED off" sentinel
+        ledOnMs = 1;
     }
     if(++pulseCount >= 24)
       pulseCount = 0;
@@ -125,9 +126,9 @@ struct MidiClock {
       }
     }
 
-    // Tempo LED auto-off after 50 ms.
+    // Tempo flash auto-off after 50 ms.
     if(ledOnMs != 0 && (nowMs - ledOnMs) > 50) {
-      digitalWrite(TEMPO_LED_PIN, LOW); // always off — ledEnabled only gates HIGH
+      tempoLedOn = false;
       ledOnMs = 0;
     }
   }

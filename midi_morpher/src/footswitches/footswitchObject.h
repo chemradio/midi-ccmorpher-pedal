@@ -329,7 +329,6 @@ inline ModulationType getModulationType(FootswitchMode mode) {
 
 struct FSButton {
   uint8_t pin;
-  uint8_t ledPin;
   const char *name;
 
   bool ledState    = false;
@@ -369,13 +368,11 @@ struct FSButton {
   unsigned long releaseMs    = 0;
   bool          longFired    = false;
 
-  FSButton(uint8_t p, uint8_t lp, const char *n, uint8_t mN)
-      : pin(p), ledPin(lp), name(n), midiNumber(mN) {}
+  FSButton(uint8_t p, const char *n, uint8_t mN)
+      : pin(p), name(n), midiNumber(mN) {}
 
   void init() {
     pinMode(pin, INPUT_PULLUP);
-    pinMode(ledPin, OUTPUT);
-    digitalWrite(ledPin, LOW);
   }
 
   void _setLED(bool state) { ledState = state; }

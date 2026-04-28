@@ -5,7 +5,7 @@
 #include "../pedalState.h"
 #include "../statePersistance.h"
 
-inline FSButton encBtn = {ENC_BTN, NO_LED_PIN, "Enc BTN", 0};
+inline FSButton encBtn = {ENC_BTN, "Enc BTN", 0};
 
 inline void initEncoderButton() {
   pinMode(encBtn.pin, INPUT_PULLUP);

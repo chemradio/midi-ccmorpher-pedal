@@ -450,8 +450,6 @@ inline void handleMenuPress(PedalState &pedal) {
       break;
     case MENU_TEMPO_LED:
       pedal.globalSettings.tempoLedEnabled = !pedal.globalSettings.tempoLedEnabled;
-      if(!pedal.globalSettings.tempoLedEnabled)
-        digitalWrite(TEMPO_LED_PIN, LOW);
       saveGlobalSettings(pedal);
       displayMenuRoot(pedal);
       break;
