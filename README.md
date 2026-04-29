@@ -61,11 +61,11 @@ A 5-minute path from "powered on" to "sending MIDI from a footswitch":
 - **Long-press the PRESET button** (~1.5 s). The OLED flashes "SAVED" and the dirty marker clears.
 - Or click **Save Preset** in the web UI.
 
-**7. Switch presets.** Short-press the PRESET button to cycle through the 6 user-visible presets (P1 → P2 → … → P6 → P1).
+**7. Switch presets.** Turn the encoder knob while also pressing and holding it's butto to scroll through presets. (P1 → P2 → … → P6 → P1). Alternatively assign Preset UP/DOWN action to any of the footswitches
 
 That's it. Everything else (modulation engines, scene/snapshot modes, alt-actions, expression pedal, MIDI routing, BLE pairing) is documented below.
 
-> **Tip:** if anything feels stuck, flip the **LOCK** switch off (or hold the encoder button for 3 s if it was locked from the menu). LOCK freezes the encoder/pots and disables the WiFi AP.
+> **Tip:** if anything feels stuck, turn of "Lock Settings" from the menu.
 
 ---
 
@@ -75,12 +75,12 @@ That's it. Everything else (modulation engines, scene/snapshot modes, alt-action
 
 **Libraries** (install via Arduino Library Manager):
 
-| Library | Version |
-|---------|---------|
+| Library              | Version  |
+| -------------------- | -------- |
 | Adafruit GFX Library | ≥ 1.11.0 |
-| Adafruit SSD1306 | ≥ 2.5.0 |
-| Adafruit NeoPixel | ≥ 1.12.0 |
-| NimBLE-Arduino | ≥ 2.0.0 |
+| Adafruit SSD1306     | ≥ 2.5.0  |
+| Adafruit NeoPixel    | ≥ 1.12.0 |
+| NimBLE-Arduino       | ≥ 2.0.0  |
 
 Built-in (no install needed): `SPI.h`, `Wire.h`, `Preferences.h`, `LittleFS.h`, `USB.h`, `USBMIDI.h`, `USBHIDKeyboard.h`, `WebServer.h`, `DNSServer.h`, `ESPmDNS.h`, `WiFi.h`, `Update.h`
 
@@ -94,67 +94,63 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 
 ### Controls
 
-| Control | Function |
-|---------|----------|
-| FS1–FS4 | Onboard footswitches |
-| ExtFS1, ExtFS2 | External footswitches via jack |
-| PRESET button | Short press: cycle presets. Long press (1.5 s): save current settings to active preset. |
-| Rotary encoder | Adjust BPM (bare turn) / parameter select (while holding FS) / MIDI channel (while holding encoder button) |
+| Control        | Function                                                                                                                                                              |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| FS1–FS4        | Onboard footswitches                                                                                                                                                  |
+| ExtFS1, ExtFS2 | External footswitches via jack                                                                                                                                        |
+| Rotary encoder | Adjust BPM (bare turn) / parameter select (while holding FS) / MIDI channel (while holding encoder button)                                                            |
 | Encoder button | Short press (no FS): open main menu. Short press (FS held): open mode select. Long press (FS held, ~600 ms): per-FS channel. Long press (no FS, locked, 3 s): unlock. |
-| POT1 | Modulation UP speed (0–5 s) |
-| POT2 | Modulation DOWN speed (0–5 s) |
-| MS2 toggle | Global Momentary / Latching mode |
-| LOCK switch | Freeze encoder and pots; disable WiFi |
+| LOCK switch    | Freeze encoder and pots; disable WiFi                                                                                                                                 |
 
 ### I/O
 
-| Port | Function |
-|------|----------|
-| mini-TRS MIDI Out | Primary MIDI output |
-| mini-TRS MIDI In | MIDI Thru (passes through to output) |
-| USB-C | USB MIDI out/thru + power |
-| BLE MIDI | Wireless MIDI (Apple BLE-MIDI standard) — always on |
-| Expression Out | Analog wiper mirrors modulation (AD5292 digipot) |
-| Expression In | External expression pedal → mirrors to Exp Out + sends MIDI CC (configurable) |
-| External FS jack | Connect 2 additional footswitches |
+| Port              | Function                                                                      |
+| ----------------- | ----------------------------------------------------------------------------- |
+| mini-TRS MIDI Out | Primary MIDI output                                                           |
+| mini-TRS MIDI In  | MIDI Thru (passes through to output)                                          |
+| USB-C             | USB MIDI out/thru + power                                                     |
+| BLE MIDI          | Wireless MIDI (Apple BLE-MIDI standard) — always on                           |
+| Expression Out    | Analog wiper mirrors modulation (AD5292 digipot)                              |
+| Expression In     | External expression pedal → mirrors to Exp Out + sends MIDI CC (configurable) |
+| External FS jack  | Connect 2 additional footswitches                                             |
 
 ### Pin Assignments
 
-| Pin | Role |
-|-----|------|
-| 1 | POT1 (UP speed) |
-| 2 | POT2 (DOWN speed) |
-| 3 | ExtFS2 LED |
-| 4 | FS1 |
-| 5 | FS1 LED * |
-| 6 | FS2 |
-| 7 | FS2 LED * |
-| 8 | ExtFS2 |
-| 9 | Encoder A |
-| 10 | Encoder B |
-| 11 | Encoder button |
-| 12 | Expression In |
-| 13 | MS2 (momentary/latching toggle) |
-| 14 | FS3 |
-| 15 | FS3 LED * |
-| 16 | FS4 |
-| 17 | ExtFS1 |
-| 18 | ExtFS1 LED * |
-| 21 | FS4 LED * |
-| 36 | MIDI RX |
-| 38 | Digipot CS (SYNC) |
-| 39 | Digipot SCK |
-| 40 | Digipot MOSI (SDI) |
-| 41 | SDA (OLED) |
-| 42 | SCL (OLED) |
-| 43 | MIDI TX |
-| 44 | PRESET button |
-| 45 | Activity LED |
-| 46 | Tempo LED |
-| 47 | LOCK switch |
-| 48 | NeoPixel (onboard RGB) |
+| Pin | Role                            |
+| --- | ------------------------------- |
+| 1   | POT1 (UP speed)                 |
+| 2   | POT2 (DOWN speed)               |
+| 3   | ExtFS2 LED                      |
+| 4   | FS1                             |
+| 5   | FS1 LED \*                      |
+| 6   | FS2                             |
+| 7   | FS2 LED \*                      |
+| 8   | ExtFS2                          |
+| 9   | Encoder A                       |
+| 10  | Encoder B                       |
+| 11  | Encoder button                  |
+| 12  | Expression In                   |
+| 13  | MS2 (momentary/latching toggle) |
+| 14  | FS3                             |
+| 15  | FS3 LED \*                      |
+| 16  | FS4                             |
+| 17  | ExtFS1                          |
+| 18  | ExtFS1 LED \*                   |
+| 21  | FS4 LED \*                      |
+| 36  | MIDI RX                         |
+| 38  | Digipot CS (SYNC)               |
+| 39  | Digipot SCK                     |
+| 40  | Digipot MOSI (SDI)              |
+| 41  | SDA (OLED)                      |
+| 42  | SCL (OLED)                      |
+| 43  | MIDI TX                         |
+| 44  | PRESET button                   |
+| 45  | Activity LED                    |
+| 46  | Tempo LED                       |
+| 47  | LOCK switch                     |
+| 48  | NeoPixel (onboard RGB)          |
 
-*\* Footswitch LEDs are repurposed as preset indicators — see [Preset LEDs](#preset-leds) below.*
+_\* Footswitch LEDs are repurposed as preset indicators — see [Preset LEDs](#preset-leds) below._
 
 **Pins to avoid on ESP32-S3-N16R8:** GPIOs 19/20 are native USB D-/D+ (unusable while USB is active — continuous USB-MIDI traffic causes phantom reads). GPIOs 33–37 are reserved for octal PSRAM. GPIOs 45 and 46 are strapping pins but default LOW at reset, so they are safe for output LEDs wired cathode→resistor→GND.
 
@@ -243,7 +239,7 @@ By default all footswitches use the global MIDI channel. To override:
 
 Engage the LOCK switch to freeze all encoder and pot input. The OLED shows "LOCKED" and inverts the display. WiFi also turns off while locked (restarts automatically when unlocked). Disengage to resume editing.
 
-Preset *loading* (short PRESET press) works even when LOCK is engaged. Preset *saving* (long PRESET press) is blocked.
+Preset _loading_ (short PRESET press) works even when LOCK is engaged. Preset _saving_ (long PRESET press) is blocked.
 
 ---
 
@@ -251,12 +247,12 @@ Preset *loading* (short PRESET press) works even when LOCK is engaged. Preset *s
 
 ### Basic Modes
 
-| Mode | Behavior |
-|------|----------|
-| PC | Sends a Program Change on press. Encoder selects PC number (1–128). |
-| CC | Momentary: holds 127 while pressed, sends 0 on release. Encoder selects CC number. |
-| CC Latch | Alternates between CC 127 and CC 0 on each press. Encoder selects CC number. |
-| Note | Note On on press, Note Off on release. Encoder selects note (shown as note name + octave). |
+| Mode     | Behavior                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------ |
+| PC       | Sends a Program Change on press. Encoder selects PC number (1–128).                        |
+| CC       | Momentary: holds 127 while pressed, sends 0 on release. Encoder selects CC number.         |
+| CC Latch | Alternates between CC 127 and CC 0 on each press. Encoder selects CC number.               |
+| Note     | Note On on press, Note Off on release. Encoder selects note (shown as note name + octave). |
 
 ### Scene / Snapshot Modes
 
@@ -265,27 +261,27 @@ These modes are tailored to specific guitar modellers. Each comes in two variant
 - **Normal**: Encoder pre-selects a value; every press sends that same value.
 - **Scroll**: Each press advances to the next scene/slot and sends it (wraps around).
 
-| Mode | CC | Values | Notes |
-|------|----|--------|-------|
-| Helix Snap / Helix Scrl | CC 69 | 0–7 | Snapshot select or scroll |
-| QC Scene / QC Scrl | CC 43 | 0–7 | Scene select or scroll |
-| Fractal Scene / Fract Scrl | CC 34 | 0–7 | Scene select or scroll |
-| Kemper Slot / Kemper Scrl | CC 50–54 | 1 | Encoder selects CC number (slot 0 = CC50, slot 4 = CC54); scroll cycles CC numbers |
+| Mode                       | CC       | Values | Notes                                                                              |
+| -------------------------- | -------- | ------ | ---------------------------------------------------------------------------------- |
+| Helix Snap / Helix Scrl    | CC 69    | 0–7    | Snapshot select or scroll                                                          |
+| QC Scene / QC Scrl         | CC 43    | 0–7    | Scene select or scroll                                                             |
+| Fractal Scene / Fract Scrl | CC 34    | 0–7    | Scene select or scroll                                                             |
+| Kemper Slot / Kemper Scrl  | CC 50–54 | 1      | Encoder selects CC number (slot 0 = CC50, slot 4 = CC54); scroll cycles CC numbers |
 
 ### System / Transport Mode
 
 Encoder selects one of 8 transport commands. Each press sends both an MMC SysEx message (for DAWs) and the corresponding System Real-Time byte (for hardware).
 
-| Command | MMC | SysEx byte |
-|---------|-----|------------|
-| Play | F0 7F 7F 06 02 F7 | FA |
-| Stop | F0 7F 7F 06 01 F7 | FC |
-| Continue | F0 7F 7F 06 03 F7 | FB |
-| Record | F0 7F 7F 06 06 F7 | — |
-| Pause | F0 7F 7F 06 09 F7 | — |
-| Rewind | F0 7F 7F 06 05 F7 | — |
-| Fast Fwd | F0 7F 7F 06 04 F7 | — |
-| Goto Start | Song Position Pointer to 0 | — |
+| Command    | MMC                        | SysEx byte |
+| ---------- | -------------------------- | ---------- |
+| Play       | F0 7F 7F 06 02 F7          | FA         |
+| Stop       | F0 7F 7F 06 01 F7          | FC         |
+| Continue   | F0 7F 7F 06 03 F7          | FB         |
+| Record     | F0 7F 7F 06 06 F7          | —          |
+| Pause      | F0 7F 7F 06 09 F7          | —          |
+| Rewind     | F0 7F 7F 06 05 F7          | —          |
+| Fast Fwd   | F0 7F 7F 06 04 F7          | —          |
+| Goto Start | Song Position Pointer to 0 | —          |
 
 ### Modulation Modes
 
@@ -317,11 +313,11 @@ Linear timing, but steps land on random CC values continuously. Does not stop at
 
 Continuous oscillation between 0 and 127. Three wave shapes available.
 
-| Mode | Wave |
-|------|------|
+| Mode     | Wave                    |
+| -------- | ----------------------- |
 | LFO Sine | Raised-cosine sine wave |
-| LFO Tri | Linear triangle wave |
-| LFO Sq | Square wave (0 ↔ 127) |
+| LFO Tri  | Linear triangle wave    |
+| LFO Sq   | Square wave (0 ↔ 127)   |
 
 - **Momentary:** LFO runs while held, returns to 0 on release.
 - **Latching:** LFO runs after press, continues on release, returns to 0 on next press.
@@ -390,63 +386,63 @@ All endpoints emit/consume JSON unless noted. CORS is enabled (preflight OPTIONS
 
 **State / live values**
 
-| Method | Path | Body | Action |
-|--------|------|------|--------|
-| GET | `/api/state` | — | Full state JSON (channel, activePreset, presetDirty, bpm, externalSync, all 6 live buttons) |
-| GET | `/api/poll` | — | Lightweight poll for the web UI: `{bpm, externalSync, activePreset, presetDirty}` |
-| POST | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15); marks dirty |
-| POST | `/api/bpm` | `{"bpm":120}` | Set internal BPM (20–300); clears external sync |
+| Method | Path           | Body            | Action                                                                                      |
+| ------ | -------------- | --------------- | ------------------------------------------------------------------------------------------- |
+| GET    | `/api/state`   | —               | Full state JSON (channel, activePreset, presetDirty, bpm, externalSync, all 6 live buttons) |
+| GET    | `/api/poll`    | —               | Lightweight poll for the web UI: `{bpm, externalSync, activePreset, presetDirty}`           |
+| POST   | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15); marks dirty                                                 |
+| POST   | `/api/bpm`     | `{"bpm":120}`   | Set internal BPM (20–300); clears external sync                                             |
 
 **Presets**
 
-| Method | Path | Body | Action |
-|--------|------|------|--------|
-| GET | `/api/presets` | — | All 128 preset slots + active index |
-| POST | `/api/preset/load/:id` | — | Apply preset N (0…NUM_PRESETS-1) to live state |
-| POST | `/api/preset/save/:id` | — | Save current live state to preset N + flush to disk |
-| GET | `/api/preset/:id/action` | — | Read the preset-load action for preset N |
-| POST | `/api/preset/:id/action` | `{enabled, modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh}` | Update preset-load action. For the active preset edits land in the live copy and mark dirty; for other slots the change is written + flushed immediately |
+| Method | Path                     | Body                                                                               | Action                                                                                                                                                   |
+| ------ | ------------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/api/presets`           | —                                                                                  | All 128 preset slots + active index                                                                                                                      |
+| POST   | `/api/preset/load/:id`   | —                                                                                  | Apply preset N (0…NUM_PRESETS-1) to live state                                                                                                           |
+| POST   | `/api/preset/save/:id`   | —                                                                                  | Save current live state to preset N + flush to disk                                                                                                      |
+| GET    | `/api/preset/:id/action` | —                                                                                  | Read the preset-load action for preset N                                                                                                                 |
+| POST   | `/api/preset/:id/action` | `{enabled, modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh}` | Update preset-load action. For the active preset edits land in the live copy and mark dirty; for other slots the change is written + flushed immediately |
 
 **Buttons (footswitches)**
 
-| Method | Path | Body | Action |
-|--------|------|------|--------|
-| POST | `/api/button/:id` | `{modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh}` | Update footswitch config. Server clamps `midiNumber` against mode range (`sceneMaxVal` for scene modes, `NUM_SYS_CMDS-1` for System, 127 otherwise; modulation modes additionally accept 255 = Pitch Bend). Ramp values with bit 31 set encode a note-value index (see MIDI Clock below). |
-| POST | `/api/button/:id/press` | — | Simulate footswitch press |
-| POST | `/api/button/:id/release` | — | Simulate footswitch release |
-| POST | `/api/button/:id/action` | `{type, enabled, modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh, velocity}` | Configure a HOLD/DOUBLE/RELEASE alt-action. `type`: 0=HOLD, 1=DOUBLE, 2=RELEASE |
+| Method | Path                      | Body                                                                                               | Action                                                                                                                                                                                                                                                                                    |
+| ------ | ------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/button/:id`         | `{modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh}`                          | Update footswitch config. Server clamps `midiNumber` against mode range (`sceneMaxVal` for scene modes, `NUM_SYS_CMDS-1` for System, 127 otherwise; modulation modes additionally accept 255 = Pitch Bend). Ramp values with bit 31 set encode a note-value index (see MIDI Clock below). |
+| POST   | `/api/button/:id/press`   | —                                                                                                  | Simulate footswitch press                                                                                                                                                                                                                                                                 |
+| POST   | `/api/button/:id/release` | —                                                                                                  | Simulate footswitch release                                                                                                                                                                                                                                                               |
+| POST   | `/api/button/:id/action`  | `{type, enabled, modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh, velocity}` | Configure a HOLD/DOUBLE/RELEASE alt-action. `type`: 0=HOLD, 1=DOUBLE, 2=RELEASE                                                                                                                                                                                                           |
 
 **Globals & calibration**
 
-| Method | Path | Body | Action |
-|--------|------|------|--------|
-| GET | `/api/global` | — | All global settings (LED mode, routings, exp CC, encoder action, etc.) |
-| POST | `/api/global` | global settings fields | Update global settings; persisted to NVS |
-| GET | `/api/expcal` | — | Poll calibration status `{running, min, max}` |
-| POST | `/api/expcal` | — | Start 5-second expression pedal calibration sweep |
+| Method | Path          | Body                   | Action                                                                 |
+| ------ | ------------- | ---------------------- | ---------------------------------------------------------------------- |
+| GET    | `/api/global` | —                      | All global settings (LED mode, routings, exp CC, encoder action, etc.) |
+| POST   | `/api/global` | global settings fields | Update global settings; persisted to NVS                               |
+| GET    | `/api/expcal` | —                      | Poll calibration status `{running, min, max}`                          |
+| POST   | `/api/expcal` | —                      | Start 5-second expression pedal calibration sweep                      |
 
 **Multi-scenes**
 
-| Method | Path | Body | Action |
-|--------|------|------|--------|
-| GET | `/api/multis` | — | All multi-scene definitions |
-| POST | `/api/multis` | array of multi scenes | Replace all multi-scene definitions |
-| DELETE | `/api/multis/:id` | — | Delete a single multi-scene slot |
+| Method | Path              | Body                  | Action                              |
+| ------ | ----------------- | --------------------- | ----------------------------------- |
+| GET    | `/api/multis`     | —                     | All multi-scene definitions         |
+| POST   | `/api/multis`     | array of multi scenes | Replace all multi-scene definitions |
+| DELETE | `/api/multis/:id` | —                     | Delete a single multi-scene slot    |
 
 **Backup / restore / firmware**
 
-| Method | Path | Body | Action |
-|--------|------|------|--------|
-| GET | `/api/backup` | — | Download a JSON snapshot of all presets + globals + multi-scenes |
-| POST | `/api/restore` | backup JSON | Replace all presets + globals + multi-scenes from a backup file |
-| POST | `/api/factory-reset` | — | Wipe presets and rewrite factory defaults; blocked when LOCK is engaged |
-| POST | `/api/ota` | multipart firmware blob | Upload a new firmware image and reboot |
+| Method | Path                 | Body                    | Action                                                                  |
+| ------ | -------------------- | ----------------------- | ----------------------------------------------------------------------- |
+| GET    | `/api/backup`        | —                       | Download a JSON snapshot of all presets + globals + multi-scenes        |
+| POST   | `/api/restore`       | backup JSON             | Replace all presets + globals + multi-scenes from a backup file         |
+| POST   | `/api/factory-reset` | —                       | Wipe presets and rewrite factory defaults; blocked when LOCK is engaged |
+| POST   | `/api/ota`           | multipart firmware blob | Upload a new firmware image and reboot                                  |
 
 **Misc**
 
-| Method | Path | Body | Action |
-|--------|------|------|--------|
-| GET | `/dismiss` | — | Returns 204; satisfies Android captive-portal probe so the websheet closes without disconnecting WiFi |
+| Method | Path       | Body | Action                                                                                                |
+| ------ | ---------- | ---- | ----------------------------------------------------------------------------------------------------- |
+| GET    | `/dismiss` | —    | Returns 204; satisfies Android captive-portal probe so the websheet closes without disconnecting WiFi |
 
 ---
 

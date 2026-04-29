@@ -110,7 +110,7 @@ inline void saveCurrentPreset(const PedalState &state) {
 // Uses modulators[0] for modulation modes.
 inline void _fireLoadAction(const FSActionPersisted &act, PedalState &state) {
     if(!act.enabled || act.modeIndex >= NUM_MODES) return;
-    FSButton tmp(255, 255, "", 0);
+    FSButton tmp(255, "", 0);
     applyModeFlags(tmp, act.modeIndex);
     tmp.midiNumber = act.midiNumber;
     tmp.fsChannel  = act.fsChannel;
