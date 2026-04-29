@@ -117,7 +117,7 @@ inline String _menuItemRhs(const PedalState &pedal, uint8_t item) {
   case MENU_PRESET_COUNT:
     return String(pedal.globalSettings.presetCount);
   case MENU_PRESET_ACTION: {
-    const FSActionPersisted &la = presets[activePreset].loadAction;
+    const FSActionPersisted &la = pedal.liveLoadAction;
     if(!la.enabled) return String(F("Off"));
     uint8_t mi = la.modeIndex < NUM_MODES ? la.modeIndex : 0;
     return String(modes[mi].name);
@@ -465,8 +465,8 @@ inline void handleMenuPress(PedalState &pedal) {
       break;
     }
     case MENU_PRESET_ACTION: {
-      // Populate loadActionEditBtn from saved load action, then open cursor edit menu
-      const FSActionPersisted &la = presets[activePreset].loadAction;
+      // Populate loadActionEditBtn from the live load action, then open cursor edit menu
+      const FSActionPersisted &la = pedal.liveLoadAction;
       FSButton &lb = pedal.loadActionEditBtn;
       if(la.enabled && la.modeIndex < NUM_MODES) {
         applyModeIndex(lb, la.modeIndex, &pedal.modulators[0]);

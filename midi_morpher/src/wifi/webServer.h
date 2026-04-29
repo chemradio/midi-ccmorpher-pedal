@@ -768,7 +768,12 @@ inline void handlePostGlobal() {
 inline void handleGetPresetAction(int idx) {
   addCORS();
   if(idx < 0 || idx >= NUM_PRESETS) { webServer.send(400); return; }
-  const FSActionPersisted &la = presets[idx].loadAction;
+  // For the active preset return the live (potentially-unsaved) edit copy so
+  // the web UI matches what's shown on the OLED. Other slots are read-only
+  // until edited, so the on-disk value is correct for them.
+  const FSActionPersisted &la = (_webPedal && idx == activePreset)
+                                  ? _webPedal->liveLoadAction
+                                  : presets[idx].loadAction;
   bool upSync = (la.rampUpMs & CLOCK_SYNC_FLAG) != 0;
   bool dnSync = (la.rampDownMs & CLOCK_SYNC_FLAG) != 0;
   String j;
@@ -808,7 +813,11 @@ inline void handlePostPresetAction(int idx) {
     webServer.send(403, F("application/json"), F("{\"error\":\"locked\"}"));
     return;
   }
-  FSActionPersisted &la = presets[idx].loadAction;
+  // Active preset: edit the live copy (mirrors how button edits work — dirty
+  // until the user saves). Other slots: edit the on-disk copy directly + flush.
+  bool isActive = (idx == activePreset);
+  FSActionPersisted &la = isActive ? _webPedal->liveLoadAction
+                                    : presets[idx].loadAction;
   const String &body = webServer.arg("plain");
   bool enabled;
   if(jsonBool(body, "enabled", enabled)) la.enabled = enabled ? 1u : 0u;
@@ -831,7 +840,8 @@ inline void handlePostPresetAction(int idx) {
     if(cl >= 0 && cl <= 127) la.ccLow = (uint8_t)cl;
     if(cH >= 0 && cH <= 127) la.ccHigh = (uint8_t)cH;
   }
-  saveAllPresets();
+  if(isActive) markStateDirty();
+  else         saveAllPresets();
   webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }
 

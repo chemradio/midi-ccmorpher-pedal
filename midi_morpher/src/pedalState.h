@@ -89,6 +89,11 @@ struct PedalState
     // Virtual button used when editing the preset load action via mode select.
     FSButton loadActionEditBtn = FSButton(255, "Load Act", 0);
 
+    // Live (editable) copy of the active preset's load action. Mirrors how
+    // pedal.buttons[] works: edits land here and only flush to presets[]/disk
+    // on saveCurrentPreset(). applyPreset() reseeds this from the loaded slot.
+    FSActionPersisted liveLoadAction = {};
+
     // Returns the FSButton being edited in mode select (loadActionEditBtn when FSIdx==6).
     FSButton& modeSelectBtn() {
         return (modeSelectFSIdx == 6)

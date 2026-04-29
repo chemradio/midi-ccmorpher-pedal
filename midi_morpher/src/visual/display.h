@@ -1315,12 +1315,13 @@ inline void _syncFSEditTarget(PedalState &pedal) {
     act.rampUpMs   = lb.rampUpMs;   act.rampDownMs = lb.rampDownMs;
     act.enabled    = (lb.modeIndex != 0);
   } else if(pedal.fsEditFSIdx == FS_LOAD_ACTION_IDX) {
-    FSActionPersisted &la = presets[activePreset].loadAction;
+    FSActionPersisted &la = pedal.liveLoadAction;
     la.enabled    = (lb.modeIndex != 0);  la.modeIndex  = lb.modeIndex;
     la.midiNumber = lb.midiNumber;        la.fsChannel  = lb.fsChannel;
     la.ccLow      = lb.ccLow;            la.ccHigh     = lb.ccHigh;
     la.velocity   = lb.velocity;         la.rampUpMs   = lb.rampUpMs;
     la.rampDownMs = lb.rampDownMs;       la._pad       = 0;
+    markStateDirty();
   }
 }
 

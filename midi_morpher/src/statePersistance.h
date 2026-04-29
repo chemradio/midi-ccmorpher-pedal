@@ -19,19 +19,8 @@ struct PresetFileHeader {
 // ── NVS handle ────────────────────────────────────────────────────────────────
 inline Preferences prefs;
 
-// ── Persisted extra action (16 bytes) ─────────────────────────────────────────
-struct FSActionPersisted {
-    uint8_t  enabled;    // 0 = disabled
-    uint8_t  modeIndex;
-    uint8_t  midiNumber;
-    uint8_t  fsChannel;
-    uint8_t  ccLow;
-    uint8_t  ccHigh;
-    uint8_t  velocity;   // Note On velocity (default 100)
-    uint8_t  _pad;       // align rampUpMs to 4 bytes
-    uint32_t rampUpMs;
-    uint32_t rampDownMs;
-};  // 16 bytes
+// FSActionPersisted is defined in sharedTypes.h so PedalState can carry a
+// live copy of the active preset's load action without a cyclic include.
 
 // ── Persisted button record (64 bytes) ────────────────────────────────────────
 // Extra actions: 3 × FSActionPersisted (48 bytes). Size change resets presets.
@@ -58,9 +47,6 @@ struct PresetData {
 inline PresetData presets[NUM_PRESETS];
 inline uint8_t   activePreset = 0;
 inline bool      presetDirty  = false;
-// Last-saved load action for the active preset. Used to revert unsaved changes on preset switch.
-inline FSActionPersisted _loadActionSaved = {};
-
 // ── Dirty flag — replaces auto-save; callers unchanged ────────────────────────
 inline void markStateDirty() {
     presetDirty = true;
@@ -114,8 +100,9 @@ inline void saveCurrentPreset(const PedalState &state) {
             ap.rampDownMs = (uint32_t)act.rampDownMs;
         }
     }
+    // Flush the live load-action edit into the persisted slot before writing.
+    p.loadAction = state.liveLoadAction;
     saveAllPresets();
-    _loadActionSaved = presets[activePreset].loadAction;
     presetDirty = false;
 }
 
@@ -178,9 +165,10 @@ inline void applyPreset(uint8_t idx, PedalState &state) {
         state.modulators[i].restingHigh = false;
         state.modulators[i].reset();
     }
-    // Revert any unsaved load action changes on the old preset, then snapshot the new one.
-    presets[activePreset].loadAction = _loadActionSaved;
-    _loadActionSaved = presets[idx].loadAction;
+    // Seed the live load-action editor from the freshly-loaded slot. Any
+    // unsaved edits to the previous preset's live copy are simply dropped —
+    // same model the rest of pedal state uses.
+    state.liveLoadAction = p.loadAction;
     activePreset = idx;
     presetDirty  = false;
     _fireLoadAction(p.loadAction, state);
@@ -237,6 +225,6 @@ inline void loadAllPresets(PedalState &state) {
     prefs.begin("presets", true);
     activePreset = constrain(prefs.getUChar("act", 0), 0, NUM_PRESETS - 1);
     prefs.end();
-    _loadActionSaved = presets[activePreset].loadAction;
+    // applyPreset seeds state.liveLoadAction from the chosen slot.
     applyPreset(activePreset, state);
 }

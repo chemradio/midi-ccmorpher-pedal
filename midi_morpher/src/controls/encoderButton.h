@@ -25,7 +25,7 @@ inline void _stopExtraModIfNeeded(FSButton &btn, int8_t xt, MidiCCModulator &mod
 
 inline void _saveLoadAction(PedalState &pedal) {
   const FSButton &lb = pedal.loadActionEditBtn;
-  FSActionPersisted &la = presets[activePreset].loadAction;
+  FSActionPersisted &la = pedal.liveLoadAction;
   la.enabled = (lb.modeIndex != 0);
   la.modeIndex = lb.modeIndex;
   la.midiNumber = lb.midiNumber;
