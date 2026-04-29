@@ -1,6 +1,6 @@
 # MIDI CCMorpher
 
-MIDI CCMorpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), 128 presets for all footswitches, a rotary encoder, two potentiometers, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, BLE MIDI. Each preset can store completely different configurations per footswitch, including per-preset BPM.
+MIDI CCMorpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), 128 presets for all footswitches, a rotary encoder, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, BLE MIDI. Each preset can store completely different configurations per footswitch, including per-preset BPM.
 Firmware target: ESP32-S3-N16R8, Arduino framework.
 
 ---
@@ -13,8 +13,8 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 - 7 Neopixels - one per footswitch + tempo
 - expression pedal in jack
 - mini-TRS MIDI out + in (MIDI Thru), USB-C MIDI out/thru, BLE MIDI in/out
-- built-in AP mode — SSID "MIDI Morpher", password "midimorpher", UI at 192.168.4.1. Always on except when "Lock settings" is engaged.
-- standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`), advertised as `MIDI Morpher`. Always on — not affected by the LOCK switch. Coexists with the WiFi AP via radio time-slicing.
+- built-in AP mode — SSID "MIDI Morpher", password "midimorpher", UI at 192.168.4.1. Always on except when Lock Settings is engaged.
+- standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`), advertised as `MIDI Morpher`. Always on. Coexists with the WiFi AP via radio time-slicing.
 
 ---
 
@@ -27,16 +27,16 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 - Settings are volatile until explicitly saved.
 - `presetDirty = true` is set by any setting change (encoder, web UI); cleared on preset load or save.
 - On first boot (file missing or header magic/version mismatch): factory defaults written for all slots.
-- Holding encoder button triggers preset save (unless LOCK).
+- Holding encoder button triggers preset save (unless Lock Settings is engaged).
 
 ---
 
 ## Modulation Engine Behavior
 
-- **RAMPER:** exponential curve (`SHAPE_EXP`), CC 0→127 on press. On release (momentary), ramps back down to 0 gradually using the DOWN pot speed — does not snap. Latching holds until next press, then ramps back down. Inverted mode: resting position is 127, not 0. Same gradual return logic applies in reverse.
-- **STEPPER:** linear curve (`SHAPE_LINEAR`), moves in discrete quantized steps. Return uses the DOWN pot speed. Inverted mode: resting position is 127. Same gradual return logic applies in reverse.
+- **RAMPER:** exponential curve (`SHAPE_EXP`), CC 0→127 on press. On release (momentary), ramps back down to 0 gradually using the configured ramp-down speed — does not snap. Latching holds until next press, then ramps back down. Inverted mode: resting position is 127, not 0. Same gradual return logic applies in reverse.
+- **STEPPER:** linear curve (`SHAPE_LINEAR`), moves in discrete quantized steps. Return uses the configured ramp-down speed. Inverted mode: resting position is 127. Same gradual return logic applies in reverse.
 - **RANDOM STEPPER:** linear curve. Steps to random CC values continuously; does not stop at 127. Return behavior follows the same proportional speed rule.
-- **LFO:** continuous 0–127–0 sweep. Wave types: sine (`SHAPE_SINE`, raised-cosine), triangle (`SHAPE_LINEAR`), square (`SHAPE_SQUARE`). UP pot controls rise speed, DOWN pot controls descent. Momentary: gradually return to 0 on release. Latching: continues until next press, then gradually returns to 0.
+- **LFO:** continuous 0–127–0 sweep. Wave types: sine (`SHAPE_SINE`, raised-cosine), triangle (`SHAPE_LINEAR`), square (`SHAPE_SQUARE`). Rise and fall speeds are configured independently. Momentary: gradually return to 0 on release. Latching: continues until next press, then gradually returns to 0.
 
 ### Shared or per-fs modulator
 
@@ -44,7 +44,7 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 
 ### Proportional Return Speed
 
-- Return speed = DOWN pot speed × (current CC value / 127)
+- Return speed = configured ramp-down speed × (current CC value / 127)
 - Ensures return duration feels consistent regardless of when the footswitch was released.
 
 ### Encoder acceleration
@@ -127,7 +127,7 @@ Transient UI state on `PedalState` (`inModeSelect`, `inActionSelect`, `inChannel
 
 - AP SSID: `MIDI Morpher`, password: `midimorpher`
 - UI served at `http://192.168.4.1` — dark-themed SPA embedded as PROGMEM string in `src/wifi/webUI.h`
-- **WiFi is always on** at boot. It turns off only when the LOCK switch is engaged, and restarts when LOCK is disengaged. There is no user-toggleable WiFi setting.
+- **WiFi is always on** at boot. It turns off only when Lock Settings is engaged, and restarts when disengaged. There is no separate WiFi toggle.
 - **Captive portal:** `DNSServer` catches all DNS queries and redirects to `192.168.4.1`. `webServer.onNotFound(handleCaptivePortal)` returns a 302 to `/` for any unregistered URL, including OS probes like `/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`. Phones/laptops then show a "Sign in to network" prompt that opens the UI automatically.
 
 ---

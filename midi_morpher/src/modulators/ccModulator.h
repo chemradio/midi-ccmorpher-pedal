@@ -1,7 +1,7 @@
 #pragma once
-#include "config.h"
-#include "midiOut.h"
-#include "sharedTypes.h"
+#include "../config.h"
+#include "../midi/midiOut.h"
+#include "../sharedTypes.h"
 
 enum RampShape {
   SHAPE_LINEAR,
@@ -269,7 +269,7 @@ struct MidiCCModulator {
   }
 };
 
-#include "modulators/lfo.h"
-#include "modulators/ramper.h"
-#include "modulators/randomStepper.h"
-#include "modulators/stepper.h"
+#include "lfo.h"
+#include "ramper.h"
+#include "randomStepper.h"
+#include "stepper.h"

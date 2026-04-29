@@ -1,6 +1,6 @@
 #pragma once
 // Preset button handling and LED update functions.
-// Included after statePersistance.h, pedalState.h, and display.h in the .ino.
+// Included after statePersistence.h, pedalState.h, and display.h in the .ino.
 
 // ── Preset LED blink state ────────────────────────────────────────────────────
 // Slow blink on the active preset LED when presetDirty signals unsaved changes

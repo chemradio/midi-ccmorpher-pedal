@@ -1,9 +1,9 @@
 #pragma once
-#include "../analogInOut/expInput.h"
+#include "../expression/expInput.h"
 #include "../clock/midiClock.h"
 #include "../globalSettings.h"
 #include "../pedalState.h"
-#include "../statePersistance.h"
+#include "../statePersistence.h"
 #include "../visual/display.h"
 
 // ── Menu item indices ──────────────────────────────────────────────────────────

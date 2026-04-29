@@ -1,5 +1,5 @@
 #pragma once
-#include "../midiOut.h"
+#include "../midi/midiOut.h"
 
 // ── Noise filtering constants ─────────────────────────────────────────────────
 // Deadband on the EMA-filtered value. 20 / 4096 ≈ 0.5% of full range.

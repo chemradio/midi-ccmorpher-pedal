@@ -1,9 +1,9 @@
 #pragma once
 #include "../config.h"
-#include "../footswitches/footswitchObject.h"
+#include "../footswitches/footswitch.h"
 #include "../menu/mainMenu.h"
 #include "../pedalState.h"
-#include "../statePersistance.h"
+#include "../statePersistence.h"
 
 inline FSButton encBtn = {ENC_BTN, "Enc BTN", 0};
 

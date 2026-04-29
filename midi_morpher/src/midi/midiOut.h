@@ -1,7 +1,7 @@
 #pragma once
 #include <USB.h>
 #include <USBMIDI.h>
-#include "ble/bleMidi.h"
+#include "../ble/bleMidi.h"
 
 extern USBMIDI midi;
 

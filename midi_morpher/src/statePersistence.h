@@ -124,7 +124,7 @@ inline void _fireLoadAction(const FSActionPersisted &act, PedalState &state) {
 }
 
 // Apply a stored preset to the live pedal state.
-// applyModeFlags() is available because footswitchObject.h is included first.
+// applyModeFlags() is available because footswitch.h is included first.
 inline void applyPreset(uint8_t idx, PedalState &state) {
     if(idx >= NUM_PRESETS) idx = 0;
     const PresetData &p = presets[idx];

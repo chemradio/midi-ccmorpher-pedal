@@ -1,11 +1,11 @@
 #pragma once
 #include "../config.h"
-#include "../midiOut.h"
+#include "../midi/midiOut.h"
 #include "../pedalState.h"
-#include "../potentiometers/analogReadHelpers.h"
+#include "../pots/analogHelpers.h"
 #include "../visual/display.h"
 #include "../clock/midiClock.h"
-#include "../statePersistance.h"
+#include "../statePersistence.h"
 
 #define EXP_CAL_DURATION_MS 5000
 

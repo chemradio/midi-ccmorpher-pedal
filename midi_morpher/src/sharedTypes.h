@@ -9,7 +9,7 @@ enum ModulationType {
   RANDOM
 };
 
-// On-disk twin of FSAction. Kept here (not in statePersistance.h) so that
+// On-disk twin of FSAction. Kept here (not in statePersistence.h) so that
 // pedalState.h can carry a live copy without a cyclic include.
 struct FSActionPersisted {
     uint8_t  enabled;

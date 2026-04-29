@@ -11,7 +11,6 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 - Per-footswitch **HOLD / DOUBLE / RELEASE** alt-actions in addition to the press action
 - **Up to 128 presets** (configurable user-visible count, default 6) — store and recall complete configurations including per-preset BPM and an optional preset-load action; the active preset is persisted across reboots
 - Per-footswitch MIDI channel override
-- Modulation speed controlled by two onboard pots (UP and DOWN independently)
 - Proportional return speed — feels consistent regardless of when you release
 - **MIDI Clock** — internal tap tempo or slave to incoming `0xF8`; ramp/LFO speeds can be expressed as note values (1/32T … 2/1) and resolve to milliseconds at current BPM
 - **Tempo LED** — pulses on the beat
@@ -22,10 +21,9 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 - Expression pedal input — mirrors value to expression out and sends as MIDI CC20
 - mini-TRS MIDI Out + In (MIDI Thru), USB-C MIDI, **BLE MIDI** (Apple standard, iOS/macOS/Windows/Linux/Android)
 - **Configurable MIDI routing** — 6 toggleable pairs: DIN↔USB, DIN↔BLE, USB↔BLE
-- **Wireless web UI** — full configuration from any phone or laptop; includes footswitch trigger buttons, pot sliders, and global settings
+- **Wireless web UI** — full configuration from any phone or laptop; includes footswitch trigger buttons and global settings
 - **Captive portal** — phones/laptops auto-open the UI when joining the network
-- WiFi always on (turns off only when LOCK switch is engaged)
-- LOCK switch — prevents accidental encoder/pot changes and disables WiFi
+- WiFi always on (turns off only when Lock Settings is engaged)
 - **Encoder acceleration** — fast turns multiply steps by up to 8× for quick CC/PC/Note scanning
 - All settings stored in non-volatile memory inside each preset slot
 
@@ -58,14 +56,12 @@ A 5-minute path from "powered on" to "sending MIDI from a footswitch":
 
 **6. Save the preset.** A `*` (OLED) or `● Unsaved` (web) badge appears whenever something has changed. To persist:
 
-- **Long-press the PRESET button** (~1.5 s). The OLED flashes "SAVED" and the dirty marker clears.
+- **Long-press the encoder button** (~1.5 s). The OLED flashes "SAVED" and the dirty marker clears.
 - Or click **Save Preset** in the web UI.
 
-**7. Switch presets.** Turn the encoder knob while also pressing and holding it's butto to scroll through presets. (P1 → P2 → … → P6 → P1). Alternatively assign Preset UP/DOWN action to any of the footswitches
+**7. Switch presets.** Assign a footswitch to Preset Up or Preset Down mode. Each press steps through presets. Alternatively, use the web UI preset selector.
 
 That's it. Everything else (modulation engines, scene/snapshot modes, alt-actions, expression pedal, MIDI routing, BLE pairing) is documented below.
-
-> **Tip:** if anything feels stuck, turn of "Lock Settings" from the menu.
 
 ---
 
@@ -99,8 +95,7 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 | FS1–FS4        | Onboard footswitches                                                                                                                                                  |
 | ExtFS1, ExtFS2 | External footswitches via jack                                                                                                                                        |
 | Rotary encoder | Adjust BPM (bare turn) / parameter select (while holding FS) / MIDI channel (while holding encoder button)                                                            |
-| Encoder button | Short press (no FS): open main menu. Short press (FS held): open mode select. Long press (FS held, ~600 ms): per-FS channel. Long press (no FS, locked, 3 s): unlock. |
-| LOCK switch    | Freeze encoder and pots; disable WiFi                                                                                                                                 |
+| Encoder button | Short press (no FS): open main menu. Short press (FS held): open mode select. Long press (FS held, ~600 ms): per-FS channel. Long press (no FS): save preset.         |
 
 ### I/O
 
@@ -118,8 +113,6 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 
 | Pin | Role                            |
 | --- | ------------------------------- |
-| 1   | POT1 (UP speed)                 |
-| 2   | POT2 (DOWN speed)               |
 | 3   | ExtFS2 LED                      |
 | 4   | FS1                             |
 | 5   | FS1 LED \*                      |
@@ -130,7 +123,6 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 | 10  | Encoder B                       |
 | 11  | Encoder button                  |
 | 12  | Expression In                   |
-| 13  | MS2 (momentary/latching toggle) |
 | 14  | FS3                             |
 | 15  | FS3 LED \*                      |
 | 16  | FS4                             |
@@ -144,10 +136,8 @@ Open `midi_morpher/midi_morpher.ino` and upload to your board.
 | 41  | SDA (OLED)                      |
 | 42  | SCL (OLED)                      |
 | 43  | MIDI TX                         |
-| 44  | PRESET button                   |
 | 45  | Activity LED                    |
 | 46  | Tempo LED                       |
-| 47  | LOCK switch                     |
 | 48  | NeoPixel (onboard RGB)          |
 
 _\* Footswitch LEDs are repurposed as preset indicators — see [Preset LEDs](#preset-leds) below._
@@ -163,13 +153,13 @@ _\* Footswitch LEDs are repurposed as preset indicators — see [Preset LEDs](#p
 The pedal stores 6 independent presets. Each preset saves the complete configuration: all 6 footswitch modes, MIDI numbers, per-footswitch channels, ramp speeds, the global MIDI channel, and the current BPM.
 
 **Switching presets:**
-Press the PRESET button once. The pedal cycles forward through presets (P1 → P2 → … → P6 → P1). The OLED briefly shows the preset number, and the corresponding footswitch LED lights up.
+Assign a footswitch to Preset Up or Preset Down mode. Each press steps forward or backward through presets. The OLED briefly shows the preset number, and the corresponding footswitch LED lights up.
 
 **Saving a preset:**
-Hold the PRESET button for 1.5 seconds. The display flashes (inverted) with the preset number and "SAVED". The current live settings are written to that preset slot. Saving is blocked when LOCK is engaged.
+Long-press the encoder button (~1.5 s). The display flashes (inverted) with the preset number and "SAVED". The current live settings are written to that preset slot. Saving is blocked when Lock Settings is engaged.
 
 **Unsaved changes:**
-Any time you change a setting (encoder, pots, or web UI) without saving, the OLED home screen shows `*` next to the preset number. This clears when you save.
+Any time you change a setting (encoder or web UI) without saving, the OLED home screen shows `*` next to the preset number. This clears when you save.
 
 #### Preset LEDs
 
@@ -219,13 +209,6 @@ Short-press the encoder button (without holding any footswitch) to open the main
 2. Turn the encoder. The display shows the updated number.
 3. Release. Save the preset to keep it.
 
-### Adjusting Modulation Speed (Ramp, LFO, Stepper modes)
-
-1. Hold the footswitch.
-2. Turn POT1 to adjust the UP speed (0–5 s).
-3. Turn POT2 to adjust the DOWN speed (0–5 s).
-4. Speeds apply only to the footswitch you are holding. Each footswitch has its own independent speed settings.
-
 ### Setting a Per-Footswitch MIDI Channel
 
 By default all footswitches use the global MIDI channel. To override:
@@ -235,11 +218,11 @@ By default all footswitches use the global MIDI channel. To override:
 3. Turn the encoder to select the channel (1–16) or scroll past 16 to return to Global.
 4. Release. Save the preset to keep it.
 
-### LOCK Switch
+### Lock Settings
 
-Engage the LOCK switch to freeze all encoder and pot input. The OLED shows "LOCKED" and inverts the display. WiFi also turns off while locked (restarts automatically when unlocked). Disengage to resume editing.
+Enable Lock Settings (from the main menu) to freeze all encoder input. The OLED shows "LOCKED" and inverts the display. WiFi also turns off while locked and restarts when disengaged.
 
-Preset _loading_ (short PRESET press) works even when LOCK is engaged. Preset _saving_ (long PRESET press) is blocked.
+Preset loading still works when Lock Settings is engaged. Preset saving is blocked.
 
 ---
 
@@ -322,7 +305,7 @@ Continuous oscillation between 0 and 127. Three wave shapes available.
 - **Momentary:** LFO runs while held, returns to 0 on release.
 - **Latching:** LFO runs after press, continues on release, returns to 0 on next press.
 
-POT1 controls rise time (half-cycle up), POT2 controls fall time (half-cycle down).
+Rise and fall times (half-cycles) are configured independently via the web UI or encoder.
 
 #### Tap Tempo
 
@@ -332,7 +315,7 @@ A 27th mode with no MIDI output — pressing the footswitch updates the pedal's 
 
 For all modulation types, the return speed scales with the current value at the moment of release:
 
-> Return time = DOWN pot speed × (current CC value ÷ 127)
+> Return time = configured ramp-down speed × (current CC value ÷ 127)
 
 A ramp that only reached CC 50 will return twice as fast as one that reached CC 127.
 
@@ -340,7 +323,7 @@ A ramp that only reached CC 50 will return twice as fast as one that reached CC 
 
 ## BLE MIDI
 
-The pedal advertises itself as **MIDI Morpher** using the standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`). Compatible with iOS, macOS, Windows, Linux, and Android. BLE MIDI is always active — the LOCK switch does not affect it.
+The pedal advertises itself as **MIDI Morpher** using the standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`). Compatible with iOS, macOS, Windows, Linux, and Android. BLE MIDI is always active — Lock Settings does not affect it.
 
 BLE MIDI coexists with the WiFi AP via radio time-slicing. BLE TX and RX can be routed to/from DIN and USB via the configurable MIDI routing flags.
 
@@ -348,7 +331,7 @@ BLE MIDI coexists with the WiFi AP via radio time-slicing. BLE TX and RX can be 
 
 ## Wireless Web Interface
 
-The pedal broadcasts its own WiFi access point (always on, except when LOCK is engaged):
+The pedal broadcasts its own WiFi access point (always on, except when Lock Settings is engaged):
 
 - **Network:** `MIDI Morpher`
 - **Password:** `midimorpher`
@@ -365,8 +348,7 @@ Connect from any phone, tablet, or laptop — no app required.
 - Per-footswitch MIDI channel override (or Global)
 - Per-footswitch ramp UP and DOWN speed — either a millisecond slider or a note-value dropdown (1/32T … 2/1), toggled by an inline `sync` checkbox. Visible for modulation modes only.
 - **Footswitch trigger buttons** — activate footswitches directly from the browser (hold for momentary, click-toggle for latching)
-- **POT1 / POT2 sliders** — send CC 20 / CC 21 directly from the web UI
-- **Global settings** — LED mode, tempo LED, NeoPixel, display brightness, display timeout, pot CC assignments, expression CC, expression pedal calibration, MIDI routing flags
+- **Global settings** — LED mode, tempo LED, NeoPixel, display brightness, display timeout, expression CC, expression pedal calibration, MIDI routing flags
 
 ### Unsaved Changes
 
@@ -376,9 +358,9 @@ Any setting change marks the active preset as unsaved. A `● Unsaved` badge app
 
 When you connect to the `MIDI Morpher` network, the pedal's DNS server catches every query and its HTTP server 302-redirects any unknown URL (including OS probes like `/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`) to `http://192.168.4.1/`. Phones and laptops respond by popping up a "Sign in to network" prompt that opens the UI directly — no need to type the address.
 
-### WiFi and LOCK
+### WiFi and Lock Settings
 
-WiFi turns off automatically when the LOCK switch is engaged and restarts when it is disengaged. There is no separate WiFi on/off toggle — the LOCK switch is the only way to disable it.
+WiFi turns off automatically when Lock Settings is engaged and restarts when it is disengaged. There is no separate WiFi on/off toggle.
 
 ### REST API
 
@@ -435,7 +417,7 @@ All endpoints emit/consume JSON unless noted. CORS is enabled (preflight OPTIONS
 | ------ | -------------------- | ----------------------- | ----------------------------------------------------------------------- |
 | GET    | `/api/backup`        | —                       | Download a JSON snapshot of all presets + globals + multi-scenes        |
 | POST   | `/api/restore`       | backup JSON             | Replace all presets + globals + multi-scenes from a backup file         |
-| POST   | `/api/factory-reset` | —                       | Wipe presets and rewrite factory defaults; blocked when LOCK is engaged |
+| POST   | `/api/factory-reset` | —                       | Wipe presets and rewrite factory defaults; blocked when Lock Settings is engaged |
 | POST   | `/api/ota`           | multipart firmware blob | Upload a new firmware image and reboot                                  |
 
 **Misc**
@@ -453,7 +435,7 @@ The home screen has two views.
 **Idle view** — shown when no footswitch has fired recently:
 
 ```
-Ch:1  *                LOCK
+Ch:1  *               LOCK
 ───────────────────────────
 P                       BPM
 
@@ -462,13 +444,13 @@ P                       BPM
 
 - Top left: `Ch:N` global MIDI channel (1–16).
 - Top: `*` appears next to the channel when there are unsaved changes.
-- Top right: `LOCK` when the LOCK switch is engaged.
+- Top right: `LOCK` when Lock Settings is engaged.
 - Centre: large preset digit + BPM. `EXT` appears above BPM when the pedal is slaved to incoming MIDI clock.
 
 **FS-fired view** — shown briefly (2 s) after any footswitch press, so the pedal can be used as a "what did I just send?" display:
 
 ```
-Ch:1  *                LOCK
+Ch:1  *               LOCK
 ───────────────────────────
 P:2*                  120BPM
 ───────────────────────────
@@ -504,9 +486,9 @@ Presets are stored in `/presets.bin` on **LittleFS**. The file begins with a mag
 
 Up to 128 preset slots are available; the user-visible count (`Presets` menu item) defaults to 6 and is configurable up to 128.
 
-Global settings (LED mode, display, routing, pot/exp CCs, calibration, encoder action, etc.) live in their own NVS namespace and are not preset-specific.
+Global settings (LED mode, display, routing, exp CC, calibration, encoder action, etc.) live in their own NVS namespace and are not preset-specific.
 
-Settings are **not auto-saved**. Changes are held in memory until you explicitly save (long-press PRESET button or click Save Preset in the web UI). The OLED `*` indicator and the web-UI `● Unsaved` badge mark dirty state.
+Settings are **not auto-saved**. Changes are held in memory until you explicitly save (long-press encoder button or click Save Preset in the web UI). The OLED `*` indicator and the web-UI `● Unsaved` badge mark dirty state.
 
 ---
 

@@ -1,8 +1,8 @@
 #pragma once
 #include "config.h"
-#include "footswitches/footswitchObject.h"
+#include "footswitches/footswitch.h"
 #include "globalSettings.h"
-#include "midiCCModulator.h"
+#include "modulators/ccModulator.h"
 #include "sharedTypes.h"
 
 static constexpr uint8_t FS_LOAD_ACTION_IDX = 6;

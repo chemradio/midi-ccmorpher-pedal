@@ -1,6 +1,6 @@
 #pragma once
 #include "../config.h"
-#include "../midiOut.h"
+#include "../midi/midiOut.h"
 
 // ── Note-value table ─────────────────────────────────────────────────────────
 // Used for both the ramp-speed display and converting note indices to ms.

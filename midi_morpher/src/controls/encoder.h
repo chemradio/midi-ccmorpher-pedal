@@ -2,8 +2,8 @@
 #include "../config.h"
 #include "../clock/midiClock.h"
 #include "../pedalState.h"
-#include "../footswitches/footswitchObject.h"
-#include "../statePersistance.h"
+#include "../footswitches/footswitch.h"
+#include "../statePersistence.h"
 #include "../menu/mainMenu.h"
 
 // Defined in encoderButton.h — used here to distinguish encoder-button+rotate
