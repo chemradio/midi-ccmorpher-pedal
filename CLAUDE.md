@@ -22,11 +22,12 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 
 (Don't case about previously stored presets. Always opt for better code design than preserving current presets. All of the presets can be erased, reformatted etc.)
 
-- 128 presets, each storing: global MIDI channel, per-preset BPM, + per-footswitch mode, midiNumber, fsChannel, rampUpMs, rampDownMs and global settings
-- settings are volatile until explicitly saved
-- `presetDirty = true` is set by any setting change (encoder, web UI); cleared on preset load or save
-- On first boot (no `"presets"` namespace): factory defaults for all 6 slots
-- Holding encoder button triggers preset save
+- Up to 128 preset slots in `/presets.bin` (LittleFS). User-visible count is `globalSettings.presetCount` (1–128, default 6); the PRESET button + web UI cycle within `[0, presetCount)`. The remaining slots are reachable via direct jump (`PresetNum` mode, `/api/preset/load/:id`).
+- Each preset stores: global MIDI channel, per-preset BPM, per-footswitch (modeIndex, midiNumber, fsChannel, ccLow/Hi, velocity, rampUpMs, rampDownMs, 3 extraActions), and an optional preset-load action.
+- Settings are volatile until explicitly saved.
+- `presetDirty = true` is set by any setting change (encoder, web UI); cleared on preset load or save.
+- On first boot (file missing or header magic/version mismatch): factory defaults written for all slots.
+- Holding encoder button triggers preset save (unless LOCK).
 
 ---
 
@@ -77,9 +78,23 @@ Non-preset settings persisted to NVS namespace `"globals"`. Accessed via the mai
 
 ## Memory
 
-- Settings live in 128 preset slots in NVS (namespace `"presets"`).
+- Presets live in `/presets.bin` on **LittleFS** (replaced SPIFFS, which is upstream-deprecated). The active-preset index is in NVS namespace `"presets"`. Global settings: NVS `"globals"`. Multi-scenes / exp calibration: their own NVS keys.
+- The preset file starts with a `PresetFileHeader { magic="MMP1", version, presetCount, recordSize }`. Mismatch → factory defaults; no silent corruption. Bump `PRESET_FILE_VERSION` whenever `PresetData` / `FSButtonPersisted` layout changes.
 - **No auto-save.** Changes are not persisted until the user saves the preset via long-press or web UI.
-- `markStateDirty()` is kept as a call-site-compatible wrapper that sets `presetDirty = true`.
+- `markStateDirty()` sets `presetDirty = true`.
+- The active preset's load action is edited via `PedalState.liveLoadAction`; only flushed into `presets[activePreset].loadAction` on save (mirrors how button edits work). Switching presets reseeds it from the new slot — unsaved load-action edits are dropped, same as unsaved button edits.
+
+---
+
+## UI mode state
+
+Transient UI state on `PedalState` (`inModeSelect`, `inActionSelect`, `inChannelSelect`, `inFSEdit`, `menuState`) is meant to be mutually-exclusive. **Never** clear flags individually at a "exit to home" site — call `pedal.exitAllUIModes()`. Use `pedal.anyUIModeActive()` to check whether any of them are set. Centralized so adding a new flag doesn't require hunting every clear site.
+
+---
+
+## Pedal-wide event flags
+
+`presetNavRequest` and `presetNavDirect` (inline globals, declared in `pedalState.h`) are the FS→loop event channel for preset navigation. FS handlers in `footswitchObject.h` set them; the main loop consumes and clears them on the next tick.
 
 ---
 

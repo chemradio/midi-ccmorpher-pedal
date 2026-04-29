@@ -7,8 +7,9 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 ## Features at a Glance
 
 - 4 onboard footswitches + 2 external via jack — all 6 independently configurable
-- 32 footswitch modes: basic MIDI + 5 modulation types + scene/snapshot (with scroll variants) for Helix, QC, Fractal, Kemper + Tap Tempo + System/Transport
-- **6 presets** — store and recall complete configurations including per-preset BPM; footswitch LEDs indicate the active preset
+- 40+ footswitch modes: basic MIDI (PC / CC / CC Latch / CC Single / Note) + 5 modulation engines × wave/curve variants + scene/snapshot (with scroll variants) for Helix, QC, Fractal, Kemper + Tap Tempo + System/Transport (MMC + real-time) + USB HID Keyboard + Multi (fire several MIDI events from one press) + Preset Up / Down / Direct
+- Per-footswitch **HOLD / DOUBLE / RELEASE** alt-actions in addition to the press action
+- **Up to 128 presets** (configurable user-visible count, default 6) — store and recall complete configurations including per-preset BPM and an optional preset-load action; the active preset is persisted across reboots
 - Per-footswitch MIDI channel override
 - Modulation speed controlled by two onboard pots (UP and DOWN independently)
 - Proportional return speed — feels consistent regardless of when you release
@@ -30,6 +31,44 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 
 ---
 
+## Quick Start
+
+A 5-minute path from "powered on" to "sending MIDI from a footswitch":
+
+**1. Power up.** Plug in USB-C. The OLED briefly shows a splash, then the home screen with the active preset (`P:1`), global MIDI channel, and BPM.
+
+**2. Connect MIDI.** Use any one — they all run simultaneously:
+
+- **Wired DIN:** plug a TRS MIDI cable into the mini-TRS Out.
+- **USB:** the pedal enumerates as `MIDI Morpher 1.0` over USB-C.
+- **BLE:** in your DAW / phone, scan for Bluetooth MIDI devices and pair with `MIDI Morpher` (no PIN). Works natively on iOS, macOS, Windows 10+, Linux, Android.
+
+**3. Tap a footswitch.** Out of the box, FS1–FS4 send Program Changes 1–4 on channel 1. The activity LED lights and the OLED briefly highlights the row that fired.
+
+**4. Connect to the web UI** (optional, recommended):
+
+- On your phone or laptop, join the WiFi network **`MIDI Morpher`** (password **`midimorpher`**).
+- Most devices will pop up a "Sign in to network" prompt — tap it, the UI opens.
+- Or browse to `http://192.168.4.1` (or `http://midimorpher.local`).
+
+**5. Change a footswitch's behavior** — pick one of these:
+
+- **From the pedal:** hold the footswitch + short-press the encoder button. Turn the encoder to pick a category (e.g. `Ramp`), press to drill in, pick a sub-variant, press to confirm. Release the footswitch.
+- **From the web UI:** the page lists all 6 footswitches as cards. Pick a mode from the dropdown, set the CC/PC/Note number, choose a channel.
+
+**6. Save the preset.** A `*` (OLED) or `● Unsaved` (web) badge appears whenever something has changed. To persist:
+
+- **Long-press the PRESET button** (~1.5 s). The OLED flashes "SAVED" and the dirty marker clears.
+- Or click **Save Preset** in the web UI.
+
+**7. Switch presets.** Short-press the PRESET button to cycle through the 6 user-visible presets (P1 → P2 → … → P6 → P1).
+
+That's it. Everything else (modulation engines, scene/snapshot modes, alt-actions, expression pedal, MIDI routing, BLE pairing) is documented below.
+
+> **Tip:** if anything feels stuck, flip the **LOCK** switch off (or hold the encoder button for 3 s if it was locked from the menu). LOCK freezes the encoder/pots and disables the WiFi AP.
+
+---
+
 ## Build Setup
 
 **Board:** ESP32-S3-N16R8. In Arduino IDE, install `Espressif Systems → esp32` board package version ≥ 3.0.0.
@@ -43,7 +82,7 @@ A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is 
 | Adafruit NeoPixel | ≥ 1.12.0 |
 | NimBLE-Arduino | ≥ 2.0.0 |
 
-Built-in (no install needed): `SPI.h`, `Wire.h`, `Preferences.h`, `USB.h`, `USBMIDI.h`, `WebServer.h`, `WiFi.h`
+Built-in (no install needed): `SPI.h`, `Wire.h`, `Preferences.h`, `LittleFS.h`, `USB.h`, `USBMIDI.h`, `USBHIDKeyboard.h`, `WebServer.h`, `DNSServer.h`, `ESPmDNS.h`, `WiFi.h`, `Update.h`
 
 Full dependency manifest: [`libraries.json`](libraries.json)
 
@@ -150,22 +189,26 @@ Hold the encoder button and turn the knob. The OLED shows the new channel (1–1
 
 ### Main Menu
 
-Short-press the encoder button (without holding any footswitch) to open the main menu. Turn the encoder to scroll through 14 items; press the encoder button to select. Menu items:
+Short-press the encoder button (without holding any footswitch) to open the main menu. Turn the encoder to scroll; press the encoder button to select. Menu items:
 
 1. MIDI Channel
-2. MIDI Routings (6 toggleable pairs: DIN↔USB, DIN↔BLE, USB↔BLE)
-3. Pot 1 CC (0–127 or Off)
-4. Pot 2 CC (0–127 or Off)
-5. Exp In CC
-6. Exp Calibration (triggers 5-second sweep)
-7. Exp Wake Display
-8. LED Mode (On / Conservative / Off)
-9. Tempo LED (on/off)
-10. NeoPixel (on/off)
-11. Display Brightness (0–100%)
-12. Display Timeout (2 s / 5 s / 10 s / Always)
-13. Lock Settings
-14. Exit
+2. Routings (6 toggleable pairs: DIN↔USB, DIN↔BLE, USB↔BLE)
+3. Encoder Action (Tempo / CC / Keyboard)
+4. Encoder CC# (when Encoder Action = CC)
+5. Encoder → Right Key / Left Key (when Encoder Action = Keyboard)
+6. Exp In CC
+7. Exp Calibration (triggers 5-second sweep)
+8. Exp Wake Display
+9. LEDs (On / Conservative / Off)
+10. Tempo LED (on/off)
+11. Poly Mod (per-FS independent modulators on/off)
+12. Clock Generate / Clock Output
+13. Display Brightness (0–100%)
+14. Display Timeout (2 s / 5 s / 10 s / Always)
+15. Presets (1–128 visible-count cap)
+16. Preset Action (load action fired when this preset is recalled)
+17. Lock Settings
+18. Exit
 
 ### Changing a Footswitch Mode
 
@@ -343,48 +386,105 @@ WiFi turns off automatically when the LOCK switch is engaged and restarts when i
 
 ### REST API
 
+All endpoints emit/consume JSON unless noted. CORS is enabled (preflight OPTIONS handled on all routes).
+
+**State / live values**
+
 | Method | Path | Body | Action |
 |--------|------|------|--------|
-| GET | `/api/state` | — | Full state JSON (channel, activePreset, presetDirty, bpm, externalSync, all 6 buttons) |
-| GET | `/api/presets` | — | All 6 preset slots + active index |
-| GET | `/api/global` | — | All global settings as JSON |
-| POST | `/api/global` | global settings fields | Update global settings |
-| POST | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15) |
-| POST | `/api/button/:id` | `{"modeIndex":4,"midiNumber":11,"fsChannel":255,"rampUpMs":1000,"rampDownMs":1000}` | Update footswitch config. Server clamps `midiNumber` against mode range (`sceneMaxVal` for scene modes, 127 otherwise). Ramp values with bit 31 set encode a note-value index (see MIDI Clock below). |
+| GET | `/api/state` | — | Full state JSON (channel, activePreset, presetDirty, bpm, externalSync, all 6 live buttons) |
+| GET | `/api/poll` | — | Lightweight poll for the web UI: `{bpm, externalSync, activePreset, presetDirty}` |
+| POST | `/api/channel` | `{"channel":0}` | Set global MIDI channel (0–15); marks dirty |
+| POST | `/api/bpm` | `{"bpm":120}` | Set internal BPM (20–300); clears external sync |
+
+**Presets**
+
+| Method | Path | Body | Action |
+|--------|------|------|--------|
+| GET | `/api/presets` | — | All 128 preset slots + active index |
+| POST | `/api/preset/load/:id` | — | Apply preset N (0…NUM_PRESETS-1) to live state |
+| POST | `/api/preset/save/:id` | — | Save current live state to preset N + flush to disk |
+| GET | `/api/preset/:id/action` | — | Read the preset-load action for preset N |
+| POST | `/api/preset/:id/action` | `{enabled, modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh}` | Update preset-load action. For the active preset edits land in the live copy and mark dirty; for other slots the change is written + flushed immediately |
+
+**Buttons (footswitches)**
+
+| Method | Path | Body | Action |
+|--------|------|------|--------|
+| POST | `/api/button/:id` | `{modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh}` | Update footswitch config. Server clamps `midiNumber` against mode range (`sceneMaxVal` for scene modes, `NUM_SYS_CMDS-1` for System, 127 otherwise; modulation modes additionally accept 255 = Pitch Bend). Ramp values with bit 31 set encode a note-value index (see MIDI Clock below). |
 | POST | `/api/button/:id/press` | — | Simulate footswitch press |
 | POST | `/api/button/:id/release` | — | Simulate footswitch release |
-| POST | `/api/bpm` | `{"bpm":120}` | Set internal BPM (20–300); clears external sync |
-| GET | `/api/poll` | — | Lightweight poll: `{bpm, externalSync, activePreset, presetDirty}` |
-| POST | `/api/pot` | `{"id":0,"value":64}` | Send CC 20 (id=0) or CC 21 (id=1) |
-| POST | `/api/preset/load/:id` | — | Apply preset N (0–5) to live state |
-| POST | `/api/preset/save/:id` | — | Save current live state to preset N |
+| POST | `/api/button/:id/action` | `{type, enabled, modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs, ccLow, ccHigh, velocity}` | Configure a HOLD/DOUBLE/RELEASE alt-action. `type`: 0=HOLD, 1=DOUBLE, 2=RELEASE |
+
+**Globals & calibration**
+
+| Method | Path | Body | Action |
+|--------|------|------|--------|
+| GET | `/api/global` | — | All global settings (LED mode, routings, exp CC, encoder action, etc.) |
+| POST | `/api/global` | global settings fields | Update global settings; persisted to NVS |
 | GET | `/api/expcal` | — | Poll calibration status `{running, min, max}` |
 | POST | `/api/expcal` | — | Start 5-second expression pedal calibration sweep |
-| GET | `/dismiss` | — | Clean shutdown of WiFi AP |
+
+**Multi-scenes**
+
+| Method | Path | Body | Action |
+|--------|------|------|--------|
+| GET | `/api/multis` | — | All multi-scene definitions |
+| POST | `/api/multis` | array of multi scenes | Replace all multi-scene definitions |
+| DELETE | `/api/multis/:id` | — | Delete a single multi-scene slot |
+
+**Backup / restore / firmware**
+
+| Method | Path | Body | Action |
+|--------|------|------|--------|
+| GET | `/api/backup` | — | Download a JSON snapshot of all presets + globals + multi-scenes |
+| POST | `/api/restore` | backup JSON | Replace all presets + globals + multi-scenes from a backup file |
+| POST | `/api/factory-reset` | — | Wipe presets and rewrite factory defaults; blocked when LOCK is engaged |
+| POST | `/api/ota` | multipart firmware blob | Upload a new firmware image and reboot |
+
+**Misc**
+
+| Method | Path | Body | Action |
+|--------|------|------|--------|
+| GET | `/dismiss` | — | Returns 204; satisfies Android captive-portal probe so the websheet closes without disconnecting WiFi |
 
 ---
 
 ## OLED Display
 
-The home screen shows:
+The home screen has two views.
+
+**Idle view** — shown when no footswitch has fired recently:
 
 ```
-Ch:1  P:2*  Latch  LOCK
-─────────────────────────
-1 Ramp         CC:5
-2 LFO Sine     CC:11
-3 PC           PC:1
-4 CC Latch     CC:74
+Ch:1  *                LOCK
+───────────────────────────
+P                       BPM
+
+      2*             120
 ```
 
-- Top left: global MIDI channel
-- Top center-left: active preset number (`P:N`) with `*` when unsaved changes exist
-- Top center: Latch or Mom (current modulator mode)
-- Top right: LOCK indicator when engaged
-- Rows: footswitch number, mode name, parameter value (CC/PC/Note/Scene)
-- If a footswitch has a per-channel override, the channel number appears left of the parameter
+- Top left: `Ch:N` global MIDI channel (1–16).
+- Top: `*` appears next to the channel when there are unsaved changes.
+- Top right: `LOCK` when the LOCK switch is engaged.
+- Centre: large preset digit + BPM. `EXT` appears above BPM when the pedal is slaved to incoming MIDI clock.
 
-Temporary screens appear on any interaction and return to the home screen after 2 seconds.
+**FS-fired view** — shown briefly (2 s) after any footswitch press, so the pedal can be used as a "what did I just send?" display:
+
+```
+Ch:1  *                LOCK
+───────────────────────────
+P:2*                  120BPM
+───────────────────────────
+Ramp
+CC:5                     c3
+```
+
+- The mode name + MIDI value (`CC:N`, `PC:N`, `Note:N`, `Scene:N`, etc.) of the most-recently-fired footswitch.
+- `cN` in the bottom-right corner shows the per-FS channel override, if any (omitted when the FS uses the global channel).
+- The `E` after BPM means external sync.
+
+Temporary screens (mode select, channel select, menu, tap-tempo readout, preset save/load) reuse the OLED and revert to the home screen after the configured timeout.
 
 ---
 
@@ -399,17 +499,18 @@ The onboard RGB LED (GPIO 48) reflects the current modulation output level:
 
 ## Memory / Presets
 
-All settings are stored in 6 preset slots in internal NVS (non-volatile storage). Each preset contains:
+Presets are stored in `/presets.bin` on **LittleFS**. The file begins with a magic + version header (`MMP1` + layout version); a mismatch on boot causes the firmware to silently fall back to factory defaults rather than load garbage. Each preset stores:
 
 - Global MIDI channel
 - BPM (loaded when the preset is applied)
-- For each of 6 footswitches: mode, MIDI number, per-footswitch channel, ramp UP/DOWN speed
+- For each of 6 footswitches: mode, MIDI number, per-footswitch channel, CC low/high, velocity, ramp UP/DOWN speed, plus three optional alt-actions (HOLD / DOUBLE / RELEASE)
+- An optional preset-load action that fires when the preset is recalled
 
-Global settings (LED mode, display, routing, pot/exp CCs, calibration) are stored separately in NVS and are not preset-specific.
+Up to 128 preset slots are available; the user-visible count (`Presets` menu item) defaults to 6 and is configurable up to 128.
 
-Settings are **not auto-saved**. Changes are held in memory until you explicitly save (long-press PRESET button or click Save Preset in the web UI).
+Global settings (LED mode, display, routing, pot/exp CCs, calibration, encoder action, etc.) live in their own NVS namespace and are not preset-specific.
 
-On first boot after a firmware update from an older version, the old single-preset settings are migrated into preset slot 1. All other slots initialize to factory defaults.
+Settings are **not auto-saved**. Changes are held in memory until you explicitly save (long-press PRESET button or click Save Preset in the web UI). The OLED `*` indicator and the web-UI `● Unsaved` badge mark dirty state.
 
 ---
 
