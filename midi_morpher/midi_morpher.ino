@@ -66,14 +66,27 @@ void setup() {
   initBleMidi();
   initFSLeds();
   showStartupScreen();
-  delay(2000);
-
-  // Show the home screen immediately after startup
-  displayHomeScreen(pedal);
   updateFSLeds(pedal, false);
+  // Splash dismiss is handled non-blockingly in loop() so that MIDI routing,
+  // BLE polling, and footswitch handling are live within the splash window
+  // instead of frozen for 2 s.
 }
 
+// Splash → home transition. Set in setup() time-zero; cleared once the home
+// screen has been drawn. Uses millis() so it cooperates with the rest of loop().
+static unsigned long _splashStartMs = 0;
+static bool          _splashDone    = false;
+static constexpr unsigned long SPLASH_MS = 2000;
+
 void loop() {
+  // Non-blocking splash dismiss — first loop() entry latches start time, then
+  // home screen is drawn after SPLASH_MS without blocking input/MIDI handling.
+  if(_splashStartMs == 0) _splashStartMs = millis();
+  if(!_splashDone && (millis() - _splashStartMs) >= SPLASH_MS) {
+    displayHomeScreen(pedal);
+    _splashDone = true;
+  }
+
   midiClock.ledEnabled = pedal.globalSettings.tempoLedEnabled;
   midiClock.clockGenerate = pedal.globalSettings.clockGenerate;
   midiClock.clockOutput = pedal.globalSettings.clockOutput;
@@ -173,5 +186,7 @@ void loop() {
 
   handleMidiRouting(pedal);
 
-  delay(10);
+  // 1 ms keeps the FreeRTOS idle task fed (WDT + housekeeping) without
+  // throttling MIDI routing latency the way the prior 10 ms cap did.
+  delay(1);
 }
