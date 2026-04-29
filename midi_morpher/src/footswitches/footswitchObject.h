@@ -302,10 +302,10 @@ inline constexpr ModeCategory modeCategories[] = {
 };
 inline constexpr uint8_t NUM_CATEGORIES = sizeof(modeCategories) / sizeof(modeCategories[0]); // 14
 
-// Set to +1 (PresetUp) or -1 (PresetDown) on press; cleared by the main loop.
-inline int8_t presetNavRequest = 0;
-// Set to 0–5 for PresetNum direct-jump; -1 = no request.
-inline int8_t presetNavDirect  = -1;
+// presetNavRequest / presetNavDirect now live in pedalState.h.
+// Forward declarations so this header doesn't pull in pedalState.h.
+extern int8_t presetNavRequest;
+extern int8_t presetNavDirect;
 
 inline uint8_t categoryForModeIndex(uint8_t modeIdx) {
   for(uint8_t i = 0; i < NUM_CATEGORIES; i++) {

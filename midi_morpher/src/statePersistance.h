@@ -1,6 +1,20 @@
 #pragma once
 #include <Preferences.h>
-#include <SPIFFS.h>
+#include <LittleFS.h>
+
+// Preset file layout version. Bumped whenever PresetData / FSButtonPersisted
+// layouts change. Magic + version sit at the start of /presets.bin; mismatched
+// files are discarded and replaced with factory defaults — no silent garbage.
+static constexpr uint32_t PRESET_FILE_MAGIC   = 0x4D4D5031UL; // "MMP1"
+static constexpr uint32_t PRESET_FILE_VERSION = 1;
+static constexpr const char *PRESET_FILE_PATH = "/presets.bin";
+
+struct PresetFileHeader {
+    uint32_t magic;
+    uint32_t version;
+    uint32_t presetCount;
+    uint32_t recordSize;
+};
 
 // ── NVS handle ────────────────────────────────────────────────────────────────
 inline Preferences prefs;
@@ -55,8 +69,14 @@ inline void markStateDirty() {
 // ── NVS helpers ───────────────────────────────────────────────────────────────
 
 inline void saveAllPresets() {
-    File f = SPIFFS.open("/presets3.bin", "w");
-    if(f) { f.write((const uint8_t*)presets, sizeof(presets)); f.close(); }
+    File f = LittleFS.open(PRESET_FILE_PATH, "w");
+    if(f) {
+        PresetFileHeader hdr = { PRESET_FILE_MAGIC, PRESET_FILE_VERSION,
+                                 (uint32_t)NUM_PRESETS, (uint32_t)sizeof(PresetData) };
+        f.write((const uint8_t*)&hdr, sizeof(hdr));
+        f.write((const uint8_t*)presets, sizeof(presets));
+        f.close();
+    }
     prefs.begin("presets", false);
     prefs.putUChar("act", activePreset);
     prefs.end();
@@ -185,15 +205,23 @@ inline void loadGlobalSettings(PedalState &state) {
         saveGlobalSettings(state);
 }
 
-// ── Load all presets from SPIFFS on boot. ────────────────────────────────────
-// Loads /presets.bin if present and correctly sized; otherwise factory defaults.
+// ── Load all presets from LittleFS on boot. ──────────────────────────────────
+// Reads /presets.bin if present, validates magic + version + sizes; on any
+// mismatch falls through to factory defaults rather than loading garbage.
 inline void loadAllPresets(PedalState &state) {
     bool loaded = false;
-    if(SPIFFS.exists("/presets3.bin")) {
-        File f = SPIFFS.open("/presets3.bin", "r");
-        if(f && (size_t)f.size() == sizeof(presets)) {
-            f.read((uint8_t*)presets, sizeof(presets));
-            loaded = true;
+    if(LittleFS.exists(PRESET_FILE_PATH)) {
+        File f = LittleFS.open(PRESET_FILE_PATH, "r");
+        if(f && (size_t)f.size() == sizeof(PresetFileHeader) + sizeof(presets)) {
+            PresetFileHeader hdr{};
+            if(f.read((uint8_t*)&hdr, sizeof(hdr)) == sizeof(hdr) &&
+               hdr.magic       == PRESET_FILE_MAGIC &&
+               hdr.version     == PRESET_FILE_VERSION &&
+               hdr.presetCount == (uint32_t)NUM_PRESETS &&
+               hdr.recordSize  == (uint32_t)sizeof(PresetData)) {
+                f.read((uint8_t*)presets, sizeof(presets));
+                loaded = true;
+            }
         }
         if(f) f.close();
     }

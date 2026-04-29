@@ -374,13 +374,7 @@ inline void resetDisplayTimeout(PedalState &pedal) {
                          pedal.inActionSelect || pedal.inModeSelect ||
                          pedal.inFSEdit) ? 5000 : 3000;
     if((now - lastInteraction) > revertMs) {
-      pedal.menuState                  = MenuState::NONE;
-      pedal.inModeSelect               = false;
-      pedal.inChannelSelect            = false;
-      pedal.inActionSelect             = false;
-      pedal.inFSEdit                   = false;
-      pedal.fsEditEditing              = false;
-      pedal.modeSelectFromActionSelect = false;
+      pedal.exitAllUIModes();
       displayHomeScreen(pedal);
     }
     return;

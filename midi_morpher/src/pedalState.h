@@ -7,6 +7,12 @@
 
 static constexpr uint8_t FS_LOAD_ACTION_IDX = 6;
 
+// Pedal-wide preset-nav event flags. Set by FS handlers; consumed and cleared
+// by the main loop. Lives here (not in footswitchObject.h) because it is global
+// pedal state, not per-button state.
+inline int8_t presetNavRequest = 0;  // +1 = PresetUp, -1 = PresetDown, 0 = none
+inline int8_t presetNavDirect  = -1; // 0..NUM_PRESETS-1 = jump, -1 = none
+
 struct PedalState
 {
     // pedal globals
@@ -121,6 +127,26 @@ struct PedalState
         {
             button.init();
         }
+    }
+
+    // Centralized exit from any UI mode/menu/edit screen back to home.
+    // Call sites (FS press, display timeout, encoder confirm) used to clear
+    // each flag individually — easy to forget one. Keep them in sync here.
+    bool anyUIModeActive() const
+    {
+        return inModeSelect || inActionSelect || inChannelSelect || inFSEdit ||
+               menuState != MenuState::NONE;
+    }
+
+    void exitAllUIModes()
+    {
+        inModeSelect              = false;
+        inActionSelect            = false;
+        inChannelSelect           = false;
+        inFSEdit                  = false;
+        fsEditEditing             = false;
+        modeSelectFromActionSelect = false;
+        menuState                 = MenuState::NONE;
     }
 
     int8_t getActiveButtonIndex()

@@ -52,8 +52,10 @@ void setup() {
   initEncoderButton();
   analogReadResolution(12);
 
-  // Load presets + global settings, then apply global settings to live state
-  SPIFFS.begin(true);
+  // Load presets + global settings, then apply global settings to live state.
+  // LittleFS replaces SPIFFS (deprecated upstream). The filesystem layout
+  // version is encoded in the preset file name + header magic, not the FS.
+  LittleFS.begin(true);
   loadAllPresets(pedal);
   loadGlobalSettings(pedal);
   loadMultiScenes();
@@ -101,16 +103,8 @@ void loop() {
         displayTapTempo(midiClock.bpm);
       }
       // Any FS press exits config / menu and returns to home screen
-      if(pedal.inModeSelect || pedal.inActionSelect ||
-         pedal.inChannelSelect || pedal.inFSEdit ||
-         pedal.menuState != MenuState::NONE) {
-        pedal.inModeSelect = false;
-        pedal.inActionSelect = false;
-        pedal.inChannelSelect = false;
-        pedal.inFSEdit = false;
-        pedal.fsEditEditing = false;
-        pedal.modeSelectFromActionSelect = false;
-        pedal.menuState = MenuState::NONE;
+      if(pedal.anyUIModeActive()) {
+        pedal.exitAllUIModes();
         g_homeFSNeedsDraw = false;
         displayHomeScreen(pedal);
         lastInteraction = millis();
