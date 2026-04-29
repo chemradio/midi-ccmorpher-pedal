@@ -25,7 +25,6 @@ inline void handleMidiRouting(PedalState &pedal) {
 
     if(!isClockByte || midiClock.clockOutput) {
       Serial1.write(data);
-      Serial1.flush();
     }
 
     if(isClockByte) midiClock.receiveClock();
@@ -68,7 +67,9 @@ inline void handleMidiRouting(PedalState &pedal) {
   }
 
   // USB MIDI IN — USB→DIN and USB→BLE gated by routing flags.
-  if(midi.readPacket(&_midi_packet_in)) {
+  // Drain all queued packets per loop iteration so sustained host streams
+  // aren't bottlenecked by the main-loop tick rate.
+  while(midi.readPacket(&_midi_packet_in)) {
     midi_code_index_number_t code_index_num = MIDI_EP_HEADER_CIN_GET(_midi_packet_in.header);
     int8_t midix_size = _cin_to_midix_size[code_index_num];
     bool isClockPkt = (code_index_num == 0x0F && ((uint8_t *)&_midi_packet_in)[1] == 0xF8);
@@ -78,7 +79,6 @@ inline void handleMidiRouting(PedalState &pedal) {
         uint8_t *midiBytes = ((uint8_t *)&_midi_packet_in) + 1;
         if(rf & ROUTE_USB_DIN) {
           for(int i = 0; i < midix_size; i++) Serial1.write(midiBytes[i]);
-          Serial1.flush();
         }
         if(midix_size > 0 && midix_size <= 3 && (rf & ROUTE_USB_BLE)) {
           bleMidiSendBytes(midiBytes, (uint8_t)midix_size);

@@ -13,14 +13,14 @@ inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value =
   if(isPC) {
     Serial1.write(0xC0 | channel);
     Serial1.write(number);
-    midi.programChange(number, channel + 1);
+    if(tud_mounted()) midi.programChange(number, channel + 1);
     uint8_t b[2] = { (uint8_t)(0xC0 | channel), number };
     bleMidiSendBytes(b, 2);
   } else {
     Serial1.write(0xB0 | channel);
     Serial1.write(number);
     Serial1.write(value);
-    midi.controlChange(number, value, channel + 1);
+    if(tud_mounted()) midi.controlChange(number, value, channel + 1);
     uint8_t b[3] = { (uint8_t)(0xB0 | channel), number, value };
     bleMidiSendBytes(b, 3);
   }
@@ -60,10 +60,12 @@ inline void sendNote(uint8_t channel, uint8_t note, bool on, uint8_t velocity = 
   Serial1.write(status);
   Serial1.write(note & 0x7F);
   Serial1.write(vel);
-  if(on) {
-    midi.noteOn(note, velocity, channel + 1);
-  } else {
-    midi.noteOff(note, 0, channel + 1);
+  if(tud_mounted()) {
+    if(on) {
+      midi.noteOn(note, velocity, channel + 1);
+    } else {
+      midi.noteOff(note, 0, channel + 1);
+    }
   }
   uint8_t b[3] = { status, (uint8_t)(note & 0x7F), vel };
   bleMidiSendBytes(b, 3);

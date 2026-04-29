@@ -1,6 +1,6 @@
 # MIDI CCMorpher
 
-MIDI CCMorpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), 6 presets for all footswitches, a rotary encoder, two potentiometers, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, BLE MIDI. The pedal supports 6 presets that store complete configurations including per-preset BPM.
+MIDI CCMorpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), 128 presets for all footswitches, a rotary encoder, two potentiometers, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, BLE MIDI. Each preset can store completely different configurations per footswitch, including per-preset BPM.
 Firmware target: ESP32-S3-N16R8, Arduino framework.
 
 ---
@@ -9,8 +9,8 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 
 - ESP32-S3-N16R8 devboard, native USB (Arduino framework)
 - SSD1306 OLED (I2C, 128×64)
-- 4 onboard footswitches (FS1–FS4), 2 external footswitches via jack (ExtFS1, ExtFS2), rotary encoder with push button, 2 pots (UP speed, DOWN speed), PRESET momentary button
-- 6 preset LEDs, 1 activity LED, 1 tempo LED, 1 NeoPixel RGB
+- 4 onboard footswitches (FS1–FS4), 2 external footswitches via jack (ExtFS1, ExtFS2), rotary encoder with push button
+- 7 Neopixels - one per footswitch + tempo
 - expression pedal in jack
 - mini-TRS MIDI out + in (MIDI Thru), USB-C MIDI out/thru, BLE MIDI in/out
 - built-in AP mode — SSID "MIDI Morpher", password "midimorpher", UI at 192.168.4.1. Always on except when "Lock settings" is engaged.
@@ -22,12 +22,11 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 
 (Don't case about previously stored presets. Always opt for better code design than preserving current presets. All of the presets can be erased, reformatted etc.)
 
-- 6 presets, each storing: global MIDI channel, per-preset BPM, + per-footswitch modeIndex, midiNumber, fsChannel, rampUpMs, rampDownMs and global settings
+- 128 presets, each storing: global MIDI channel, per-preset BPM, + per-footswitch mode, midiNumber, fsChannel, rampUpMs, rampDownMs and global settings
 - settings are volatile until explicitly saved
-- PRESET button short press — loads next preset live
-- PRESET button long press - writes to NVS; blocked when LOCK engaged
-- `presetDirty = true` is set by any setting change (encoder, pots, web UI); cleared on preset load or save
+- `presetDirty = true` is set by any setting change (encoder, web UI); cleared on preset load or save
 - On first boot (no `"presets"` namespace): factory defaults for all 6 slots
+- Holding encoder button triggers preset save
 
 ---
 
@@ -37,7 +36,6 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 - **STEPPER:** linear curve (`SHAPE_LINEAR`), moves in discrete quantized steps. Return uses the DOWN pot speed. Inverted mode: resting position is 127. Same gradual return logic applies in reverse.
 - **RANDOM STEPPER:** linear curve. Steps to random CC values continuously; does not stop at 127. Return behavior follows the same proportional speed rule.
 - **LFO:** continuous 0–127–0 sweep. Wave types: sine (`SHAPE_SINE`, raised-cosine), triangle (`SHAPE_LINEAR`), square (`SHAPE_SQUARE`). UP pot controls rise speed, DOWN pot controls descent. Momentary: gradually return to 0 on release. Latching: continues until next press, then gradually returns to 0.
-- **UP/DOWN pots:** control modulation speed for the currently selected footswitch only.
 
 ### Shared or per-fs modulator
 
@@ -58,7 +56,7 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 ## Basic Mode Behavior
 
 - **PC:** momentary only. Sends Program Change on press.
-- **CC:** hold sends 127, release sends 0. Latching mode - alternates between 127 and 0.
+- **CC:** hold sends 127, release sends 0. Latching mode - alternates between 127 and 0. Single mode continuously sends single CC value on each press.
 - **NOTE:** momentary only. Note On on press, Note Off on release.
 - **Scene/Snapshot modes (Helix, QC, Fractal, Kemper):** encoder selects the target value or CC number depending on the unit. Scroll mode - scrolls through values from 1 up to user-defined max in a loop.
 
@@ -69,13 +67,9 @@ Scene modes (range 0–7 / 0–4), per-FS channel select, and global channel sel
 Non-preset settings persisted to NVS namespace `"globals"`. Accessed via the main menu (encoder button short press, no FS held).
 
 - **MIDI routing flags** (6-bit): 6 toggleable pairs — DIN→USB, USB→DIN, DIN→BLE, BLE→DIN, USB→BLE, BLE→USB. Default: `ROUTE_ALL` (0x3F, full mesh).
-- **LED mode**: On (preset LED always lit + slow blink if dirty), Conservative (minimal; brief blink on load/save), Off.
 - **Tempo LED**: enabled/disabled.
-- **NeoPixel**: enabled/disabled.
-- **Display brightness**: 0–100%, persisted.
 - **Display timeout**: 2 s / 5 s / 10 s / always-on.
-- **Pot 1 / Pot 2 CC**: 0–127 or `POT_CC_OFF` (0xFF) to disable CC sending.
-- **Expression pedal CC**: 0–127.
+- **Expression pedal CC**: 0–127 or OFF.
 - **Expression pedal calibration**: min/max ADC recorded during a 5-second sweep.
 - **Exp wake display**: when enabled, expression pedal movement briefly shows value on OLED.
 
@@ -83,16 +77,15 @@ Non-preset settings persisted to NVS namespace `"globals"`. Accessed via the mai
 
 ## Memory
 
-- Settings live in 6 preset slots in NVS (namespace `"presets"`).
+- Settings live in 128 preset slots in NVS (namespace `"presets"`).
 - **No auto-save.** Changes are not persisted until the user saves the preset via long-press or web UI.
 - `markStateDirty()` is kept as a call-site-compatible wrapper that sets `presetDirty = true`.
 
 ---
 
-## Expression I/O
+## Expression Input
 
-- **Expression out:** mirrors all modulation output via AD5292-BRUZ-20 digital pot.
-- **Expression in:** if a pedal is connected, mirrors its value to expression out and sends it as MIDI CC20.
+- **Expression in:** if a pedal is connected, mirrors its value to expression out and sends it as MIDI CC, configurable in global settings.
 
 ---
 
@@ -122,22 +115,6 @@ Non-preset settings persisted to NVS namespace `"globals"`. Accessed via the mai
 - **WiFi is always on** at boot. It turns off only when the LOCK switch is engaged, and restarts when LOCK is disengaged. There is no user-toggleable WiFi setting.
 - **Captive portal:** `DNSServer` catches all DNS queries and redirects to `192.168.4.1`. `webServer.onNotFound(handleCaptivePortal)` returns a 302 to `/` for any unregistered URL, including OS probes like `/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`. Phones/laptops then show a "Sign in to network" prompt that opens the UI automatically.
 
-### Web UI features
-
-- Global MIDI channel dropdown, **editable BPM** (number input + nudge buttons) with EXT indicator when slaved to incoming MIDI clock; BPM input disabled during external sync
-- **Auto-polling** (2 s interval via `GET /api/poll`): keeps BPM, external sync, preset dirty, and active preset in sync with hardware changes
-- Preset bar (P1–P6 buttons + Save button); active preset highlighted; `● Unsaved` badge when dirty
-- POT1 / POT2 virtual sliders (send CC 20 / CC 21)
-- **Global settings grid**: LED mode, tempo LED, NeoPixel, display brightness, display timeout, pot CC numbers, expression CC, expression calibration button
-- 6 footswitch cards, each with:
-    - Full-width trigger button at bottom (hold for momentary modes; click-toggle for latching; mouseleave auto-releases momentary)
-    - Mode dropdown with `<optgroup>` categories (Basic, Ramper, LFO, Stepper, Random, Scenes, Utility)
-    - MIDI number input — **1-indexed** (1–128 for CC/PC/Note, 1–8 / 1–5 for scenes); converted to 0-based on POST
-    - Mode-aware input `max` attribute + blur clamp + pre-POST clamp to prevent out-of-range values
-    - Input is disabled when mode is Tap Tempo or System
-    - Channel dropdown (Global or Ch 1–16)
-    - Ramp Up / Ramp Down: slider (ms) or note-value dropdown, toggled by inline "sync" checkbox. Visible for modulation modes only.
-
 ---
 
 ## Libraries
@@ -149,4 +126,4 @@ Full dependency manifest: `libraries.json` at project root.
 
 ## Coding Rules (follow strictly)
 
-For every feature request, present a plan (files to touch, approach, what won't change) and wait for approval before writing any code. Only implement what was explicitly requested. Do not refactor, reorganize, or "improve" unrelated code. Prefer adding small, isolated code over restructuring existing logic. If you can solve something with fewer lines, do that. If a feature is already implemented and working, leave it alone unless the task explicitly involves it or its current implementation is flawed. Keep memory usage in mind (heap, stack). Avoid dynamic allocation in hot paths. Use `millis()` for timing, never `delay()` in main loop.
+Be conservative with tokens, be precise. For every feature request, present a plan (files to touch, approach) and wait for approval before writing any code. Only implement what was explicitly requested. Do not refactor, reorganize, or "improve" unrelated code. Prefer adding small, isolated code over restructuring existing logic. If you can solve something with fewer lines, do that. If a feature is already implemented and working, leave it alone unless the task explicitly involves it or its current implementation is flawed. Keep memory usage in mind (heap, stack). Avoid dynamic allocation in hot paths. Use `millis()` for timing, never `delay()` in main loop.
