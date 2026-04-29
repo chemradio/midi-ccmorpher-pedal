@@ -140,15 +140,22 @@ void loop() {
 
   // Safety net: release all HID keys if no keyboard-mode FS is physically held.
   // Prevents stuck keys from missed release edges or USB re-enumeration.
+  // Throttled to ~10 Hz so we're not flooding the host with empty HID reports
+  // every loop iteration; still recovers a stuck key well within human reaction time.
   {
-    bool anyKbPressed = false;
-    for(const auto &b : pedal.buttons)
-      if(b.isKeyboard && b.isPressed) {
-        anyKbPressed = true;
-        break;
-      }
-    if(!anyKbPressed && tud_mounted())
-      hidKeyboard.releaseAll();
+    static unsigned long lastKbReleaseMs = 0;
+    unsigned long nowMs = millis();
+    if(nowMs - lastKbReleaseMs >= 100) {
+      bool anyKbPressed = false;
+      for(const auto &b : pedal.buttons)
+        if(b.isKeyboard && b.isPressed) {
+          anyKbPressed = true;
+          break;
+        }
+      if(!anyKbPressed && tud_mounted())
+        hidKeyboard.releaseAll();
+      lastKbReleaseMs = nowMs;
+    }
   }
 
   syncClockRamps(pedal);
