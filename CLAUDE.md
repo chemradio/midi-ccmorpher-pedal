@@ -137,7 +137,7 @@ Transient UI state on `PedalState` (`inModeSelect`, `inActionSelect`, `inChannel
 Companion sketch for ESP32-S3, ESP32-S2, or ESP32-S2-mini. Receives MIDI wirelessly from the MIDI Morpher and re-outputs it via USB MIDI (native USB) and DIN/TRS MIDI (Serial1).
 
 - **Transport selection:** runtime, short-press `TRANSPORT_SELECT_BTN_PIN` (default GPIO 0 / BOOT button). Cycles: WiFi UDP → BLE (S3 only) → ESP-NOW → … Persisted to NVS namespace `"rxcfg"` key `"transport"`.
-- **Status NeoPixel:** `STATUS_NEOPIXEL_PIN` (default GPIO 48 = onboard RGB on most ESP32-S3 DevKits) lights solid in the active transport's color — orange = WiFi UDP, blue = BLE, purple = ESP-NOW. Brightness `STATUS_NEOPIXEL_BRIGHTNESS` (~26/255 ≈ 10%). Set pin to `-1` to disable.
+- **Status NeoPixel:** `STATUS_NEOPIXEL_PIN` (default GPIO 48 = onboard RGB on most ESP32-S3 DevKits) shows the active transport's color — orange = WiFi UDP, blue = BLE, purple = ESP-NOW. Blinks at 1 Hz while connecting, solid once `connected()` is true; falls back to blinking on disconnect. Brightness `STATUS_NEOPIXEL_BRIGHTNESS` (~26/255 ≈ 10%). Set pin to `-1` to disable.
 - **BLE:** only compiled in when `CONFIG_BT_ENABLED` is defined (S3 toolchain). S2/S2-mini compile fine without it and see only two transport slots.
 - **MIDI output:** `src/midi_output.h` — bytes forwarded to DIN UART immediately; USB MIDI packets assembled via static state machine.
 - **Morpher side:** `udpEnabled` / `espNowEnabled` toggles in `GlobalSettings` (web UI). ESP-NOW pairing: Morpher always listens for `MMPR` magic, registers unicast peer, sends `MMPA` ACK. Receiver re-sends `MMPR` every 30 s.

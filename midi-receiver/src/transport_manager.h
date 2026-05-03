@@ -60,6 +60,7 @@ public:
   void loop() {
     _handleButton();
     _tList[_idx].ptr->loop();
+    _updateStatusLed();
   }
 
 private:
@@ -67,11 +68,41 @@ private:
   uint8_t          _idx      = 0;
   bool             _btnLast  = true;   // HIGH = not pressed (pull-up)
   unsigned long    _btnTime  = 0;
+  unsigned long    _blinkTime = 0;
+  bool             _blinkOn   = false;
+  bool             _wasConnected = false;
 
   void _startCurrent() {
     Serial.printf("[RX] Transport: %s\n", _tList[_idx].name);
     _tList[_idx].ptr->begin(_cb);
-    _setStatusColor(_tList[_idx].color);
+    _wasConnected = false;
+    _blinkOn      = false;
+    _blinkTime    = millis();
+    _setStatusColor(0);   // start dark; loop will blink/solid as appropriate
+  }
+
+  // Blink the status pixel while the active transport is connecting; switch
+  // to solid as soon as connected() returns true.
+  void _updateStatusLed() {
+    bool connected = _tList[_idx].ptr->connected();
+    if (connected) {
+      if (!_wasConnected) {
+        _setStatusColor(_tList[_idx].color);
+        _wasConnected = true;
+      }
+      return;
+    }
+    if (_wasConnected) {
+      _wasConnected = false;
+      _blinkOn      = false;
+      _blinkTime    = millis();
+    }
+    unsigned long now = millis();
+    if (now - _blinkTime >= 500) {
+      _blinkTime = now;
+      _blinkOn   = !_blinkOn;
+      _setStatusColor(_blinkOn ? _tList[_idx].color : 0);
+    }
   }
 
   void _handleButton() {

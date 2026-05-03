@@ -3,7 +3,8 @@
 // ── Transport select button ───────────────────────────────────────────────────
 // Short press cycles: WiFi UDP → BLE (S3 only) → ESP-NOW → …
 // Selection is persisted to NVS (namespace "rxcfg", key "transport").
-#define TRANSPORT_SELECT_BTN_PIN  0   // GPIO 0 = BOOT button on most DevKit boards
+// Wire a momentary switch to GND; internal pull-up is enabled.
+#define TRANSPORT_SELECT_BTN_PIN  4   // free GPIO, not a strapping pin
 
 // ── Status NeoPixel ───────────────────────────────────────────────────────────
 // Single WS2812 lit in a per-transport color: WiFi UDP = orange, BLE = blue,
@@ -11,8 +12,9 @@
 #define STATUS_NEOPIXEL_PIN         48   // GPIO 48 = onboard RGB on most ESP32-S3 DevKits
 #define STATUS_NEOPIXEL_BRIGHTNESS  26   // ~10% of 255
 
-// ── MIDI DIN output ───────────────────────────────────────────────────────────
-#define MIDI_TX_PIN  17    // UART TX → mini-TRS or 5-pin DIN via buffer
+// ── MIDI output ───────────────────────────────────────────────────────────────
+// UART TX feeds the MIDI output stage. See WIRING.md for schematic options.
+#define MIDI_TX_PIN  17
 
 // ── WiFi UDP transport ────────────────────────────────────────────────────────
 #define WIFI_SSID       "MIDI Morpher"
