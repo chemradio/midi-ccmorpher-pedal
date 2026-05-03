@@ -509,6 +509,10 @@ inline String buildGlobalJson() {
   j += gs.captivePortal ? F("true") : F("false");
   j += F(",\"presetCount\":");
   j += gs.presetCount;
+  j += F(",\"udpEnabled\":");
+  j += gs.udpEnabled ? F("true") : F("false");
+  j += F(",\"espNowEnabled\":");
+  j += gs.espNowEnabled ? F("true") : F("false");
   j += '}';
   return j;
 }
@@ -583,6 +587,18 @@ inline void handlePostGlobal() {
   v = jsonInt(body, "presetCount");
   if(v >= 1 && v <= NUM_PRESETS)
     gs.presetCount = (uint8_t)v;
+  if(jsonBool(body, "udpEnabled", b)) {
+    if(b != gs.udpEnabled) {
+      gs.udpEnabled = b;
+      b ? udpBroadcastInit() : udpBroadcastDeinit();
+    }
+  }
+  if(jsonBool(body, "espNowEnabled", b)) {
+    if(b != gs.espNowEnabled) {
+      gs.espNowEnabled = b;
+      b ? espNowInit() : espNowDeinit();
+    }
+  }
   saveGlobalSettings(*_webPedal);
   webServer.send(200, F("application/json"), F("{\"ok\":true}"));
 }

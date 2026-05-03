@@ -1,5 +1,7 @@
 #include "src/expression/expInput.h"
 #include "src/ble/bleMidi.h"
+#include "src/wifi/midiUdpBroadcast.h"
+#include "src/espnow/midiEspNow.h"
 #include "src/clock/clockSync.h"
 #include "src/clock/midiClock.h"
 #include "src/config.h"
@@ -64,6 +66,8 @@ void setup() {
 
   initWebServer(pedal);
   initBleMidi();
+  if(pedal.globalSettings.udpEnabled) udpBroadcastInit();
+  if(pedal.globalSettings.espNowEnabled) espNowInit();
   initFSLeds();
   showStartupScreen();
   updateFSLeds(pedal, false);

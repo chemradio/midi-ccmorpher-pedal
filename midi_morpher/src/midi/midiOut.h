@@ -2,6 +2,8 @@
 #include <USB.h>
 #include <USBMIDI.h>
 #include "../ble/bleMidi.h"
+#include "../wifi/midiUdpBroadcast.h"
+#include "../espnow/midiEspNow.h"
 
 extern USBMIDI midi;
 
@@ -16,6 +18,8 @@ inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value =
     if(tud_mounted()) midi.programChange(number, channel + 1);
     uint8_t b[2] = { (uint8_t)(0xC0 | channel), number };
     bleMidiSendBytes(b, 2);
+    udpBroadcastSend(b, 2);
+    espNowSend(b, 2);
   } else {
     Serial1.write(0xB0 | channel);
     Serial1.write(number);
@@ -23,10 +27,12 @@ inline void sendMIDI(uint8_t channel, bool isPC, uint8_t number, uint8_t value =
     if(tud_mounted()) midi.controlChange(number, value, channel + 1);
     uint8_t b[3] = { (uint8_t)(0xB0 | channel), number, value };
     bleMidiSendBytes(b, 3);
+    udpBroadcastSend(b, 3);
+    espNowSend(b, 3);
   }
 }
 
-// Send a MIDI Timing Clock byte (0xF8) to DIN + USB + BLE.
+// Send a MIDI Timing Clock byte (0xF8) to DIN + USB + BLE + wireless.
 // USB write is guarded by tud_mounted(): without a host the send buffer fills
 // up and write() blocks, triggering the watchdog.
 inline void sendClockTick() {
@@ -34,10 +40,12 @@ inline void sendClockTick() {
   if(tud_mounted()) midi.write(0xF8);
   uint8_t b[1] = { 0xF8 };
   bleMidiSendBytes(b, 1);
+  udpBroadcastSend(b, 1);
+  espNowSend(b, 1);
 }
 
 // Send a 14-bit Pitch Bend (0xE0|ch, LSB, MSB). Range 0..16383, center 8192.
-// DIN + USB + BLE. USB guarded by tud_mounted() to avoid blocking when no host.
+// DIN + USB + BLE + wireless. USB guarded by tud_mounted() to avoid blocking when no host.
 inline void sendPitchBend(uint8_t channel, uint16_t value14) {
   if(value14 > 16383) value14 = 16383;
   uint8_t status = 0xE0 | (channel & 0x0F);
@@ -52,6 +60,8 @@ inline void sendPitchBend(uint8_t channel, uint16_t value14) {
   }
   uint8_t b[3] = { status, lsb, msb };
   bleMidiSendBytes(b, 3);
+  udpBroadcastSend(b, 3);
+  espNowSend(b, 3);
 }
 
 inline void sendNote(uint8_t channel, uint8_t note, bool on, uint8_t velocity = 100) {
@@ -69,16 +79,20 @@ inline void sendNote(uint8_t channel, uint8_t note, bool on, uint8_t velocity = 
   }
   uint8_t b[3] = { status, (uint8_t)(note & 0x7F), vel };
   bleMidiSendBytes(b, 3);
+  udpBroadcastSend(b, 3);
+  espNowSend(b, 3);
 }
 
 // ── System / Transport helpers ───────────────────────────────────────────────
 
-// Send a single-byte System Real-Time message (0xF8–0xFF). DIN + USB + BLE.
+// Send a single-byte System Real-Time message (0xF8–0xFF). DIN + USB + BLE + wireless.
 inline void sendSystemRealtime(uint8_t byte) {
   Serial1.write(byte);
   if(tud_mounted()) midi.write(byte);
   uint8_t b[1] = { byte };
   bleMidiSendBytes(b, 1);
+  udpBroadcastSend(b, 1);
+  espNowSend(b, 1);
 }
 
 // Send an MMC (MIDI Machine Control) SysEx command:
@@ -96,10 +110,12 @@ inline void sendMMC(uint8_t cmd) {
     midi.writePacket(&p2);
   }
   bleMidiSendSysEx(bytes, 6);
+  udpBroadcastSend(bytes, 6);
+  espNowSend(bytes, 6);
 }
 
 // Send a Song Position Pointer (F2 lsb msb). 14-bit position in MIDI beats.
-// DIN + USB (USB as CIN 0x3 system-common 3-byte packet) + BLE.
+// DIN + USB (USB as CIN 0x3 system-common 3-byte packet) + BLE + wireless.
 inline void sendSPP(uint16_t pos) {
   uint8_t lsb = pos & 0x7F;
   uint8_t msb = (pos >> 7) & 0x7F;
@@ -112,4 +128,6 @@ inline void sendSPP(uint16_t pos) {
   }
   uint8_t b[3] = { 0xF2, lsb, msb };
   bleMidiSendBytes(b, 3);
+  udpBroadcastSend(b, 3);
+  espNowSend(b, 3);
 }
