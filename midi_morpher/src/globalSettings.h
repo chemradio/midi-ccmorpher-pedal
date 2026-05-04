@@ -62,6 +62,6 @@ struct GlobalSettings {
     bool     clockOutput      = true;         // forward clock (internal/external) to MIDI outputs
     bool     captivePortal    = true;         // redirect all unknown URLs to UI (OS "Sign in" prompt)
     uint8_t  presetCount      = 6;            // 1–128: PRESET button and web UI cycle within [0, presetCount)
-    bool     udpEnabled       = false;        // broadcast raw MIDI over WiFi UDP (port 5005)
-    bool     espNowEnabled    = false;        // broadcast raw MIDI via ESP-NOW
+    bool     udpEnabled       = true;         // broadcast raw MIDI over WiFi UDP (port 5005)
+    bool     espNowEnabled    = true;         // broadcast raw MIDI via ESP-NOW
 };

@@ -16,6 +16,12 @@
 // UART TX feeds the MIDI output stage. See WIRING.md for schematic options.
 #define MIDI_TX_PIN  17
 
+// ── MIDI activity LED ─────────────────────────────────────────────────────────
+// Built-in blue LED on most ESP32-S3 DevKit-C1 boards. Pulses briefly whenever
+// MIDI bytes are received. Set to -1 to disable.
+#define MIDI_ACTIVITY_LED_PIN  38
+#define MIDI_ACTIVITY_LED_MS   40   // pulse duration in ms
+
 // ── WiFi UDP transport ────────────────────────────────────────────────────────
 #define WIFI_SSID       "MIDI Morpher"
 #define WIFI_PASS       "midimorpher"

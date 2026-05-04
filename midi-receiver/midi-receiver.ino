@@ -15,8 +15,16 @@ USBMIDI usbMidi;
 
 static TransportManager transport;
 
+#if MIDI_ACTIVITY_LED_PIN >= 0
+static volatile bool  _midiActivity    = false;
+static unsigned long  _midiActivityEnd = 0;
+#endif
+
 static void onMidi(const uint8_t *data, size_t len) {
   midiOutBytes(data, len);
+#if MIDI_ACTIVITY_LED_PIN >= 0
+  _midiActivity = true;
+#endif
 }
 
 void setup() {
@@ -30,11 +38,28 @@ void setup() {
   USB.begin();
   delay(500);
 
+#if MIDI_ACTIVITY_LED_PIN >= 0
+  pinMode(MIDI_ACTIVITY_LED_PIN, OUTPUT);
+  digitalWrite(MIDI_ACTIVITY_LED_PIN, LOW);
+#endif
+
   midiOutInit();
   transport.begin(onMidi);
 }
 
 void loop() {
   transport.loop();
+
+#if MIDI_ACTIVITY_LED_PIN >= 0
+  if (_midiActivity) {
+    _midiActivity    = false;
+    _midiActivityEnd = millis() + MIDI_ACTIVITY_LED_MS;
+    digitalWrite(MIDI_ACTIVITY_LED_PIN, HIGH);
+  } else if (_midiActivityEnd && millis() >= _midiActivityEnd) {
+    _midiActivityEnd = 0;
+    digitalWrite(MIDI_ACTIVITY_LED_PIN, LOW);
+  }
+#endif
+
   delay(1);
 }

@@ -1,11 +1,11 @@
 #pragma once
-#include "../expression/expInput.h"
 #include "../clock/midiClock.h"
-#include "../controls/pots.h"
+#include "../controls/hidKeyboard.h"
+#include "../expression/expInput.h"
 #include "../footswitches/footswitch.h"
 #include "../pedalState.h"
 #include "../statePersistence.h"
-#include "../controls/hidKeyboard.h"
+#include "midiUdpBroadcast.h"
 #include "webUI.h"
 #include <DNSServer.h>
 #include <ESPmDNS.h>
@@ -47,10 +47,12 @@ inline void startAP() {
   _dnsRunning = cp;
   MDNS.begin("midimorpher");
   webServer.begin();
+  udpBroadcastInit();
   _apRunning = true;
 }
 
 inline void stopAP() {
+  udpBroadcastDeinit();
   MDNS.end();
   if(_dnsRunning) {
     dnsServer.stop();
@@ -61,7 +63,6 @@ inline void stopAP() {
   WiFi.mode(WIFI_OFF);
   _apRunning = false;
 }
-
 
 #include "webJson.h"
 #include "webApi.h"

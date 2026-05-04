@@ -64,9 +64,8 @@ void setup() {
   loadExpCalibration(pedal);
   applyGlobalSettings(pedal);
 
-  initWebServer(pedal);
+  initWebServer(pedal);  // also calls udpBroadcastInit() via startAP()
   initBleMidi();
-  if(pedal.globalSettings.udpEnabled) udpBroadcastInit();
   if(pedal.globalSettings.espNowEnabled) espNowInit();
   initFSLeds();
   showStartupScreen();

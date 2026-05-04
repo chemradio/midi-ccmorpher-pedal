@@ -141,9 +141,9 @@ struct MidiCCModulator {
   // Returns true  when the ramp is complete (outValue = targetValue).
   // Returns false when in progress         (outValue = shaped interpolation).
   bool calcRampValue(uint16_t &outValue) {
-    bool     goingUp  = (targetValue > currentValue);
-    uint16_t distance = goingUp ? (uint16_t)(targetValue - currentValue)
-                                : (uint16_t)(currentValue - targetValue);
+    bool     goingUp  = (targetValue > rampStartValue);
+    uint16_t distance = goingUp ? (uint16_t)(targetValue - rampStartValue)
+                                : (uint16_t)(rampStartValue - targetValue);
     unsigned long fullDur = goingUp ? rampUpTimeMs : rampDownTimeMs;
     unsigned long dur     = (unsigned long)(fullDur * ((float)distance / (float)MOD_MAX_14BIT));
 

@@ -1,7 +1,5 @@
 #pragma once
 
-// BLE transport is only available on chips with Bluetooth hardware.
-// Attempting to compile on ESP32-S2 / S2-mini will produce a clear error.
 #ifndef CONFIG_BT_ENABLED
 #  error "BLE transport requires a chip with Bluetooth (e.g. ESP32-S3). Use TRANSPORT_WIFI_UDP or TRANSPORT_ESPNOW for S2/S2-mini."
 #endif
@@ -9,13 +7,11 @@
 #include <NimBLEDevice.h>
 #include "transport.h"
 
-// Standard Apple BLE-MIDI UUIDs
 #define BLE_RX_SERVICE_UUID "03B80E5A-EDE8-4B33-A751-6CE34EC4C700"
 #define BLE_RX_CHAR_UUID    "7772E5DB-3868-4112-A1A9-F2669D106BF3"
 
 // ── BLE-MIDI packet parser ────────────────────────────────────────────────────
 // Strips BLE-MIDI header/timestamp bytes and extracts raw MIDI bytes.
-// Mirrors the logic in bleMidi.h on the Morpher side.
 static void _bleParseMidi(const uint8_t *data, size_t len,
                            MidiDataCallback cb) {
   if (len < 3 || !cb) return;
@@ -24,7 +20,6 @@ static void _bleParseMidi(const uint8_t *data, size_t len,
   uint8_t dataRem = 0;
   bool    wantTs  = true;
 
-  // Collect parsed bytes and fire callback per complete message.
   uint8_t msg[3];
   uint8_t msgLen = 0;
 
@@ -88,49 +83,97 @@ static void _bleParseMidi(const uint8_t *data, size_t len,
   flush();
 }
 
-// ── NimBLE client transport ───────────────────────────────────────────────────
+// ── Shared state (NimBLE callbacks run in the BLE task, not main loop) ────────
+static MidiDataCallback     _bleCb          = nullptr;
+static volatile bool        _bleFoundDevice = false;
+static volatile bool        _bleScanDone    = false;
+static NimBLEAddress        _bleFoundAddr;
 
-static MidiDataCallback _bleCb = nullptr;
-
-class BleNotifyCallbacks : public NimBLEClientCallbacks {
+class BleScanCallbacks : public NimBLEScanCallbacks {
 public:
-  void onDisconnect(NimBLEClient *cl, int reason) override {
-    Serial.printf("[BLE] Disconnected (reason %d), will retry\n", reason);
+  void onResult(const NimBLEAdvertisedDevice *dev) override {
+    if (!_bleFoundDevice && dev->getName() == "MIDI Morpher") {
+      _bleFoundAddr   = dev->getAddress();
+      _bleFoundDevice = true;
+      NimBLEDevice::getScan()->stop();  // triggers onScanEnd
+    }
+  }
+  void onScanEnd(const NimBLEScanResults &, int) override {
+    _bleScanDone = true;
   }
 };
-static BleNotifyCallbacks _bleCallbacks;
+static BleScanCallbacks _bleScanCbs;
 
 static void _bleNotify(NimBLERemoteCharacteristic *,
                        uint8_t *data, size_t len, bool) {
   _bleParseMidi(data, len, _bleCb);
 }
 
+class BleClientCallbacks : public NimBLEClientCallbacks {
+public:
+  void onDisconnect(NimBLEClient *cl, int reason) override {
+    Serial.printf("[BLE] Disconnected (reason %d), will rescan\n", reason);
+  }
+};
+static BleClientCallbacks _bleClientCbs;
+
+// ── BLE transport ─────────────────────────────────────────────────────────────
+
 class BleTransport : public Transport {
 public:
   void begin(MidiDataCallback cb) override {
-    _bleCb     = cb;
-    _connected = false;
+    _bleCb          = cb;
+    _connected      = false;
+    _scanning       = false;
+    _bleFoundDevice = false;
+    _bleScanDone    = false;
+    _lastAttempt    = 0;
+
     NimBLEDevice::init("");
     NimBLEDevice::setPower(9);
-    Serial.println(F("[BLE] Scanning for MIDI Morpher..."));
+
+    NimBLEScan *scan = NimBLEDevice::getScan();
+    scan->setScanCallbacks(&_bleScanCbs, false);
+    scan->setActiveScan(true);
+    scan->setInterval(100);
+    scan->setWindow(99);
+
     _startScan();
   }
 
   void loop() override {
-    if (_connected && !_client->isConnected()) {
+    // Detect server-side disconnect
+    if (_connected && _client && !_client->isConnected()) {
       _connected = false;
-      Serial.println(F("[BLE] Connection dropped, rescanning..."));
+      Serial.println(F("[BLE] Lost connection, will rescan"));
     }
-    if (!_connected && millis() - _lastAttempt > 5000) {
-      _lastAttempt = millis();
+
+    // Scan finished — try to connect if device was spotted
+    if (_scanning && _bleScanDone) {
+      _scanning    = false;
+      _bleScanDone = false;
+      if (_bleFoundDevice) {
+        _bleFoundDevice = false;
+        _connect(_bleFoundAddr);
+      } else {
+        _lastAttempt = millis();  // wait before retry
+      }
+    }
+
+    // Retry scan when idle and not connected
+    if (!_connected && !_scanning && millis() - _lastAttempt > 5000) {
       _startScan();
     }
   }
 
   void stop() override {
+    NimBLEDevice::getScan()->stop();
     if (_client && _client->isConnected()) _client->disconnect();
     NimBLEDevice::deinit(true);
-    _connected = false;
+    _connected      = false;
+    _scanning       = false;
+    _bleFoundDevice = false;
+    _bleScanDone    = false;
   }
 
   bool connected() const override { return _connected; }
@@ -138,47 +181,41 @@ public:
 private:
   NimBLEClient *_client      = nullptr;
   bool          _connected   = false;
+  bool          _scanning    = false;
   unsigned long _lastAttempt = 0;
 
   void _startScan() {
-    NimBLEScan *scan = NimBLEDevice::getScan();
-    scan->setActiveScan(true);
-    scan->setInterval(100);
-    scan->setWindow(99);
-    // Blocking scan for up to 5 s; non-blocking variant requires callbacks
-    // and complicates the reconnect loop — keep it simple here.
-    NimBLEScanResults results = scan->start(5, false);
-    for (int i = 0; i < results.getCount(); i++) {
-      NimBLEAdvertisedDevice dev = results.getDevice(i);
-      if (dev.getName() == "MIDI Morpher") {
-        scan->stop();
-        _connect(dev.getAddress());
-        return;
-      }
-    }
-    Serial.println(F("[BLE] MIDI Morpher not found, will retry"));
+    _bleFoundDevice = false;
+    _bleScanDone    = false;
+    _scanning       = true;
+    _lastAttempt    = millis();
+    Serial.println(F("[BLE] Scanning for MIDI Morpher..."));
+    NimBLEDevice::getScan()->start(5, false);  // 5-second async scan
   }
 
   void _connect(const NimBLEAddress &addr) {
     if (!_client) {
       _client = NimBLEDevice::createClient();
-      _client->setClientCallbacks(&_bleCallbacks, false);
+      _client->setClientCallbacks(&_bleClientCbs, false);
       _client->setConnectionParams(12, 12, 0, 150);
     }
     if (!_client->connect(addr)) {
       Serial.println(F("[BLE] Connect failed"));
+      _lastAttempt = millis();
       return;
     }
     NimBLERemoteService *svc = _client->getService(BLE_RX_SERVICE_UUID);
     if (!svc) {
       Serial.println(F("[BLE] MIDI service not found"));
       _client->disconnect();
+      _lastAttempt = millis();
       return;
     }
     NimBLERemoteCharacteristic *chr = svc->getCharacteristic(BLE_RX_CHAR_UUID);
     if (!chr || !chr->canNotify()) {
       Serial.println(F("[BLE] MIDI char not found or not notifiable"));
       _client->disconnect();
+      _lastAttempt = millis();
       return;
     }
     chr->subscribe(true, _bleNotify);
