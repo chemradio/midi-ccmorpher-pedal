@@ -1,6 +1,6 @@
-# MIDI CCMorpher
+# Tilt4
 
-MIDI CCMorpher is an ESP32-S3 based MIDI controller pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), 128 presets for all footswitches, a rotary encoder, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, BLE MIDI. Each preset can store completely different configurations per footswitch, including per-preset BPM.
+Tilt4 is an ESP32-S3 based MIDI modulation pedal with 6 independently configurable footswitches (4 onboard + 2 external via jack), 128 presets for all footswitches, a rotary encoder, an SSD1306 OLED display, and a built-in WiFi web interface. Its standout feature is a MIDI CC modulation/morphing engine. Output is via mini-TRS MIDI, USB-C MIDI, BLE MIDI. Each preset can store completely different configurations per footswitch, including per-preset BPM.
 Firmware target: ESP32-S3-N16R8, Arduino framework.
 
 ---
@@ -13,8 +13,8 @@ Firmware target: ESP32-S3-N16R8, Arduino framework.
 - 7 Neopixels - one per footswitch + tempo
 - expression pedal in jack
 - mini-TRS MIDI out + in (MIDI Thru), USB-C MIDI out/thru, BLE MIDI in/out
-- built-in AP mode — SSID "MIDI Morpher", password "midimorpher", UI at 192.168.4.1. Always on except when Lock Settings is engaged.
-- standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`), advertised as `MIDI Morpher`. Always on. Coexists with the WiFi AP via radio time-slicing.
+- built-in AP mode — SSID "Tilt4", password "tilt4pedal", UI at 192.168.4.1. Always on except when Lock Settings is engaged.
+- standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`), advertised as `Tilt4`. Always on. Coexists with the WiFi AP via radio time-slicing.
 
 ---
 
@@ -125,7 +125,7 @@ Transient UI state on `PedalState` (`inModeSelect`, `inActionSelect`, `inChannel
 
 ## WiFi Web Interface
 
-- AP SSID: `MIDI Morpher`, password: `midimorpher`
+- AP SSID: `Tilt4`, password: `tilt4pedal`
 - UI served at `http://192.168.4.1` — dark-themed SPA embedded as PROGMEM string in `src/wifi/webUI.h`
 - **WiFi is always on** at boot. It turns off only when Lock Settings is engaged, and restarts when disengaged. There is no separate WiFi toggle.
 - **Captive portal:** `DNSServer` catches all DNS queries and redirects to `192.168.4.1`. `webServer.onNotFound(handleCaptivePortal)` returns a 302 to `/` for any unregistered URL, including OS probes like `/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`. Phones/laptops then show a "Sign in to network" prompt that opens the UI automatically.
@@ -134,13 +134,13 @@ Transient UI state on `PedalState` (`inModeSelect`, `inActionSelect`, `inChannel
 
 ## MIDI Receiver Sub-project (`midi-receiver/`)
 
-Companion sketch for ESP32-S3, ESP32-S2, or ESP32-S2-mini. Receives MIDI wirelessly from the MIDI Morpher and re-outputs it via USB MIDI (native USB) and DIN/TRS MIDI (Serial1).
+Companion sketch for ESP32-S3, ESP32-S2, or ESP32-S2-mini. Receives MIDI wirelessly from Tilt4 and re-outputs it via USB MIDI (native USB) and DIN/TRS MIDI (Serial1).
 
 - **Transport selection:** runtime, short-press `TRANSPORT_SELECT_BTN_PIN` (default GPIO 0 / BOOT button). Cycles: WiFi UDP → BLE (S3 only) → ESP-NOW → … Persisted to NVS namespace `"rxcfg"` key `"transport"`.
 - **Status NeoPixel:** `STATUS_NEOPIXEL_PIN` (default GPIO 48 = onboard RGB on most ESP32-S3 DevKits) shows the active transport's color — orange = WiFi UDP, blue = BLE, purple = ESP-NOW. Blinks at 1 Hz while connecting, solid once `connected()` is true; falls back to blinking on disconnect. Brightness `STATUS_NEOPIXEL_BRIGHTNESS` (~26/255 ≈ 10%). Set pin to `-1` to disable.
 - **BLE:** only compiled in when `CONFIG_BT_ENABLED` is defined (S3 toolchain). S2/S2-mini compile fine without it and see only two transport slots.
 - **MIDI output:** `src/midi_output.h` — bytes forwarded to DIN UART immediately; USB MIDI packets assembled via static state machine.
-- **Morpher side:** `udpEnabled` / `espNowEnabled` toggles in `GlobalSettings` (web UI). ESP-NOW pairing: Morpher always listens for `MMPR` magic, registers unicast peer, sends `MMPA` ACK. Receiver re-sends `MMPR` every 30 s.
+- **Tilt4 side:** `udpEnabled` / `espNowEnabled` toggles in `GlobalSettings` (web UI). ESP-NOW pairing: Tilt4 always listens for `MMPR` magic, registers unicast peer, sends `MMPA` ACK. Receiver re-sends `MMPR` every 30 s.
 - **Key files:** `config.h` (pins + WiFi/ESP-NOW params), `src/transport_manager.h` (runtime switching + NVS + LED blink), `src/midi_output.h`, `src/transport/` (one `.h` per transport).
 
 ---

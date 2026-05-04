@@ -1,4 +1,6 @@
-# MIDI Morpher
+# Tilt4
+
+**Tilt4 — MIDI modulation pedal.**
 
 A programmable MIDI controller pedal built on ESP32-S3. Its standout feature is a real-time MIDI CC modulation engine — ramp, LFO, stepper, and random sweeps — alongside full basic MIDI (PC, CC, Note, Scene/Snapshot). Every parameter is configurable on-device via encoder, or wirelessly via a built-in web interface. Six independent presets let you store and recall complete configurations instantly.
 
@@ -38,16 +40,16 @@ A 5-minute path from "powered on" to "sending MIDI from a footswitch":
 **2. Connect MIDI.** Use any one — they all run simultaneously:
 
 - **Wired DIN:** plug a TRS MIDI cable into the mini-TRS Out.
-- **USB:** the pedal enumerates as `MIDI Morpher 1.0` over USB-C.
-- **BLE:** in your DAW / phone, scan for Bluetooth MIDI devices and pair with `MIDI Morpher` (no PIN). Works natively on iOS, macOS, Windows 10+, Linux, Android.
+- **USB:** the pedal enumerates as `Tilt4 1.0` over USB-C.
+- **BLE:** in your DAW / phone, scan for Bluetooth MIDI devices and pair with `Tilt4` (no PIN). Works natively on iOS, macOS, Windows 10+, Linux, Android.
 
 **3. Tap a footswitch.** Out of the box, FS1–FS4 send Program Changes 1–4 on channel 1. The activity LED lights and the OLED briefly highlights the row that fired.
 
 **4. Connect to the web UI** (optional, recommended):
 
-- On your phone or laptop, join the WiFi network **`MIDI Morpher`** (password **`midimorpher`**).
+- On your phone or laptop, join the WiFi network **`Tilt4`** (password **`tilt4pedal`**).
 - Most devices will pop up a "Sign in to network" prompt — tap it, the UI opens.
-- Or browse to `http://192.168.4.1` (or `http://midimorpher.local`).
+- Or browse to `http://192.168.4.1` (or `http://tilt4.local`).
 
 **5. Change a footswitch's behavior** — pick one of these:
 
@@ -323,7 +325,7 @@ A ramp that only reached CC 50 will return twice as fast as one that reached CC 
 
 ## BLE MIDI
 
-The pedal advertises itself as **MIDI Morpher** using the standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`). Compatible with iOS, macOS, Windows, Linux, and Android. BLE MIDI is always active — Lock Settings does not affect it.
+The pedal advertises itself as **Tilt4** using the standard Apple BLE-MIDI service (UUID `03B80E5A-EDE8-4B33-A751-6CE34EC4C700`). Compatible with iOS, macOS, Windows, Linux, and Android. BLE MIDI is always active — Lock Settings does not affect it.
 
 BLE MIDI coexists with the WiFi AP via radio time-slicing. BLE TX and RX can be routed to/from DIN and USB via the configurable MIDI routing flags.
 
@@ -333,9 +335,9 @@ BLE MIDI coexists with the WiFi AP via radio time-slicing. BLE TX and RX can be 
 
 The pedal broadcasts its own WiFi access point (always on, except when Lock Settings is engaged):
 
-- **Network:** `MIDI Morpher`
-- **Password:** `midimorpher`
-- **Address:** `http://192.168.4.1` or `http://midimorpher.local` (mDNS)
+- **Network:** `Tilt4`
+- **Password:** `tilt4pedal`
+- **Address:** `http://192.168.4.1` or `http://tilt4.local` (mDNS)
 
 Connect from any phone, tablet, or laptop — no app required.
 
@@ -356,7 +358,7 @@ Any setting change marks the active preset as unsaved. A `● Unsaved` badge app
 
 ### Captive Portal
 
-When you connect to the `MIDI Morpher` network, the pedal's DNS server catches every query and its HTTP server 302-redirects any unknown URL (including OS probes like `/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`) to `http://192.168.4.1/`. Phones and laptops respond by popping up a "Sign in to network" prompt that opens the UI directly — no need to type the address.
+When you connect to the `Tilt4` network, the pedal's DNS server catches every query and its HTTP server 302-redirects any unknown URL (including OS probes like `/generate_204`, `/hotspot-detect.html`, `/ncsi.txt`) to `http://192.168.4.1/`. Phones and laptops respond by popping up a "Sign in to network" prompt that opens the UI directly — no need to type the address.
 
 ### WiFi and Lock Settings
 
@@ -506,7 +508,7 @@ If the pedal moves beyond the stored range during normal use, the range expands 
 
 ## MIDI Thru
 
-The mini-TRS MIDI In passes all received MIDI messages directly to the MIDI Out. Use this to daisy-chain other MIDI controllers while the MIDI Morpher is in the signal path.
+The mini-TRS MIDI In passes all received MIDI messages directly to the MIDI Out. Use this to daisy-chain other MIDI controllers while Tilt4 is in the signal path.
 
 ---
 
