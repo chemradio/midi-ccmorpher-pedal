@@ -4,9 +4,6 @@
 #include <Adafruit_NeoPixel.h>
 #include "transport/transport.h"
 #include "transport/wifi_udp_transport.h"
-#ifdef CONFIG_BT_ENABLED
-#  include "transport/ble_transport.h"
-#endif
 #include "transport/espnow_transport.h"
 #include "../config.h"
 
@@ -17,16 +14,10 @@ struct _TEntry {
 };
 
 static WifiUdpTransport _tUdp;
-#ifdef CONFIG_BT_ENABLED
-static BleTransport     _tBle;
-#endif
 static EspNowTransport  _tEspNow;
 
 static _TEntry _tList[] = {
   { &_tUdp,    "WiFi UDP", 0xFF8000 },  // orange
-#ifdef CONFIG_BT_ENABLED
-  { &_tBle,    "BLE",      0x0000FF },  // blue
-#endif
   { &_tEspNow, "ESP-NOW",  0xA020F0 },  // purple
 };
 static const uint8_t _tCount = sizeof(_tList) / sizeof(_tList[0]);

@@ -1,13 +1,13 @@
 #pragma once
 
 // ── Transport select button ───────────────────────────────────────────────────
-// Short press cycles: WiFi UDP → BLE (S3 only) → ESP-NOW → …
+// Short press cycles: WiFi UDP → ESP-NOW → …
 // Selection is persisted to NVS (namespace "rxcfg", key "transport").
 // Wire a momentary switch to GND; internal pull-up is enabled.
 #define TRANSPORT_SELECT_BTN_PIN  4   // free GPIO, not a strapping pin
 
 // ── Status NeoPixel ───────────────────────────────────────────────────────────
-// Single WS2812 lit in a per-transport color: WiFi UDP = orange, BLE = blue,
+// Single WS2812 lit in a per-transport color: WiFi UDP = orange,
 // ESP-NOW = purple. Set pin to -1 to disable.
 #define STATUS_NEOPIXEL_PIN         48   // GPIO 48 = onboard RGB on most ESP32-S3 DevKits
 #define STATUS_NEOPIXEL_BRIGHTNESS  26   // ~10% of 255

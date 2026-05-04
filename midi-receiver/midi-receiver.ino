@@ -2,7 +2,7 @@
 // Target boards: ESP32-S3, ESP32-S2, ESP32-S2-mini
 //
 // Transport is selected at runtime by pressing the BOOT button (GPIO 0).
-// Cycles: WiFi UDP → BLE (S3 only) → ESP-NOW → …
+// Cycles: WiFi UDP → ESP-NOW → …
 // Selection is persisted to NVS so it survives reboot.
 //
 // Output: USB MIDI (native USB) + DIN MIDI (Serial1 TX on MIDI_TX_PIN)

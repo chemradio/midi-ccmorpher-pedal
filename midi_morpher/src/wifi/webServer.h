@@ -47,7 +47,7 @@ inline void startAP() {
   _dnsRunning = cp;
   MDNS.begin("midimorpher");
   webServer.begin();
-  udpBroadcastInit();
+  if(_webPedal && _webPedal->globalSettings.udpEnabled) udpBroadcastInit();
   _apRunning = true;
 }
 
