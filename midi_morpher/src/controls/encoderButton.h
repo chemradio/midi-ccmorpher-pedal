@@ -133,7 +133,7 @@ inline void handleEncoderButton(PedalState &pedal,
 
       // ── Main menu ─────────────────────────────────────────────────────────
       if(pedal.menuState != MenuState::NONE) {
-        handleMenuPress(pedal);
+        handleMenuPress(pedal, displayActionSelect);
         return;
       }
 
@@ -544,7 +544,7 @@ inline void handleEncoderButton(PedalState &pedal,
       return;
     }
 
-    if(pedal.menuState == MenuState::ROUTING && (now - encBtnPressStart) >= GLOBAL_TIMEOUT_MS) {
+    if((pedal.menuState == MenuState::ROUTING || pedal.menuState == MenuState::FS_SELECT) && (now - encBtnPressStart) >= GLOBAL_TIMEOUT_MS) {
       handleMenuLongPress(pedal);
       encBtnHandled = true;
       return;

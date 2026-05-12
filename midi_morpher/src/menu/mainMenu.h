@@ -7,30 +7,31 @@
 #include "../visual/display.h"
 
 // ── Menu item indices ──────────────────────────────────────────────────────────
-#define MENU_MIDI_CH       0
-#define MENU_ROUTINGS      1
-#define MENU_ENC_ACTION    2
-#define MENU_ENC_CC        3
-#define MENU_ENC_KEY_R     4
-#define MENU_ENC_KEY_L     5
-#define MENU_EXP_CC        6
-#define MENU_EXP_CAL       7
-#define MENU_EXP_WAKE      8
-#define MENU_LEDS          9
-#define MENU_TEMPO_LED     10
-#define MENU_PER_FS_MOD    11
-#define MENU_CLOCK_GEN     12
-#define MENU_CLOCK_OUT     13
-#define MENU_BRIGHTNESS    14
-#define MENU_TIMEOUT       15
-#define MENU_PRESET_COUNT  16
-#define MENU_PRESET_ACTION 17
-#define MENU_LOCK          18
-#define MENU_EXIT          19
-#define MENU_COUNT         20
+#define MENU_FS_CONFIG     0
+#define MENU_MIDI_CH       1
+#define MENU_ROUTINGS      2
+#define MENU_ENC_ACTION    3
+#define MENU_ENC_CC        4
+#define MENU_ENC_KEY_R     5
+#define MENU_ENC_KEY_L     6
+#define MENU_EXP_CC        7
+#define MENU_EXP_CAL       8
+#define MENU_EXP_WAKE      9
+#define MENU_LEDS          10
+#define MENU_TEMPO_LED     11
+#define MENU_PER_FS_MOD    12
+#define MENU_CLOCK_GEN     13
+#define MENU_CLOCK_OUT     14
+#define MENU_BRIGHTNESS    15
+#define MENU_TIMEOUT       16
+#define MENU_PRESET_COUNT  17
+#define MENU_PRESET_ACTION 18
+#define MENU_LOCK          19
+#define MENU_EXIT          20
+#define MENU_COUNT         21
 
 static const char *menuItemNames[] = {
-    "MIDI Channel", "Routings", "Enc Action", "Enc CC#", "Enc > Key", "Enc < Key",
+    "FS Config", "MIDI Channel", "Routings", "Enc Action", "Enc CC#", "Enc > Key", "Enc < Key",
     "Exp In CC", "Exp Cal", "Exp Wake", "LEDs", "Tempo LED",
     "Poly Mod", "Clock Gen", "Clock Out", "Brightness", "Screen ON",
     "Presets", "Preset Action", "Lock", "Exit"};
@@ -286,6 +287,26 @@ inline void displayMenuRouting(PedalState &pedal) {
   display.display();
 }
 
+inline void displayMenuFSSelect(PedalState &pedal) {
+  displayMode = DISPLAY_PARAM;
+  lastInteraction = millis();
+  display.clearDisplay();
+  display.invertDisplay(false);
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.print(F("Configure FS"));
+  display.drawFastHLine(0, 9, 128, SSD1306_WHITE);
+
+  for(uint8_t i = 0; i < 6; i++) {
+    int y = 11 + i * 9;
+    display.setCursor(0, y);
+    display.print(i == pedal.menuRoutingIdx ? '>' : ' ');
+    display.print(pedal.buttons[i].name);
+  }
+  display.display();
+}
+
 inline void displayMenuLockConfirm(PedalState &pedal) {
   displayMode = DISPLAY_PARAM;
   lastInteraction = millis();
@@ -407,15 +428,27 @@ inline void handleMenuRotate(PedalState &pedal, int delta) {
     pedal.menuRoutingIdx = (pedal.menuRoutingIdx == 0) ? 1 : 0;
     displayMenuLockConfirm(pedal);
     break;
+  case MenuState::FS_SELECT: {
+    int next = constrain((int)pedal.menuRoutingIdx + delta, 0, 5);
+    pedal.menuRoutingIdx = (uint8_t)next;
+    displayMenuFSSelect(pedal);
+    break;
+  }
   default:
     break;
   }
 }
 
-inline void handleMenuPress(PedalState &pedal) {
+inline void handleMenuPress(PedalState &pedal,
+                            void (*displayActionSelect)(FSButton &, uint8_t) = nullptr) {
   switch(pedal.menuState) {
   case MenuState::ROOT:
     switch(pedal.menuItemIdx) {
+    case MENU_FS_CONFIG:
+      pedal.menuState = MenuState::FS_SELECT;
+      pedal.menuRoutingIdx = 0;
+      displayMenuFSSelect(pedal);
+      break;
     case MENU_MIDI_CH:
     case MENU_ENC_ACTION:
     case MENU_ENC_CC:
@@ -534,13 +567,25 @@ inline void handleMenuPress(PedalState &pedal) {
     }
     break;
 
+  case MenuState::FS_SELECT: {
+    uint8_t idx = pedal.menuRoutingIdx;
+    if(idx >= 6 || !displayActionSelect) break;
+    pedal.menuState = MenuState::NONE;
+    pedal.inActionSelect = true;
+    pedal.actionSelectSlot = 0;
+    pedal.modeSelectFSIdx = (int8_t)idx;
+    pedal.modeSelectFromActionSelect = false;
+    displayActionSelect(pedal.buttons[idx], 0);
+    break;
+  }
+
   default:
     break;
   }
 }
 
 inline void handleMenuLongPress(PedalState &pedal) {
-  if(pedal.menuState == MenuState::ROUTING) {
+  if(pedal.menuState == MenuState::ROUTING || pedal.menuState == MenuState::FS_SELECT) {
     pedal.menuState = MenuState::ROOT;
     displayMenuRoot(pedal);
   }

@@ -44,24 +44,32 @@ inline uint8_t buildFSEditRows(const FSButton &btn, FSEditRow *rows) {
     rows[n++] = FSEditRow::MOD_DIR;
     rows[n++] = FSEditRow::MOD_TRIG;
     rows[n++] = FSEditRow::NUMBER;
+    rows[n++] = FSEditRow::CC_LO;
+    rows[n++] = FSEditRow::CC_HI;
     rows[n++] = FSEditRow::RAMP_UP;
     rows[n++] = FSEditRow::RAMP_DN;
   } else if(mi >= 18 && mi <= 23) {
     rows[n++] = FSEditRow::LFO_WAVE;
     rows[n++] = FSEditRow::MOD_TRIG;
     rows[n++] = FSEditRow::NUMBER;
+    rows[n++] = FSEditRow::CC_LO;
+    rows[n++] = FSEditRow::CC_HI;
     rows[n++] = FSEditRow::RAMP_UP;
     rows[n++] = FSEditRow::RAMP_DN;
   } else if(mi >= 24 && mi <= 27) {
     rows[n++] = FSEditRow::MOD_DIR;
     rows[n++] = FSEditRow::MOD_TRIG;
     rows[n++] = FSEditRow::NUMBER;
+    rows[n++] = FSEditRow::CC_LO;
+    rows[n++] = FSEditRow::CC_HI;
     rows[n++] = FSEditRow::RAMP_UP;
     rows[n++] = FSEditRow::RAMP_DN;
   } else if(mi >= 28 && mi <= 31) {
     rows[n++] = FSEditRow::MOD_DIR;
     rows[n++] = FSEditRow::MOD_TRIG;
     rows[n++] = FSEditRow::NUMBER;
+    rows[n++] = FSEditRow::CC_LO;
+    rows[n++] = FSEditRow::CC_HI;
     rows[n++] = FSEditRow::RAMP_UP;
     rows[n++] = FSEditRow::RAMP_DN;
   } else if(mi >= 32 && mi <= 39) {
@@ -104,8 +112,8 @@ inline const char* fsEditRowName(FSEditRow r, const FSButton &btn) {
       if(btn.mode == FootswitchMode::PresetNum) return "Preset#";
       if(btn.mode == FootswitchMode::Multi)     return "Multi";
       return "CC#";
-    case FSEditRow::CC_HI:    return "Hi";
-    case FSEditRow::CC_LO:    return "Lo";
+    case FSEditRow::CC_HI:    return btn.isModSwitch ? "Max" : "Hi";
+    case FSEditRow::CC_LO:    return btn.isModSwitch ? "Min" : "Lo";
     case FSEditRow::CC_VAL:   return "Value";
     case FSEditRow::VELOCITY: return "Vel";
     case FSEditRow::KB_MOD:   return "Mod";

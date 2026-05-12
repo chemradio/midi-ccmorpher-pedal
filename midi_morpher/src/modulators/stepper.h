@@ -1,11 +1,16 @@
 #pragma once
 
-// Maps a continuous 0–16383 value to the nearest step boundary.
-inline uint16_t quantize(uint16_t value, uint8_t steps) {
-  if (steps <= 1) return 0;
-  uint32_t stepSize = (uint32_t)MOD_MAX_14BIT / (uint32_t)(steps - 1);
-  uint32_t index    = ((uint32_t)value + stepSize / 2) / stepSize;
-  return (uint16_t)(index * stepSize);
+// Maps a continuous value to the nearest step boundary within [minV, maxV].
+inline uint16_t quantize(uint16_t value, uint8_t steps, uint16_t minV, uint16_t maxV) {
+  if (steps <= 1 || maxV <= minV) return minV;
+  uint32_t range    = (uint32_t)(maxV - minV);
+  uint32_t stepSize = range / (uint32_t)(steps - 1);
+  if (stepSize == 0) return minV;
+  if (value <= minV) return minV;
+  uint32_t off   = (uint32_t)value - (uint32_t)minV;
+  uint32_t index = (off + stepSize / 2) / stepSize;
+  if (index > (uint32_t)(steps - 1)) index = (uint32_t)(steps - 1);
+  return (uint16_t)((uint32_t)minV + index * stepSize);
 }
 
 inline void MidiCCModulator::updateStepper() {
@@ -15,7 +20,7 @@ inline void MidiCCModulator::updateStepper() {
   bool done = calcRampValue(newValue);
   if (done) isModulating = false;
 
-  newValue = quantize(newValue, stepperSteps);
+  newValue = quantize(newValue, stepperSteps, minValue14, maxValue14);
 
   if (newValue != currentValue) {
     currentValue = newValue;

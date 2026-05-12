@@ -40,6 +40,7 @@ enum class MenuState : uint8_t {
     EDITING,
     ROUTING,
     LOCK_CONFIRM,
+    FS_SELECT,
 };
 
 // ── Persisted global settings (not per-preset) ────────────────────────────────

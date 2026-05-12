@@ -127,6 +127,12 @@ struct FSButton {
       modulator.rampShape      = modMode.shape;
       if(modMode.isInverted)   modulator.restingHigh = true;
       else                     modulator.restingHigh = false;
+      // Push user-configured output range (CC dest only honors this; PB stays full).
+      uint16_t lo14 = (uint16_t)ccLow  << 7;
+      uint16_t hi14 = (uint16_t)ccHigh << 7;
+      if(hi14 < lo14) hi14 = lo14;
+      modulator.minValue14 = lo14;
+      modulator.maxValue14 = hi14;
       ModDest newDest = (midiNumber == PB_SENTINEL) ? DEST_PITCHBEND : DEST_CC;
       if(modulator.destType != newDest) {
         modulator.destType     = newDest;

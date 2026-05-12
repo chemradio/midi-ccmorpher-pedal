@@ -61,7 +61,7 @@ public:
     }
     // Re-send pair request periodically so the Morpher registers this device
     // as a unicast peer even after a Morpher reboot.
-    if (millis() - _lastPair > 30000) {
+    if (millis() - _lastPair > 2000) {
       _sendPairRequest();
     }
   }

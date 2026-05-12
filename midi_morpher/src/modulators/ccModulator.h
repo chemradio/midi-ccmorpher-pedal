@@ -36,8 +36,11 @@ struct MidiCCModulator {
   uint16_t currentValue = 0;
   uint16_t targetValue = 0;
   uint16_t rampStartValue = 0;
-  uint16_t randomMin = 0;
-  uint16_t randomMax = MOD_MAX_14BIT;
+  // User-configurable output range (CC dest only; PB dest stays 0/center/MAX).
+  // Driven from per-FS ccLow/ccHigh (0..127) << 7. Defaults give the full
+  // 0..MOD_MAX_14BIT range, matching previous behavior.
+  uint16_t minValue14 = 0;
+  uint16_t maxValue14 = MOD_MAX_14BIT;
   uint8_t  stepperSteps = 10;
   uint8_t  midiChannel = 0;
   uint8_t  midiCCNumber = 25;
@@ -68,10 +71,11 @@ struct MidiCCModulator {
 
   uint16_t restVal()   const {
     if(destType == DEST_PITCHBEND) return MOD_CENTER_14BIT;
-    return restingHigh ? MOD_MAX_14BIT : 0;
+    return restingHigh ? maxValue14 : minValue14;
   }
   uint16_t activeVal() const {
-    return restingHigh ? 0 : MOD_MAX_14BIT;
+    if(destType == DEST_PITCHBEND) return restingHigh ? 0 : MOD_MAX_14BIT;
+    return restingHigh ? minValue14 : maxValue14;
   }
 
   void setRestingLow() { // normal: rests at 0 (or center for PB)
